@@ -54,6 +54,14 @@ turns them into the right status code. Any other error becomes a 500 and is logg
 
 ## Run
 
+First time on a new machine? Follow [docs/setup.md](docs/setup.md) (Go, Air, `.env`).
+
+Copy `.env.example` to `.env` and configure as needed:
+
+```sh
+cp .env.example .env
+```
+
 ```sh
 go run ./cmd/server            # port 8080
 PORT=3000 go run ./cmd/server  # custom port
