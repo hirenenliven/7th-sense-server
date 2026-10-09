@@ -62,6 +62,12 @@ pg_isready                                   # localhost:5432 - accepting connec
 psql -U postgres -c "CREATE DATABASE \"7th_sense\";"
 ```
 
+Run the database migration to create all tables:
+
+```powershell
+psql -U postgres -d 7th_sense -f migrations/001_create_tables.sql
+```
+
 The server connects on startup and exits with `database connection failed: ...` if it cannot.
 
 ## 6. Clone the project
@@ -120,7 +126,7 @@ Check it is up:
 
 ```powershell
 curl http://localhost:8080/health
-# {"statusCode":200,"data":{"message":"OK"}}
+# {"statusCode":200,"success":true,"message":"success"}
 ```
 
 Stop with `Ctrl+C`.

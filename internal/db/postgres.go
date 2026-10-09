@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"7th-sense-server/internal/config"
@@ -36,4 +37,11 @@ func Connect(ctx context.Context, cfg config.DBConfig) (*pgxpool.Pool, error) {
 	}
 
 	return pool, nil
+}
+
+// Execute executes any type of SQL query with parameters.
+// For SELECT queries, use QueryRow for single row or Query for multiple rows.
+// For INSERT/UPDATE/DELETE, use Exec to get rows affected.
+func Execute(ctx context.Context, pool *pgxpool.Pool, query string, args ...any) (pgx.Rows, error) {
+	return pool.Query(ctx, query, args...)
 }

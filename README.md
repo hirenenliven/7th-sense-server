@@ -10,7 +10,8 @@ Layered structure (same idea as our Node.js projects: routes → controller → 
 ```
 cmd/server/main.go              entry point: loads config, wires layers, starts server, graceful shutdown
 internal/
-├── config/config.go            env config (PORT)                         ~ dotenv
+├── config/config.go            env config (PORT, DB_*)                   ~ dotenv
+├── db/postgres.go              PostgreSQL connection pool (pgx)          ~ db connection
 ├── routes/                     route registration                        ~ routes.js
 │   ├── routes.go               main router + global middleware + /health
 │   ├── user_routes.go
@@ -24,15 +25,24 @@ internal/
 ├── service/                    business rules (e.g. unique email)        ~ x.service.js
 ├── repository/                 data access (interface only)              ~ DB calls
 ├── model/                      stored entities                           ~ model/*.model.js
-└── response/                   response helpers                          ~ common/
-    ├── api_error.go            predefined errors (ErrUserNotFound, ...)  ~ Responses
-    └── send.go                 Send / SendError                          ~ sendResponse
+└── response/                   API responses                             ~ common/
+    ├── responses.go            predefined responses (Success, Created, NotFound, ...)  ~ Responses
+    └── send.go                 response.SendResponse – writes JSON responses   ~ sendResponse
 ```
 
 Request flow: `routes → middleware → handler → dto.Validate → service → repository`.
 
-Services return `*response.APIError` values (e.g. `response.ErrEmailExists`); `response.SendError`
-turns them into the right status code. Any other error becomes a 500 and is logged.
+Handlers write every response with `response.SendResponse(w, r, statusCode, message)`:
+
+```go
+response.SendResponse(w, r, http.StatusOK, items)        // 200 with data
+response.SendResponse(w, r, http.StatusCreated, item)     // 201 with data
+response.SendResponse(w, r, http.StatusOK, nil)          // 200, message only
+response.SendResponse(w, r, http.StatusInternalServerError, err)  // error from a service
+```
+
+Services and DTOs return failure responses directly (e.g. `return response.EmailExists`). Any other
+error becomes a 500 and is logged, so internals never reach the client.
 
 ### Naming conventions
 
@@ -69,8 +79,12 @@ PORT=3000 go run ./cmd/server  # custom port
 
 ## API
 
-All responses use the envelope `{"statusCode": <code>, "data": <payload>}`.
-Errors: `{"statusCode": 404, "data": {"success": false, "error": "User not found"}}`.
+Every response has the same shape (`data` is left out when there is none):
+
+```json
+{"statusCode": 200, "success": true, "message": "success", "data": {"id": "1", "name": "Hiren"}}
+{"statusCode": 404, "success": false, "message": "User not found"}
+```
 
 | Method | Path                | Description |
 |--------|---------------------|-------------|

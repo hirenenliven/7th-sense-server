@@ -27,7 +27,7 @@ func (s *ItemService) GetAll(ctx context.Context) ([]model.Item, error) {
 func (s *ItemService) GetByID(ctx context.Context, id string) (model.Item, error) {
 	item, err := s.repo.FindByID(ctx, id)
 	if errors.Is(err, repository.ErrNotFound) {
-		return model.Item{}, response.ErrItemNotFound
+		return model.Item{}, response.ItemNotFound
 	}
 	return item, err
 }
@@ -48,7 +48,7 @@ func (s *ItemService) Update(ctx context.Context, id string, req dto.ItemRequest
 		Price:       req.Price,
 	})
 	if errors.Is(err, repository.ErrNotFound) {
-		return model.Item{}, response.ErrItemNotFound
+		return model.Item{}, response.ItemNotFound
 	}
 	return item, err
 }
@@ -56,7 +56,7 @@ func (s *ItemService) Update(ctx context.Context, id string, req dto.ItemRequest
 func (s *ItemService) Delete(ctx context.Context, id string) error {
 	err := s.repo.Delete(ctx, id)
 	if errors.Is(err, repository.ErrNotFound) {
-		return response.ErrItemNotFound
+		return response.ItemNotFound
 	}
 	return err
 }

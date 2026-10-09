@@ -18,7 +18,7 @@ type validator interface {
 func decodeAndValidate(w http.ResponseWriter, r *http.Request, dst validator) error {
 	r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
 	if err := json.NewDecoder(r.Body).Decode(dst); err != nil {
-		return response.ErrInvalidJSON
+		return response.InvalidJSON
 	}
 	return dst.Validate()
 }

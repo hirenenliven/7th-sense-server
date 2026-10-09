@@ -19,10 +19,10 @@ func (r *UserRequest) Validate() error {
 	r.Email = strings.ToLower(strings.TrimSpace(r.Email))
 
 	if r.Name == "" {
-		return response.ErrInvalidName
+		return response.ValidUserName
 	}
 	if _, err := mail.ParseAddress(r.Email); err != nil {
-		return response.ErrInvalidEmail
+		return response.ValidEmail
 	}
 	return nil
 }

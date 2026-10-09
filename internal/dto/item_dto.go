@@ -19,10 +19,10 @@ func (r *ItemRequest) Validate() error {
 	r.Description = strings.TrimSpace(r.Description)
 
 	if r.Name == "" {
-		return response.ErrInvalidName
+		return response.ValidName
 	}
 	if r.Price < 0 {
-		return response.ErrInvalidPrice
+		return response.ValidPrice
 	}
 	return nil
 }

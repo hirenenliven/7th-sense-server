@@ -21,7 +21,7 @@ func New(h Handlers) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
-		response.Send(w, http.StatusOK, "OK")
+		response.SendResponse(w, r, response.Success, nil)
 	})
 
 	if h.User != nil {

@@ -15,7 +15,7 @@ func Recoverer(next http.Handler) http.Handler {
 		defer func() {
 			if err := recover(); err != nil {
 				log.Printf("panic: %v\n%s", err, debug.Stack())
-				response.SendError(w, response.ErrInternalServer)
+				response.SendResponse(w, r, response.ServerError, nil)
 			}
 		}()
 		next.ServeHTTP(w, r)
