@@ -51,14 +51,27 @@ If `air` is "not recognized as an internal or external command", step 3 was not 
 check that `air.exe` exists in `C:\Users\<you>\go\bin` and that this folder is on PATH, then
 open a new terminal.
 
-## 5. Clone the project
+## 5. Install PostgreSQL and create the database
+
+Download from https://www.postgresql.org/download/ and install (remember the password you set
+for the `postgres` user). Make sure the `bin` folder (e.g. `C:\Program Files\PostgreSQL\18\bin`)
+is on PATH, then:
+
+```powershell
+pg_isready                                   # localhost:5432 - accepting connections
+psql -U postgres -c "CREATE DATABASE \"7th_sense\";"
+```
+
+The server connects on startup and exits with `database connection failed: ...` if it cannot.
+
+## 6. Clone the project
 
 ```powershell
 git clone https://github.com/hirenenliven/7th-sense-server.git
 cd 7th-sense-server
 ```
 
-## 6. Create the `.env` file
+## 7. Create the `.env` file
 
 `.env` is not committed to git, but `.env.example` is provided as a template:
 
@@ -72,23 +85,24 @@ Then edit `.env` if needed. The default values are:
 # Server Configuration
 PORT=8080
 
-# Database Configuration (for future use)
-# DB_HOST=localhost
-# DB_PORT=5432
-# DB_USER=your_username
-# DB_PASSWORD=your_password
-# DB_NAME=your_database
+# Database Configuration
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=your_password
+DB_DATABASE=7th_sense
+DB_SSLMODE=disable
 ```
 
-Without a `.env` file the server still starts on port 8080 and logs that no `.env` was found.
+Any missing value falls back to the defaults in `internal/config/config.go`.
 
-## 7. Download dependencies
+## 8. Download dependencies
 
 ```powershell
 go mod download
 ```
 
-## 8. Run
+## 9. Run
 
 With hot reload (rebuilds and restarts on every `.go` file save, using `.air.toml`):
 
@@ -117,6 +131,9 @@ Stop with `Ctrl+C`.
 |---------|-----|
 | `air` not recognized | Step 3 (PATH) and step 4; open a new terminal. |
 | `air.exe` is in `go\bin\windows_386\` | `GOARCH=386` is set, see step 2. Delete that folder and reinstall Air. |
+| `database connection failed: ... password authentication failed` | Wrong `DB_USER` / `DB_PASSWORD` in `.env`. |
+| `database connection failed: ... database "7th_sense" does not exist` | Create it (step 5) or fix `DB_DATABASE`. |
+| `database connection failed: ... connect: connection refused` | PostgreSQL is not running: `pg_isready`, or start the service in `services.msc`. |
 | `bind: Only one usage of each socket address` | Port 8080 is in use. Change `PORT` in `.env`, or find the process: `Get-NetTCPConnection -LocalPort 8080` |
 | "Process Exit with Code: 1" in Air output on reload | Normal on Windows: it is the old server being stopped. |
 | `go.mod` suddenly lists many unrelated packages | A `go get` / `go install` was run inside the project. Run `go mod tidy`. |

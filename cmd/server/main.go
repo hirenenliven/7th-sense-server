@@ -11,13 +11,21 @@ import (
 	"time"
 
 	"7th-sense-server/internal/config"
+	"7th-sense-server/internal/db"
 	"7th-sense-server/internal/routes"
 )
 
 func main() {
 	cfg := config.Load()
 
-	// TODO: once the database is added, wire repository -> service -> handler here:
+	pool, err := db.Connect(context.Background(), cfg.DB)
+	if err != nil {
+		log.Fatalf("database connection failed: %v", err)
+	}
+	defer pool.Close()
+	log.Printf("connected to database %s", cfg.DB.Name)
+
+	// TODO: wire Postgres repositories (using pool) -> service -> handler here:
 	//   User: handler.NewUserHandler(service.NewUserService(userRepo))
 	router := routes.New(routes.Handlers{})
 

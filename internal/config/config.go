@@ -10,18 +10,36 @@ import (
 // Config holds settings read from environment variables.
 type Config struct {
 	Port string
+	DB   DBConfig
+}
+
+// DBConfig holds the PostgreSQL connection settings.
+type DBConfig struct {
+	Host     string
+	Port     string
+	User     string
+	Password string
+	Name     string
+	SSLMode  string
 }
 
 // Load reads the config from the environment, falling back to defaults.
-// It loads variables from .env file if present.
+// Variables from a .env file are loaded first if the file exists.
 func Load() Config {
-	// Load .env file if it exists (ignore error if file doesn't exist)
 	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found or error loading .env, using system environment variables")
+		log.Println("no .env file found, using system environment variables")
 	}
 
 	return Config{
 		Port: getEnv("PORT", "8080"),
+		DB: DBConfig{
+			Host:     getEnv("DB_HOST", "localhost"),
+			Port:     getEnv("DB_PORT", "5432"),
+			User:     getEnv("DB_USER", "postgres"),
+			Password: getEnv("DB_PASSWORD", ""),
+			Name:     getEnv("DB_DATABASE", "postgres"),
+			SSLMode:  getEnv("DB_SSLMODE", "disable"),
+		},
 	}
 }
 
