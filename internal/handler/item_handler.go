@@ -19,62 +19,62 @@ func NewItemHandler(svc *service.ItemService) *ItemHandler {
 }
 
 // GetAll handles GET /api/v1/items.
-func (h *ItemHandler) GetAll(w http.ResponseWriter, r *http.Request) {
-	items, err := h.service.GetAll(r.Context())
+func (h *ItemHandler) GetAll(writer http.ResponseWriter, request *http.Request) {
+	items, err := h.service.GetAll(request.Context())
 	if err != nil {
-		response.SendResponse(w, r, err, nil)
+		response.SendResponse(writer, request, err, nil)
 		return
 	}
-	response.SendResponse(w, r, response.Success, items)
+	response.SendResponse(writer, request, response.Success, items)
 }
 
 // GetByID handles GET /api/v1/items/{id}.
-func (h *ItemHandler) GetByID(w http.ResponseWriter, r *http.Request) {
-	item, err := h.service.GetByID(r.Context(), r.PathValue("id"))
+func (h *ItemHandler) GetByID(writer http.ResponseWriter, request *http.Request) {
+	item, err := h.service.GetByID(request.Context(), request.PathValue("id"))
 	if err != nil {
-		response.SendResponse(w, r, err, nil)
+		response.SendResponse(writer, request, err, nil)
 		return
 	}
-	response.SendResponse(w, r, response.Success, item)
+	response.SendResponse(writer, request, response.Success, item)
 }
 
 // Create handles POST /api/v1/items.
-func (h *ItemHandler) Create(w http.ResponseWriter, r *http.Request) {
+func (h *ItemHandler) Create(writer http.ResponseWriter, request *http.Request) {
 	var req dto.ItemRequest
-	if err := decodeAndValidate(w, r, &req); err != nil {
-		response.SendResponse(w, r, err, nil)
+	if err := decodeAndValidate(writer, request, &req); err != nil {
+		response.SendResponse(writer, request, err, nil)
 		return
 	}
 
-	item, err := h.service.Create(r.Context(), req)
+	item, err := h.service.Create(request.Context(), req)
 	if err != nil {
-		response.SendResponse(w, r, err, nil)
+		response.SendResponse(writer, request, err, nil)
 		return
 	}
-	response.SendResponse(w, r, response.Created, item)
+	response.SendResponse(writer, request, response.Created, item)
 }
 
 // Update handles PUT /api/v1/items/{id}.
-func (h *ItemHandler) Update(w http.ResponseWriter, r *http.Request) {
+func (h *ItemHandler) Update(writer http.ResponseWriter, request *http.Request) {
 	var req dto.ItemRequest
-	if err := decodeAndValidate(w, r, &req); err != nil {
-		response.SendResponse(w, r, err, nil)
+	if err := decodeAndValidate(writer, request, &req); err != nil {
+		response.SendResponse(writer, request, err, nil)
 		return
 	}
 
-	item, err := h.service.Update(r.Context(), r.PathValue("id"), req)
+	item, err := h.service.Update(request.Context(), request.PathValue("id"), req)
 	if err != nil {
-		response.SendResponse(w, r, err, nil)
+		response.SendResponse(writer, request, err, nil)
 		return
 	}
-	response.SendResponse(w, r, response.Success, item)
+	response.SendResponse(writer, request, response.Success, item)
 }
 
 // Delete handles DELETE /api/v1/items/{id}.
-func (h *ItemHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	if err := h.service.Delete(r.Context(), r.PathValue("id")); err != nil {
-		response.SendResponse(w, r, err, nil)
+func (h *ItemHandler) Delete(writer http.ResponseWriter, request *http.Request) {
+	if err := h.service.Delete(request.Context(), request.PathValue("id")); err != nil {
+		response.SendResponse(writer, request, err, nil)
 		return
 	}
-	response.SendResponse(w, r, response.Success, "Item deleted")
+	response.SendResponse(writer, request, response.Success, "Item deleted")
 }

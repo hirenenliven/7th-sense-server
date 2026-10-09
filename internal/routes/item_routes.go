@@ -6,10 +6,10 @@ import (
 	"7th-sense-server/internal/handler"
 )
 
-func registerItemRoutes(mux *http.ServeMux, h *handler.ItemHandler) {
-	mux.HandleFunc("GET "+apiPrefix+"/items", h.GetAll)
-	mux.HandleFunc("GET "+apiPrefix+"/items/{id}", h.GetByID)
-	mux.HandleFunc("POST "+apiPrefix+"/items", h.Create)
-	mux.HandleFunc("PUT "+apiPrefix+"/items/{id}", h.Update)
-	mux.HandleFunc("DELETE "+apiPrefix+"/items/{id}", h.Delete)
+func registerItemRoutes(mux *http.ServeMux, prefix string, h *handler.ItemHandler) {
+	mux.HandleFunc("GET "+prefix+"/items", h.GetAll)
+	mux.HandleFunc("GET "+prefix+"/items/{id}", h.GetByID)
+	mux.HandleFunc("POST "+prefix+"/items", h.Create)
+	mux.HandleFunc("PUT "+prefix+"/items/{id}", h.Update)
+	mux.HandleFunc("DELETE "+prefix+"/items/{id}", h.Delete)
 }

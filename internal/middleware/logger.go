@@ -19,17 +19,17 @@ func (rec *statusRecorder) WriteHeader(status int) {
 }
 
 // Logger logs the method, path, status and duration of every request.
-func Logger(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func Logger(nextHandler http.Handler) http.Handler {
+	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		start := time.Now()
-		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		recorder := &statusRecorder{ResponseWriter: writer, status: http.StatusOK}
 
-		next.ServeHTTP(rec, r)
+		nextHandler.ServeHTTP(recorder, request)
 
 		logger.Log(logger.LevelInfo, "request",
-			"method", r.Method,
-			"path", r.URL.Path,
-			"status", rec.status,
+			"method", request.Method,
+			"path", request.URL.Path,
+			"status", recorder.status,
 			"duration", time.Since(start),
 		)
 	})

@@ -10,17 +10,17 @@ import (
 
 // Recoverer turns a panic in a handler into a 500 response instead of
 // crashing the server.
-func Recoverer(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func Recoverer(nextHandler http.Handler) http.Handler {
+	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		defer func() {
 			if err := recover(); err != nil {
 				logger.Log(logger.LevelError, "panic recovered",
 					"error", err,
 					"stack", string(debug.Stack()),
 				)
-				response.SendResponse(w, r, response.ServerError, nil)
+				response.SendResponse(writer, request, response.ServerError, nil)
 			}
 		}()
-		next.ServeHTTP(w, r)
+		nextHandler.ServeHTTP(writer, request)
 	})
 }

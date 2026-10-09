@@ -8,7 +8,7 @@ import (
 	"7th-sense-server/internal/response"
 )
 
-const apiPrefix = "/api/v1"
+const apiPrefix = "/api"
 
 // Handlers groups every handler the router needs.
 type Handlers struct {
@@ -17,19 +17,27 @@ type Handlers struct {
 }
 
 // New builds the main router with all routes and global middleware.
-func New(h Handlers) http.Handler {
+func New(handlers Handlers) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		response.SendResponse(w, r, response.Success, nil)
 	})
 
-	if h.User != nil {
-		registerUserRoutes(mux, h.User)
-	}
-	if h.Item != nil {
-		registerItemRoutes(mux, h.Item)
-	}
+	// Register API versions
+	registerV1Routes(mux, handlers)
 
 	return middleware.Chain(mux, middleware.Logger, middleware.Recoverer)
+}
+
+// registerV1Routes registers all v1 API routes.
+func registerV1Routes(mux *http.ServeMux, handlers Handlers) {
+	v1Prefix := apiPrefix + "/v1"
+
+	if handlers.User != nil {
+		registerUserRoutes(mux, v1Prefix, handlers.User)
+	}
+	if handlers.Item != nil {
+		registerItemRoutes(mux, v1Prefix, handlers.Item)
+	}
 }

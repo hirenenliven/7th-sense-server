@@ -15,9 +15,9 @@ type validator interface {
 }
 
 // decodeAndValidate reads the JSON body into dst and runs its validation.
-func decodeAndValidate(w http.ResponseWriter, r *http.Request, dst validator) error {
-	r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
-	if err := json.NewDecoder(r.Body).Decode(dst); err != nil {
+func decodeAndValidate(writer http.ResponseWriter, request *http.Request, dst validator) error {
+	request.Body = http.MaxBytesReader(writer, request.Body, maxBodyBytes)
+	if err := json.NewDecoder(request.Body).Decode(dst); err != nil {
 		return response.InvalidJSON
 	}
 	return dst.Validate()
