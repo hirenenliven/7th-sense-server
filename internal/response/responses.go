@@ -10,7 +10,7 @@ type Response struct {
 	Message    string
 }
 
-func (r *Response) Error() string { return r.Message }
+func (apiResponse *Response) Error() string { return apiResponse.Message }
 
 func newResponse(statusCode int, message string) *Response {
 	return &Response{StatusCode: statusCode, Message: message}

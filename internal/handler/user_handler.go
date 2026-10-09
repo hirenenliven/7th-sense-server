@@ -13,14 +13,14 @@ type UserHandler struct {
 	service *service.UserService
 }
 
-// NewUserHandler creates a UserHandler that uses svc.
-func NewUserHandler(svc *service.UserService) *UserHandler {
-	return &UserHandler{service: svc}
+// NewUserHandler creates a UserHandler that uses userService.
+func NewUserHandler(userService *service.UserService) *UserHandler {
+	return &UserHandler{service: userService}
 }
 
 // GetAll handles GET /api/v1/users.
-func (h *UserHandler) GetAll(writer http.ResponseWriter, request *http.Request) {
-	users, err := h.service.GetAll(request.Context())
+func (userHandler *UserHandler) GetAll(writer http.ResponseWriter, request *http.Request) {
+	users, err := userHandler.service.GetAll(request.Context())
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -29,8 +29,8 @@ func (h *UserHandler) GetAll(writer http.ResponseWriter, request *http.Request) 
 }
 
 // GetByID handles GET /api/v1/users/{id}.
-func (h *UserHandler) GetByID(writer http.ResponseWriter, request *http.Request) {
-	user, err := h.service.GetByID(request.Context(), request.PathValue("id"))
+func (userHandler *UserHandler) GetByID(writer http.ResponseWriter, request *http.Request) {
+	user, err := userHandler.service.GetByID(request.Context(), request.PathValue("id"))
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -39,14 +39,14 @@ func (h *UserHandler) GetByID(writer http.ResponseWriter, request *http.Request)
 }
 
 // Create handles POST /api/v1/users.
-func (h *UserHandler) Create(writer http.ResponseWriter, request *http.Request) {
-	var req dto.UserRequest
-	if err := decodeAndValidate(writer, request, &req); err != nil {
+func (userHandler *UserHandler) Create(writer http.ResponseWriter, request *http.Request) {
+	var userRequest dto.UserRequest
+	if err := decodeAndValidate(writer, request, &userRequest); err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
 	}
 
-	user, err := h.service.Create(request.Context(), req)
+	user, err := userHandler.service.Create(request.Context(), userRequest)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -55,14 +55,14 @@ func (h *UserHandler) Create(writer http.ResponseWriter, request *http.Request) 
 }
 
 // Update handles PUT /api/v1/users/{id}.
-func (h *UserHandler) Update(writer http.ResponseWriter, request *http.Request) {
-	var req dto.UserRequest
-	if err := decodeAndValidate(writer, request, &req); err != nil {
+func (userHandler *UserHandler) Update(writer http.ResponseWriter, request *http.Request) {
+	var userRequest dto.UserRequest
+	if err := decodeAndValidate(writer, request, &userRequest); err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
 	}
 
-	user, err := h.service.Update(request.Context(), request.PathValue("id"), req)
+	user, err := userHandler.service.Update(request.Context(), request.PathValue("id"), userRequest)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -71,8 +71,8 @@ func (h *UserHandler) Update(writer http.ResponseWriter, request *http.Request) 
 }
 
 // Delete handles DELETE /api/v1/users/{id}.
-func (h *UserHandler) Delete(writer http.ResponseWriter, request *http.Request) {
-	if err := h.service.Delete(request.Context(), request.PathValue("id")); err != nil {
+func (userHandler *UserHandler) Delete(writer http.ResponseWriter, request *http.Request) {
+	if err := userHandler.service.Delete(request.Context(), request.PathValue("id")); err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
 	}

@@ -14,14 +14,14 @@ type ItemRequest struct {
 }
 
 // Validate trims the fields and checks they are usable.
-func (r *ItemRequest) Validate() error {
-	r.Name = strings.TrimSpace(r.Name)
-	r.Description = strings.TrimSpace(r.Description)
+func (request *ItemRequest) Validate() error {
+	request.Name = strings.TrimSpace(request.Name)
+	request.Description = strings.TrimSpace(request.Description)
 
-	if r.Name == "" {
+	if request.Name == "" {
 		return response.ValidName
 	}
-	if r.Price < 0 {
+	if request.Price < 0 {
 		return response.ValidPrice
 	}
 	return nil

@@ -14,11 +14,11 @@ type validator interface {
 	Validate() error
 }
 
-// decodeAndValidate reads the JSON body into dst and runs its validation.
-func decodeAndValidate(writer http.ResponseWriter, request *http.Request, dst validator) error {
+// decodeAndValidate reads the JSON body into requestBody and runs its validation.
+func decodeAndValidate(writer http.ResponseWriter, request *http.Request, requestBody validator) error {
 	request.Body = http.MaxBytesReader(writer, request.Body, maxBodyBytes)
-	if err := json.NewDecoder(request.Body).Decode(dst); err != nil {
+	if err := json.NewDecoder(request.Body).Decode(requestBody); err != nil {
 		return response.InvalidJSON
 	}
-	return dst.Validate()
+	return requestBody.Validate()
 }

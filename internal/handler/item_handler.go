@@ -13,14 +13,14 @@ type ItemHandler struct {
 	service *service.ItemService
 }
 
-// NewItemHandler creates an ItemHandler that uses svc.
-func NewItemHandler(svc *service.ItemService) *ItemHandler {
-	return &ItemHandler{service: svc}
+// NewItemHandler creates an ItemHandler that uses itemService.
+func NewItemHandler(itemService *service.ItemService) *ItemHandler {
+	return &ItemHandler{service: itemService}
 }
 
 // GetAll handles GET /api/v1/items.
-func (h *ItemHandler) GetAll(writer http.ResponseWriter, request *http.Request) {
-	items, err := h.service.GetAll(request.Context())
+func (itemHandler *ItemHandler) GetAll(writer http.ResponseWriter, request *http.Request) {
+	items, err := itemHandler.service.GetAll(request.Context())
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -29,8 +29,8 @@ func (h *ItemHandler) GetAll(writer http.ResponseWriter, request *http.Request) 
 }
 
 // GetByID handles GET /api/v1/items/{id}.
-func (h *ItemHandler) GetByID(writer http.ResponseWriter, request *http.Request) {
-	item, err := h.service.GetByID(request.Context(), request.PathValue("id"))
+func (itemHandler *ItemHandler) GetByID(writer http.ResponseWriter, request *http.Request) {
+	item, err := itemHandler.service.GetByID(request.Context(), request.PathValue("id"))
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -39,14 +39,14 @@ func (h *ItemHandler) GetByID(writer http.ResponseWriter, request *http.Request)
 }
 
 // Create handles POST /api/v1/items.
-func (h *ItemHandler) Create(writer http.ResponseWriter, request *http.Request) {
-	var req dto.ItemRequest
-	if err := decodeAndValidate(writer, request, &req); err != nil {
+func (itemHandler *ItemHandler) Create(writer http.ResponseWriter, request *http.Request) {
+	var itemRequest dto.ItemRequest
+	if err := decodeAndValidate(writer, request, &itemRequest); err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
 	}
 
-	item, err := h.service.Create(request.Context(), req)
+	item, err := itemHandler.service.Create(request.Context(), itemRequest)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -55,14 +55,14 @@ func (h *ItemHandler) Create(writer http.ResponseWriter, request *http.Request) 
 }
 
 // Update handles PUT /api/v1/items/{id}.
-func (h *ItemHandler) Update(writer http.ResponseWriter, request *http.Request) {
-	var req dto.ItemRequest
-	if err := decodeAndValidate(writer, request, &req); err != nil {
+func (itemHandler *ItemHandler) Update(writer http.ResponseWriter, request *http.Request) {
+	var itemRequest dto.ItemRequest
+	if err := decodeAndValidate(writer, request, &itemRequest); err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
 	}
 
-	item, err := h.service.Update(request.Context(), request.PathValue("id"), req)
+	item, err := itemHandler.service.Update(request.Context(), request.PathValue("id"), itemRequest)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -71,8 +71,8 @@ func (h *ItemHandler) Update(writer http.ResponseWriter, request *http.Request) 
 }
 
 // Delete handles DELETE /api/v1/items/{id}.
-func (h *ItemHandler) Delete(writer http.ResponseWriter, request *http.Request) {
-	if err := h.service.Delete(request.Context(), request.PathValue("id")); err != nil {
+func (itemHandler *ItemHandler) Delete(writer http.ResponseWriter, request *http.Request) {
+	if err := itemHandler.service.Delete(request.Context(), request.PathValue("id")); err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
 	}

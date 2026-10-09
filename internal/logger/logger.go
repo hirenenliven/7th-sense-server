@@ -32,26 +32,26 @@ func Init() {
 
 	multiWriter := io.MultiWriter(os.Stdout, logFile)
 
-	opts := &slog.HandlerOptions{
+	handlerOptions := &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	}
 
-	log = slog.New(slog.NewJSONHandler(multiWriter, opts))
+	log = slog.New(slog.NewJSONHandler(multiWriter, handlerOptions))
 	slog.SetDefault(log)
 }
 
 // Log logs a message with the specified level and key-value pairs.
-func Log(level Level, msg string, args ...any) {
+func Log(level Level, message string, args ...any) {
 	switch level {
 	case LevelInfo:
-		slog.Info(msg, args...)
+		slog.Info(message, args...)
 	case LevelError:
-		slog.Error(msg, args...)
+		slog.Error(message, args...)
 	case LevelDebug:
-		slog.Debug(msg, args...)
+		slog.Debug(message, args...)
 	case LevelWarn:
-		slog.Warn(msg, args...)
+		slog.Warn(message, args...)
 	default:
-		slog.Info(msg, args...)
+		slog.Info(message, args...)
 	}
 }

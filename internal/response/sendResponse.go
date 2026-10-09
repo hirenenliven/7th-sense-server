@@ -16,7 +16,7 @@ type body struct {
 	Data       any    `json:"data,omitempty"`
 }
 
-// SendResponse writes res as a JSON response. data is the payload; a string
+// SendResponse writes result as a JSON response. data is the payload; a string
 // replaces the response message instead, and nil sends no data.
 //
 //	response.SendResponse(writer, request, response.Success, items)
@@ -24,30 +24,30 @@ type body struct {
 //	response.SendResponse(writer, request, response.Success, "User deleted")
 //	response.SendResponse(writer, request, err, nil) // error returned by a service
 //
-// res is a predefined *Response or any error. Errors that are not a *Response
+// result is a predefined *Response or any error. Errors that are not a *Response
 // are logged and sent as ServerError so internals never leak.
-func SendResponse(writer http.ResponseWriter, request *http.Request, res error, data any) {
-	var resp *Response
-	if !errors.As(res, &resp) {
+func SendResponse(writer http.ResponseWriter, request *http.Request, result error, data any) {
+	var apiResponse *Response
+	if !errors.As(result, &apiResponse) {
 		logger.Log(logger.LevelError, "unexpected error",
 			"method", request.Method,
 			"path", request.URL.Path,
-			"error", res,
+			"error", result,
 		)
-		resp = ServerError
+		apiResponse = ServerError
 	}
 
-	msg := resp.Message
-	if s, ok := data.(string); ok {
-		msg, data = s, nil
+	message := apiResponse.Message
+	if customMessage, ok := data.(string); ok {
+		message, data = customMessage, nil
 	}
 
 	writer.Header().Set("Content-Type", "application/json")
-	writer.WriteHeader(resp.StatusCode)
+	writer.WriteHeader(apiResponse.StatusCode)
 	err := json.NewEncoder(writer).Encode(body{
-		StatusCode: resp.StatusCode,
-		Success:    resp.StatusCode < http.StatusBadRequest,
-		Message:    msg,
+		StatusCode: apiResponse.StatusCode,
+		Success:    apiResponse.StatusCode < http.StatusBadRequest,
+		Message:    message,
 		Data:       data,
 	})
 	if err != nil {

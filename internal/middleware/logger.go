@@ -13,15 +13,15 @@ type statusRecorder struct {
 	status int
 }
 
-func (rec *statusRecorder) WriteHeader(status int) {
-	rec.status = status
-	rec.ResponseWriter.WriteHeader(status)
+func (recorder *statusRecorder) WriteHeader(status int) {
+	recorder.status = status
+	recorder.ResponseWriter.WriteHeader(status)
 }
 
 // Logger logs the method, path, status and duration of every request.
 func Logger(nextHandler http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		start := time.Now()
+		startTime := time.Now()
 		recorder := &statusRecorder{ResponseWriter: writer, status: http.StatusOK}
 
 		nextHandler.ServeHTTP(recorder, request)
@@ -30,7 +30,7 @@ func Logger(nextHandler http.Handler) http.Handler {
 			"method", request.Method,
 			"path", request.URL.Path,
 			"status", recorder.status,
-			"duration", time.Since(start),
+			"duration", time.Since(startTime),
 		)
 	})
 }

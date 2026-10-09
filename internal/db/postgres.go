@@ -15,16 +15,16 @@ import (
 
 // Connect opens a PostgreSQL connection pool and verifies it with a ping.
 // The caller must Close the pool on shutdown.
-func Connect(ctx context.Context, cfg config.DBConfig) (*pgxpool.Pool, error) {
-	dsn := url.URL{
+func Connect(ctx context.Context, dbConfig config.DBConfig) (*pgxpool.Pool, error) {
+	connectionURL := url.URL{
 		Scheme:   "postgres",
-		User:     url.UserPassword(cfg.User, cfg.Password),
-		Host:     net.JoinHostPort(cfg.Host, cfg.Port),
-		Path:     cfg.Name,
-		RawQuery: "sslmode=" + url.QueryEscape(cfg.SSLMode),
+		User:     url.UserPassword(dbConfig.User, dbConfig.Password),
+		Host:     net.JoinHostPort(dbConfig.Host, dbConfig.Port),
+		Path:     dbConfig.Name,
+		RawQuery: "sslmode=" + url.QueryEscape(dbConfig.SSLMode),
 	}
 
-	pool, err := pgxpool.New(ctx, dsn.String())
+	pool, err := pgxpool.New(ctx, connectionURL.String())
 	if err != nil {
 		return nil, fmt.Errorf("db: create pool: %w", err)
 	}
@@ -33,7 +33,7 @@ func Connect(ctx context.Context, cfg config.DBConfig) (*pgxpool.Pool, error) {
 	defer cancel()
 	if err := pool.Ping(pingCtx); err != nil {
 		pool.Close()
-		return nil, fmt.Errorf("db: ping %s@%s/%s: %w", cfg.User, dsn.Host, cfg.Name, err)
+		return nil, fmt.Errorf("db: ping %s@%s/%s: %w", dbConfig.User, connectionURL.Host, dbConfig.Name, err)
 	}
 
 	return pool, nil

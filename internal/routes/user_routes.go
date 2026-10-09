@@ -6,10 +6,10 @@ import (
 	"7th-sense-server/internal/handler"
 )
 
-func registerUserRoutes(mux *http.ServeMux, prefix string, h *handler.UserHandler) {
-	mux.HandleFunc("GET "+prefix+"/users", h.GetAll)
-	mux.HandleFunc("GET "+prefix+"/users/{id}", h.GetByID)
-	mux.HandleFunc("POST "+prefix+"/users", h.Create)
-	mux.HandleFunc("PUT "+prefix+"/users/{id}", h.Update)
-	mux.HandleFunc("DELETE "+prefix+"/users/{id}", h.Delete)
+func registerUserRoutes(router *http.ServeMux, prefix string, userHandler *handler.UserHandler) {
+	router.HandleFunc("GET "+prefix+"/users", userHandler.GetAll)
+	router.HandleFunc("GET "+prefix+"/users/{id}", userHandler.GetByID)
+	router.HandleFunc("POST "+prefix+"/users", userHandler.Create)
+	router.HandleFunc("PUT "+prefix+"/users/{id}", userHandler.Update)
+	router.HandleFunc("DELETE "+prefix+"/users/{id}", userHandler.Delete)
 }

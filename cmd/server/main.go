@@ -18,22 +18,22 @@ import (
 
 func main() {
 	logger.Init()
-	cfg := config.Load()
+	appConfig := config.Load()
 
-	pool, err := db.Connect(context.Background(), cfg.DB)
+	dbPool, err := db.Connect(context.Background(), appConfig.DB)
 	if err != nil {
 		logger.Log(logger.LevelError, "database connection failed", "error", err)
 		log.Fatalf("database connection failed: %v", err)
 	}
-	defer pool.Close()
-	logger.Log(logger.LevelInfo, "connected to database", "name", cfg.DB.Name)
+	defer dbPool.Close()
+	logger.Log(logger.LevelInfo, "connected to database", "name", appConfig.DB.Name)
 
-	// TODO: wire Postgres repositories (using pool) -> service -> handler here:
+	// TODO: wire Postgres repositories (using dbPool) -> service -> handler here:
 	//   User: handler.NewUserHandler(service.NewUserService(userRepo))
 	router := routes.New(routes.Handlers{})
 
 	server := &http.Server{
-		Addr:         ":" + cfg.Port,
+		Addr:         ":" + appConfig.Port,
 		Handler:      router,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
@@ -41,7 +41,7 @@ func main() {
 	}
 
 	go func() {
-		logger.Log(logger.LevelInfo, "server started", "port", cfg.Port)
+		logger.Log(logger.LevelInfo, "server started", "port", appConfig.Port)
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			logger.Log(logger.LevelError, "server failed", "error", err)
 			log.Fatalf("server failed: %v", err)

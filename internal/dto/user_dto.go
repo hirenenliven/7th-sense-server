@@ -14,14 +14,14 @@ type UserRequest struct {
 }
 
 // Validate trims the fields and checks they are usable.
-func (r *UserRequest) Validate() error {
-	r.Name = strings.TrimSpace(r.Name)
-	r.Email = strings.ToLower(strings.TrimSpace(r.Email))
+func (request *UserRequest) Validate() error {
+	request.Name = strings.TrimSpace(request.Name)
+	request.Email = strings.ToLower(strings.TrimSpace(request.Email))
 
-	if r.Name == "" {
+	if request.Name == "" {
 		return response.ValidUserName
 	}
-	if _, err := mail.ParseAddress(r.Email); err != nil {
+	if _, err := mail.ParseAddress(request.Email); err != nil {
 		return response.ValidEmail
 	}
 	return nil

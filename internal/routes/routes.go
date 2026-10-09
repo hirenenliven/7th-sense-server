@@ -18,26 +18,26 @@ type Handlers struct {
 
 // New builds the main router with all routes and global middleware.
 func New(handlers Handlers) http.Handler {
-	mux := http.NewServeMux()
+	router := http.NewServeMux()
 
-	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
-		response.SendResponse(w, r, response.Success, nil)
+	router.HandleFunc("GET /health", func(writer http.ResponseWriter, request *http.Request) {
+		response.SendResponse(writer, request, response.Success, nil)
 	})
 
 	// Register API versions
-	registerV1Routes(mux, handlers)
+	registerV1Routes(router, handlers)
 
-	return middleware.Chain(mux, middleware.Logger, middleware.Recoverer)
+	return middleware.Chain(router, middleware.Logger, middleware.Recoverer)
 }
 
 // registerV1Routes registers all v1 API routes.
-func registerV1Routes(mux *http.ServeMux, handlers Handlers) {
+func registerV1Routes(router *http.ServeMux, handlers Handlers) {
 	v1Prefix := apiPrefix + "/v1"
 
 	if handlers.User != nil {
-		registerUserRoutes(mux, v1Prefix, handlers.User)
+		registerUserRoutes(router, v1Prefix, handlers.User)
 	}
 	if handlers.Item != nil {
-		registerItemRoutes(mux, v1Prefix, handlers.Item)
+		registerItemRoutes(router, v1Prefix, handlers.Item)
 	}
 }

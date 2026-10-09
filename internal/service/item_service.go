@@ -12,40 +12,40 @@ import (
 
 // ItemService holds the business rules for items.
 type ItemService struct {
-	repo repository.ItemRepository
+	itemRepository repository.ItemRepository
 }
 
-// NewItemService creates an ItemService backed by repo.
-func NewItemService(repo repository.ItemRepository) *ItemService {
-	return &ItemService{repo: repo}
+// NewItemService creates an ItemService backed by itemRepository.
+func NewItemService(itemRepository repository.ItemRepository) *ItemService {
+	return &ItemService{itemRepository: itemRepository}
 }
 
-func (s *ItemService) GetAll(ctx context.Context) ([]model.Item, error) {
-	return s.repo.FindAll(ctx)
+func (itemService *ItemService) GetAll(ctx context.Context) ([]model.Item, error) {
+	return itemService.itemRepository.FindAll(ctx)
 }
 
-func (s *ItemService) GetByID(ctx context.Context, id string) (model.Item, error) {
-	item, err := s.repo.FindByID(ctx, id)
+func (itemService *ItemService) GetByID(ctx context.Context, id string) (model.Item, error) {
+	item, err := itemService.itemRepository.FindByID(ctx, id)
 	if errors.Is(err, repository.ErrNotFound) {
 		return model.Item{}, response.ItemNotFound
 	}
 	return item, err
 }
 
-func (s *ItemService) Create(ctx context.Context, req dto.ItemRequest) (model.Item, error) {
-	return s.repo.Create(ctx, model.Item{
-		Name:        req.Name,
-		Description: req.Description,
-		Price:       req.Price,
+func (itemService *ItemService) Create(ctx context.Context, itemRequest dto.ItemRequest) (model.Item, error) {
+	return itemService.itemRepository.Create(ctx, model.Item{
+		Name:        itemRequest.Name,
+		Description: itemRequest.Description,
+		Price:       itemRequest.Price,
 	})
 }
 
-func (s *ItemService) Update(ctx context.Context, id string, req dto.ItemRequest) (model.Item, error) {
-	item, err := s.repo.Update(ctx, model.Item{
+func (itemService *ItemService) Update(ctx context.Context, id string, itemRequest dto.ItemRequest) (model.Item, error) {
+	item, err := itemService.itemRepository.Update(ctx, model.Item{
 		ID:          id,
-		Name:        req.Name,
-		Description: req.Description,
-		Price:       req.Price,
+		Name:        itemRequest.Name,
+		Description: itemRequest.Description,
+		Price:       itemRequest.Price,
 	})
 	if errors.Is(err, repository.ErrNotFound) {
 		return model.Item{}, response.ItemNotFound
@@ -53,8 +53,8 @@ func (s *ItemService) Update(ctx context.Context, id string, req dto.ItemRequest
 	return item, err
 }
 
-func (s *ItemService) Delete(ctx context.Context, id string) error {
-	err := s.repo.Delete(ctx, id)
+func (itemService *ItemService) Delete(ctx context.Context, id string) error {
+	err := itemService.itemRepository.Delete(ctx, id)
 	if errors.Is(err, repository.ErrNotFound) {
 		return response.ItemNotFound
 	}
