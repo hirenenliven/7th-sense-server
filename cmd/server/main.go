@@ -12,18 +12,21 @@ import (
 
 	"7th-sense-server/internal/config"
 	"7th-sense-server/internal/db"
+	"7th-sense-server/internal/logger"
 	"7th-sense-server/internal/routes"
 )
 
 func main() {
+	logger.Init()
 	cfg := config.Load()
 
 	pool, err := db.Connect(context.Background(), cfg.DB)
 	if err != nil {
+		logger.Log(logger.LevelError, "database connection failed", "error", err)
 		log.Fatalf("database connection failed: %v", err)
 	}
 	defer pool.Close()
-	log.Printf("connected to database %s", cfg.DB.Name)
+	logger.Log(logger.LevelInfo, "connected to database", "name", cfg.DB.Name)
 
 	// TODO: wire Postgres repositories (using pool) -> service -> handler here:
 	//   User: handler.NewUserHandler(service.NewUserService(userRepo))
@@ -38,8 +41,9 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("server running on http://localhost:%s", cfg.Port)
+		logger.Log(logger.LevelInfo, "server started", "port", cfg.Port)
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logger.Log(logger.LevelError, "server failed", "error", err)
 			log.Fatalf("server failed: %v", err)
 		}
 	}()
@@ -49,11 +53,12 @@ func main() {
 	defer stop()
 	<-ctx.Done()
 
-	log.Println("shutting down...")
+	logger.Log(logger.LevelInfo, "shutting down server")
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := server.Shutdown(shutdownCtx); err != nil {
+		logger.Log(logger.LevelError, "shutdown failed", "error", err)
 		log.Fatalf("shutdown failed: %v", err)
 	}
-	log.Println("server stopped")
+	logger.Log(logger.LevelInfo, "server stopped")
 }

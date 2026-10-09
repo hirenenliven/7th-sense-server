@@ -1,10 +1,10 @@
 package middleware
 
 import (
-	"log"
 	"net/http"
 	"runtime/debug"
 
+	"7th-sense-server/internal/logger"
 	"7th-sense-server/internal/response"
 )
 
@@ -14,7 +14,10 @@ func Recoverer(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if err := recover(); err != nil {
-				log.Printf("panic: %v\n%s", err, debug.Stack())
+				logger.Log(logger.LevelError, "panic recovered",
+					"error", err,
+					"stack", string(debug.Stack()),
+				)
 				response.SendResponse(w, r, response.ServerError, nil)
 			}
 		}()
