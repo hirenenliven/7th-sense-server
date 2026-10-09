@@ -11,23 +11,15 @@ import (
 	"time"
 
 	"7th-sense-server/internal/config"
-	"7th-sense-server/internal/handler"
-	"7th-sense-server/internal/repository"
 	"7th-sense-server/internal/routes"
-	"7th-sense-server/internal/service"
 )
 
 func main() {
 	cfg := config.Load()
 
-	// Wire layers: repository -> service -> handler -> routes.
-	userRepo := repository.NewInMemoryUserRepository()
-	itemRepo := repository.NewInMemoryItemRepository()
-
-	router := routes.New(routes.Handlers{
-		User: handler.NewUserHandler(service.NewUserService(userRepo)),
-		Item: handler.NewItemHandler(service.NewItemService(itemRepo)),
-	})
+	// TODO: once the database is added, wire repository -> service -> handler here:
+	//   User: handler.NewUserHandler(service.NewUserService(userRepo))
+	router := routes.New(routes.Handlers{})
 
 	server := &http.Server{
 		Addr:         ":" + cfg.Port,

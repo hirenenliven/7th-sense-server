@@ -24,8 +24,12 @@ func New(h Handlers) http.Handler {
 		response.Send(w, http.StatusOK, "OK")
 	})
 
-	registerUserRoutes(mux, h.User)
-	registerItemRoutes(mux, h.Item)
+	if h.User != nil {
+		registerUserRoutes(mux, h.User)
+	}
+	if h.Item != nil {
+		registerItemRoutes(mux, h.Item)
+	}
 
 	return middleware.Chain(mux, middleware.Logger, middleware.Recoverer)
 }

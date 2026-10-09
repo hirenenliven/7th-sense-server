@@ -1,7 +1,7 @@
 # 7th-sense-server
 
 CRUD REST API in Go using only the standard library.
-Data is kept in memory (lost on restart) behind a repository interface, so a real database can be plugged in later.
+Uses a repository interface for data access, making it easy to plug in a database implementation later.
 
 ## Layout
 
@@ -22,7 +22,7 @@ internal/
 │   └── item_handler.go
 ├── dto/                        request bodies + Validate()               ~ validationMiddleware
 ├── service/                    business rules (e.g. unique email)        ~ x.service.js
-├── repository/                 data access (interface + in-memory impl)  ~ DB calls
+├── repository/                 data access (interface only)              ~ DB calls
 ├── model/                      stored entities                           ~ model/*.model.js
 └── response/                   response helpers                          ~ common/
     ├── api_error.go            predefined errors (ErrUserNotFound, ...)  ~ Responses
@@ -45,11 +45,12 @@ turns them into the right status code. Any other error becomes a 500 and is logg
 
 1. `internal/model/product.go` – `Product` struct
 2. `internal/dto/product_dto.go` – `ProductRequest` + `Validate()`
-3. `internal/repository/product_repository.go` – `ProductRepository` interface + implementation
-4. `internal/service/product_service.go` – `ProductService`
-5. `internal/handler/product_handler.go` – `ProductHandler`
-6. `internal/routes/product_routes.go` – `registerProductRoutes`, then call it in `routes.go`
-7. Wire it in `cmd/server/main.go`
+3. `internal/repository/product_repository.go` – `ProductRepository` interface
+4. `internal/repository/postgres_product_repository.go` – Database implementation (when DB is added)
+5. `internal/service/product_service.go` – `ProductService`
+6. `internal/handler/product_handler.go` – `ProductHandler`
+7. `internal/routes/product_routes.go` – `registerProductRoutes`, then call it in `routes.go`
+8. Wire it in `cmd/server/main.go`
 
 ## Run
 
@@ -72,12 +73,5 @@ Errors: `{"statusCode": 404, "data": {"success": false, "error": "User not found
 | PUT    | /api/v1/users/{id}  | Update user |
 | DELETE | /api/v1/users/{id}  | Delete user |
 
-The same five routes exist for `/api/v1/items`.
-
-```sh
-curl -X POST localhost:8080/api/v1/users -d '{"name":"Hiren","email":"hiren@example.com"}'
-curl -X POST localhost:8080/api/v1/items -d '{"name":"Pen","description":"Blue pen","price":10}'
-curl localhost:8080/api/v1/items
-curl -X PUT localhost:8080/api/v1/users/1 -d '{"name":"Hiren C","email":"hiren@example.com"}'
-curl -X DELETE localhost:8080/api/v1/users/1
-```
+The same five routes exist for `/api/v1/items`. They are registered only once a database-backed
+repository is wired in `cmd/server/main.go`; until then only `/health` responds.
