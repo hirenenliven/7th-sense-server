@@ -32,24 +32,69 @@ CREATE TABLE IF NOT EXISTS roles (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Branches table
-CREATE TABLE IF NOT EXISTS branches (
+
+
+-- Categories table (Product categories)
+CREATE TABLE IF NOT EXISTS categories (
     id SERIAL PRIMARY KEY,
-    code VARCHAR(50) UNIQUE NOT NULL, -- Branch code (e.g., 'BR_0600', 'HO_0200')
-    name VARCHAR(100) NOT NULL, -- Branch name (e.g., 'Rajkot', 'Metoda')
-    email VARCHAR(100),
-    address TEXT,
-    customer_id INTEGER REFERENCES users(id) ON DELETE SET NULL, -- Customer/company user who owns this branch
-    city VARCHAR(100),
-    state_id INTEGER REFERENCES states(id) ON DELETE SET NULL,
-    gst_number VARCHAR(30),
-    pan_number VARCHAR(30),
-    color_code VARCHAR(10),
-    status VARCHAR(20) DEFAULT 'active', -- 'active', 'inactive'
+    name VARCHAR(100) NOT NULL,
+    code VARCHAR(50) UNIQUE,
+    description TEXT,
     is_deleted BOOLEAN NOT NULL DEFAULT false,
     deleted_at TIMESTAMPTZ,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Brands table (Machine brands)
+CREATE TABLE IF NOT EXISTS brands (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    code VARCHAR(50) UNIQUE,
+    description TEXT,
+    is_deleted BOOLEAN NOT NULL DEFAULT false,
+    deleted_at TIMESTAMPTZ,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Products table (Machine products)
+CREATE TABLE IF NOT EXISTS products (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    code VARCHAR(50) UNIQUE,
+    category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
+    image VARCHAR(255) DEFAULT 'no_image_available.png',
+    description TEXT,
+    is_deleted BOOLEAN NOT NULL DEFAULT false,
+    deleted_at TIMESTAMPTZ,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Controllers table (Machine controllers)
+CREATE TABLE IF NOT EXISTS controllers (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    code VARCHAR(50) UNIQUE,
+    variant VARCHAR(100),
+    brand_id INTEGER REFERENCES brands(id) ON DELETE SET NULL,
+    description TEXT,
+    is_deleted BOOLEAN NOT NULL DEFAULT false,
+    deleted_at TIMESTAMPTZ,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Controller products junction table (Many-to-many relationship)
+CREATE TABLE IF NOT EXISTS controller_products (
+    id SERIAL PRIMARY KEY,
+    controller_id INTEGER REFERENCES controllers(id) ON DELETE CASCADE,
+    product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
+    is_deleted BOOLEAN NOT NULL DEFAULT false,
+    deleted_at TIMESTAMPTZ,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(controller_id, product_id)
 );
 
 -- ============================================================================
@@ -75,6 +120,26 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Branches table
+CREATE TABLE IF NOT EXISTS branches (
+    id SERIAL PRIMARY KEY,
+    code VARCHAR(50) UNIQUE NOT NULL, -- Branch code (e.g., 'BR_0600', 'HO_0200')
+    name VARCHAR(100) NOT NULL, -- Branch name (e.g., 'Rajkot', 'Metoda')
+    email VARCHAR(100),
+    address TEXT,
+    customer_id INTEGER REFERENCES users(id) ON DELETE SET NULL, -- Customer/company user who owns this branch
+    city VARCHAR(100),
+    state_id INTEGER REFERENCES states(id) ON DELETE SET NULL,
+    gst_number VARCHAR(30),
+    pan_number VARCHAR(30),
+    color_code VARCHAR(10),
+    status VARCHAR(20) DEFAULT 'active', -- 'active', 'inactive'
+    is_deleted BOOLEAN NOT NULL DEFAULT false,
+    deleted_at TIMESTAMPTZ,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Create indexes for common queries
 -- Unique indexes only apply to non-deleted records
 CREATE UNIQUE INDEX IF NOT EXISTS users_email_key ON users (email) WHERE is_deleted = false;
@@ -90,6 +155,29 @@ CREATE INDEX IF NOT EXISTS idx_branches_state_id ON branches(state_id);
 CREATE INDEX IF NOT EXISTS idx_branches_customer_id ON branches(customer_id);
 CREATE INDEX IF NOT EXISTS idx_branches_status ON branches(status);
 CREATE INDEX IF NOT EXISTS idx_branches_is_deleted ON branches(is_deleted);
+
+-- Create indexes for categories
+CREATE UNIQUE INDEX IF NOT EXISTS categories_name_key ON categories (name) WHERE is_deleted = false;
+CREATE INDEX IF NOT EXISTS idx_categories_is_deleted ON categories(is_deleted);
+
+-- Create indexes for brands
+CREATE UNIQUE INDEX IF NOT EXISTS brands_name_key ON brands (name) WHERE is_deleted = false;
+CREATE INDEX IF NOT EXISTS idx_brands_is_deleted ON brands(is_deleted);
+
+-- Create indexes for products
+CREATE UNIQUE INDEX IF NOT EXISTS products_name_key ON products (name) WHERE is_deleted = false;
+CREATE INDEX IF NOT EXISTS idx_products_category_id ON products(category_id);
+CREATE INDEX IF NOT EXISTS idx_products_is_deleted ON products(is_deleted);
+
+-- Create indexes for controllers
+CREATE UNIQUE INDEX IF NOT EXISTS controllers_name_key ON controllers (name) WHERE is_deleted = false;
+CREATE INDEX IF NOT EXISTS idx_controllers_brand_id ON controllers(brand_id);
+CREATE INDEX IF NOT EXISTS idx_controllers_is_deleted ON controllers(is_deleted);
+
+-- Create indexes for controller_products
+CREATE INDEX IF NOT EXISTS idx_controller_products_controller_id ON controller_products(controller_id);
+CREATE INDEX IF NOT EXISTS idx_controller_products_product_id ON controller_products(product_id);
+CREATE INDEX IF NOT EXISTS idx_controller_products_is_deleted ON controller_products(is_deleted);
 
 -- ============================================================================
 -- ADDRESSES TABLE
@@ -175,11 +263,67 @@ CREATE INDEX IF NOT EXISTS idx_company_profiles_is_deleted ON company_profiles(i
 -- USER MACHINES TABLE
 -- ============================================================================
 
+-- Machines table (Machine inventory and details)
+CREATE TABLE IF NOT EXISTS machines (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    machine_type_id INTEGER,
+    product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
+    name VARCHAR(50) NOT NULL,
+    serial_number VARCHAR(50) NOT NULL,
+    live_ip VARCHAR(20) NOT NULL,
+    port INTEGER NOT NULL,
+    username VARCHAR(15) NOT NULL,
+    password VARCHAR(255) NOT NULL, -- Encrypted password
+    local_ip VARCHAR(20) NOT NULL,
+    brand_id INTEGER REFERENCES brands(id) ON DELETE SET NULL,
+    controller_id INTEGER REFERENCES controllers(id) ON DELETE SET NULL,
+    controller_version VARCHAR(10) NOT NULL,
+    accuracy_id INTEGER,
+    line_id INTEGER,
+    installation_date DATE NOT NULL,
+    bill_date DATE NOT NULL,
+    warranty_date DATE NOT NULL,
+    amc VARCHAR(50),
+    is_insured BOOLEAN NOT NULL DEFAULT false,
+    online_status BOOLEAN NOT NULL DEFAULT false, -- true=ONLINE, false=OFFLINE
+    maintenance_required BOOLEAN NOT NULL DEFAULT false,
+    hourly_cost DECIMAL(10,2) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'active', -- 'active', 'inactive', 'deleted'
+    is_monitor BOOLEAN NOT NULL DEFAULT false,
+    online_date DATE,
+    offline_date TIMESTAMPTZ,
+    mode_id INTEGER,
+    controller_version_type INTEGER, -- 1=828D, 2=840D
+    health_ids VARCHAR(100),
+    longitude VARCHAR(50),
+    latitude VARCHAR(50),
+    cycle_analysis BOOLEAN NOT NULL DEFAULT false,
+    machine_system_type VARCHAR(20) NOT NULL DEFAULT 'NewPlc', -- 'NewPlc', 'OldPlc'
+    security_mode VARCHAR(20) NOT NULL DEFAULT 'Basic256Sha256', -- 'None', 'Basic256Sha256'
+    is_deleted BOOLEAN NOT NULL DEFAULT false,
+    deleted_at TIMESTAMPTZ,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Category machines junction table (Many-to-many relationship)
+-- Allows categories to directly reference machines (replaces comma-separated iConfigIds from old DB)
+CREATE TABLE IF NOT EXISTS category_machines (
+    id SERIAL PRIMARY KEY,
+    category_id INTEGER REFERENCES categories(id) ON DELETE CASCADE,
+    machine_id INTEGER REFERENCES machines(id) ON DELETE CASCADE,
+    is_deleted BOOLEAN NOT NULL DEFAULT false,
+    deleted_at TIMESTAMPTZ,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(category_id, machine_id)
+);
+
 -- User machines table (Machine assignments to users)
 CREATE TABLE IF NOT EXISTS user_machines (
     id SERIAL PRIMARY KEY,
     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-    machine_id INTEGER NOT NULL, -- Reference to machines table (to be created)
+    machine_id INTEGER REFERENCES machines(id) ON DELETE CASCADE,
     assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     is_deleted BOOLEAN NOT NULL DEFAULT false,
     deleted_at TIMESTAMPTZ,
@@ -190,6 +334,21 @@ CREATE TABLE IF NOT EXISTS user_machines (
 CREATE INDEX IF NOT EXISTS idx_user_machines_user_id ON user_machines(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_machines_machine_id ON user_machines(machine_id);
 CREATE INDEX IF NOT EXISTS idx_user_machines_is_deleted ON user_machines(is_deleted);
+
+-- Create indexes for machines
+CREATE UNIQUE INDEX IF NOT EXISTS machines_name_key ON machines (name) WHERE is_deleted = false;
+CREATE INDEX IF NOT EXISTS idx_machines_user_id ON machines(user_id);
+CREATE INDEX IF NOT EXISTS idx_machines_product_id ON machines(product_id);
+CREATE INDEX IF NOT EXISTS idx_machines_brand_id ON machines(brand_id);
+CREATE INDEX IF NOT EXISTS idx_machines_controller_id ON machines(controller_id);
+CREATE INDEX IF NOT EXISTS idx_machines_online_status ON machines(online_status);
+CREATE INDEX IF NOT EXISTS idx_machines_status ON machines(status);
+CREATE INDEX IF NOT EXISTS idx_machines_is_deleted ON machines(is_deleted);
+
+-- Create indexes for category_machines
+CREATE INDEX IF NOT EXISTS idx_category_machines_category_id ON category_machines(category_id);
+CREATE INDEX IF NOT EXISTS idx_category_machines_machine_id ON category_machines(machine_id);
+CREATE INDEX IF NOT EXISTS idx_category_machines_is_deleted ON category_machines(is_deleted);
 
 -- ============================================================================
 -- AUTHENTICATION TABLES
@@ -268,6 +427,21 @@ CREATE TRIGGER update_addresses_updated_at BEFORE UPDATE ON addresses
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_branches_updated_at BEFORE UPDATE ON branches
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_categories_updated_at BEFORE UPDATE ON categories
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_brands_updated_at BEFORE UPDATE ON brands
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_products_updated_at BEFORE UPDATE ON products
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_controllers_updated_at BEFORE UPDATE ON controllers
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_machines_updated_at BEFORE UPDATE ON machines
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_user_profiles_updated_at BEFORE UPDATE ON user_profiles
