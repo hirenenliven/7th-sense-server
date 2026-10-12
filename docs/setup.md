@@ -28,7 +28,7 @@ and `go install` puts tools in `go\bin\windows_386\`, where the terminal cannot 
 
 ## 3. Add Go's bin folder to PATH
 
-Tools installed with `go install` (like Air) go into `%GOPATH%\bin`.
+Tools installed with `go install` (like the Delve debugger) go into `%GOPATH%\bin`.
 
 - **Windows:** System Properties → Environment Variables → User variables → `Path` → New →
   `C:\Users\<you>\go\bin`. Open a new terminal afterwards.
@@ -37,19 +37,17 @@ Tools installed with `go install` (like Air) go into `%GOPATH%\bin`.
   export PATH="$PATH:$(go env GOPATH)/bin"
   ```
 
-## 4. Install Air (hot reload)
+## 4. Air (hot reload): nothing to install
 
-Run this from **outside** the project folder, so it does not touch the project's `go.mod`:
+Air is declared as a tool in `go.mod` (`tool github.com/air-verse/air`), so its version is pinned
+for everyone and it is downloaded automatically the first time you run it:
 
 ```powershell
-cd ~
-go install github.com/air-verse/air@latest
-air -v
+go tool air -v
 ```
 
-If `air` is "not recognized as an internal or external command", step 3 was not applied:
-check that `air.exe` exists in `C:\Users\<you>\go\bin` and that this folder is on PATH, then
-open a new terminal.
+To upgrade it for the whole team: `go get -tool github.com/air-verse/air@latest`, then commit
+`go.mod` and `go.sum`.
 
 ## 5. Install PostgreSQL and create the database
 
@@ -113,7 +111,7 @@ go mod download
 With hot reload (rebuilds and restarts on every `.go` file save, using `.air.toml`):
 
 ```powershell
-air
+go tool air
 ```
 
 Without hot reload:
@@ -131,12 +129,41 @@ curl http://localhost:8080/health
 
 Stop with `Ctrl+C`.
 
+## Debugging (breakpoints) in VS Code
+
+One-time setup: install the Go extension. The first time you press `F5` without Delve (`dlv`),
+it offers to install it; click **Install**. Or install it yourself:
+
+```powershell
+code --install-extension golang.go
+cd ~
+go install github.com/go-delve/delve/cmd/dlv@latest
+```
+
+Unlike Air, Delve is not a `go.mod` tool: VS Code needs `dlv.exe` on PATH (step 3).
+
+`.vscode/launch.json` has three configurations (Run and Debug panel, `Ctrl+Shift+D`):
+
+| Configuration | Use it to |
+|---------------|-----------|
+| **Debug Server** | Start the server under the debugger (`F5`) |
+| **Debug Current Test** | Debug the tests in the package of the open `_test.go` file |
+| **Attach to Running Server** | Attach to a server that is already running |
+
+1. Click left of a line number to set a breakpoint (red dot), e.g. in `internal/handler/user_handler.go`.
+2. Pick **Debug Server** and press `F5`.
+3. Send a request (Postman / curl). Execution stops at the breakpoint; inspect variables in the
+   left panel or hover over them.
+4. `F10` step over, `F11` step into, `Shift+F11` step out, `F5` continue, `Shift+F5` stop.
+
+Stop `go tool air` first: both use the same port. The configurations set `cwd` to the project root, so
+`.env` is found and logs go to `logs/`.
+
 ## Troubleshooting
 
 | Problem | Fix |
 |---------|-----|
-| `air` not recognized | Step 3 (PATH) and step 4; open a new terminal. |
-| `air.exe` is in `go\bin\windows_386\` | `GOARCH=386` is set, see step 2. Delete that folder and reinstall Air. |
+| `dlv.exe` is in `go\bin\windows_386\` | `GOARCH=386` is set, see step 2. Delete that folder and reinstall Delve. |
 | `database connection failed: ... password authentication failed` | Wrong `DB_USER` / `DB_PASSWORD` in `.env`. |
 | `database connection failed: ... database "7th_sense" does not exist` | Create it (step 5) or fix `DB_DATABASE`. |
 | `database connection failed: ... connect: connection refused` | PostgreSQL is not running: `pg_isready`, or start the service in `services.msc`. |

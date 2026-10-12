@@ -1,7 +1,7 @@
 package config
 
 import (
-	"log"
+	"log/slog"
 	"os"
 
 	"github.com/joho/godotenv"
@@ -27,7 +27,7 @@ type DBConfig struct {
 // Variables from a .env file are loaded first if the file exists.
 func Load() Config {
 	if err := godotenv.Load(); err != nil {
-		log.Println("no .env file found, using system environment variables")
+		slog.Info("no .env file found, using system environment variables")
 	}
 
 	return Config{
@@ -37,7 +37,7 @@ func Load() Config {
 			Port:     getEnv("DB_PORT", "5432"),
 			User:     getEnv("DB_USER", "postgres"),
 			Password: getEnv("DB_PASSWORD", ""),
-			Name:     getEnv("DB_DATABASE", "postgres"),
+			Name:     getEnv("DB_DATABASE", "7th_sense"),
 			SSLMode:  getEnv("DB_SSLMODE", "disable"),
 		},
 	}

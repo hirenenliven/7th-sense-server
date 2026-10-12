@@ -1,7 +1,7 @@
 # 7th-sense-server
 
 CRUD REST API in Go using only the standard library.
-Uses a repository interface for data access, making it easy to plug in a database implementation later.
+Data is stored in PostgreSQL (pgx); see `migrations/` for the schema.
 
 ## Layout
 
@@ -23,7 +23,7 @@ internal/
 │   └── item_handler.go
 ├── dto/                        request bodies + Validate()               ~ validationMiddleware
 ├── service/                    business rules (e.g. unique email)        ~ x.service.js
-├── repository/                 data access (interface only)              ~ DB calls
+├── repository/                 SQL queries only, no business rules       ~ DB calls
 ├── model/                      stored entities                           ~ model/*.model.js
 └── response/                   API responses                             ~ common/
     ├── responses.go            predefined responses (Success, Created, NotFound, ...)  ~ Responses
@@ -55,8 +55,8 @@ error becomes a 500 and is logged, so internals never reach the client.
 
 1. `internal/model/product.go` – `Product` struct
 2. `internal/dto/product_dto.go` – `ProductRequest` + `Validate()`
-3. `internal/repository/product_repository.go` – `ProductRepository` interface
-4. `internal/repository/postgres_product_repository.go` – Database implementation (when DB is added)
+3. `internal/repository/product_repository.go` – `ProductRepository` struct with the SQL queries
+4. A migration in `migrations/` for the table
 5. `internal/service/product_service.go` – `ProductService`
 6. `internal/handler/product_handler.go` – `ProductHandler`
 7. `internal/routes/product_routes.go` – `registerProductRoutes`, then call it in `routes.go`
@@ -73,6 +73,7 @@ cp .env.example .env
 ```
 
 ```sh
+go tool air                    # hot reload (Air is a go.mod tool)
 go run ./cmd/server            # port 8080
 PORT=3000 go run ./cmd/server  # custom port
 ```
@@ -94,6 +95,27 @@ Every response has the same shape (`data` is left out when there is none):
 | POST   | /api/v1/users       | Create user |
 | PUT    | /api/v1/users/{id}  | Update user |
 | DELETE | /api/v1/users/{id}  | Delete user |
+
+### Users
+
+`POST /api/v1/users`
+
+```json
+{"username": "hiren_c", "email": "hiren@example.com", "password": "secret123",
+ "firstName": "Hiren", "lastName": "Chavda", "mobile": "+919876543210"}
+```
+
+`PUT /api/v1/users/{id}` takes the same fields without `password`, plus an optional
+`status` (`active` / `inactive`; empty keeps the current one). PUT replaces the profile:
+omitted `firstName`, `lastName` and `mobile` are cleared.
+
+- `username`: 3–50 letters, digits, `_` or `.`; unique
+- `email`: valid, unique (stored lowercase)
+- `password`: 8–72 characters, stored as a bcrypt hash and never returned
+- `mobile`: optional, 7–15 digits with an optional leading `+`
+
+`DELETE` is a soft delete: the row stays with `is_deleted = true` and `deleted_at` set, and is
+hidden from every other endpoint. Its email and username can be used again by a new user.
 
 The same five routes exist for `/api/v1/items`. They are registered only once a database-backed
 repository is wired in `cmd/server/main.go`; until then only `/health` responds.

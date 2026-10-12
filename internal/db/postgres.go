@@ -39,9 +39,10 @@ func Connect(ctx context.Context, dbConfig config.DBConfig) (*pgxpool.Pool, erro
 	return pool, nil
 }
 
-// Execute executes any type of SQL query with parameters.
-// For SELECT queries, use QueryRow for single row or Query for multiple rows.
-// For INSERT/UPDATE/DELETE, use Exec to get rows affected.
+// Execute runs any SQL query with parameters and returns its rows.
+//   - SELECT / ... RETURNING: read the rows with pgx.CollectRows or pgx.CollectOneRow.
+//   - INSERT / UPDATE / DELETE without RETURNING: call rows.Close(), check rows.Err(),
+//     then use rows.CommandTag().RowsAffected().
 func Execute(ctx context.Context, pool *pgxpool.Pool, query string, args ...any) (pgx.Rows, error) {
 	return pool.Query(ctx, query, args...)
 }

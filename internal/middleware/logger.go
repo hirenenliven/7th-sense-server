@@ -1,10 +1,9 @@
 package middleware
 
 import (
+	"log/slog"
 	"net/http"
 	"time"
-
-	"7th-sense-server/internal/logger"
 )
 
 // statusRecorder captures the status code written by the next handler.
@@ -18,6 +17,12 @@ func (recorder *statusRecorder) WriteHeader(status int) {
 	recorder.ResponseWriter.WriteHeader(status)
 }
 
+// Unwrap lets http.ResponseController and http.MaxBytesReader reach the
+// underlying ResponseWriter.
+func (recorder *statusRecorder) Unwrap() http.ResponseWriter {
+	return recorder.ResponseWriter
+}
+
 // Logger logs the method, path, status and duration of every request.
 func Logger(nextHandler http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
@@ -26,7 +31,7 @@ func Logger(nextHandler http.Handler) http.Handler {
 
 		nextHandler.ServeHTTP(recorder, request)
 
-		logger.Log(logger.LevelInfo, "request",
+		slog.Info("request",
 			"method", request.Method,
 			"path", request.URL.Path,
 			"status", recorder.status,

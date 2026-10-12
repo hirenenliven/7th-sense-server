@@ -30,7 +30,13 @@ func (userHandler *UserHandler) GetAll(writer http.ResponseWriter, request *http
 
 // GetByID handles GET /api/v1/users/{id}.
 func (userHandler *UserHandler) GetByID(writer http.ResponseWriter, request *http.Request) {
-	user, err := userHandler.service.GetByID(request.Context(), request.PathValue("id"))
+	id, err := pathID(request)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+
+	user, err := userHandler.service.GetByID(request.Context(), id)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -40,7 +46,7 @@ func (userHandler *UserHandler) GetByID(writer http.ResponseWriter, request *htt
 
 // Create handles POST /api/v1/users.
 func (userHandler *UserHandler) Create(writer http.ResponseWriter, request *http.Request) {
-	var userRequest dto.UserRequest
+	var userRequest dto.CreateUserRequest
 	if err := decodeAndValidate(writer, request, &userRequest); err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -56,13 +62,19 @@ func (userHandler *UserHandler) Create(writer http.ResponseWriter, request *http
 
 // Update handles PUT /api/v1/users/{id}.
 func (userHandler *UserHandler) Update(writer http.ResponseWriter, request *http.Request) {
-	var userRequest dto.UserRequest
+	id, err := pathID(request)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+
+	var userRequest dto.UpdateUserRequest
 	if err := decodeAndValidate(writer, request, &userRequest); err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
 	}
 
-	user, err := userHandler.service.Update(request.Context(), request.PathValue("id"), userRequest)
+	user, err := userHandler.service.Update(request.Context(), id, userRequest)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -72,7 +84,13 @@ func (userHandler *UserHandler) Update(writer http.ResponseWriter, request *http
 
 // Delete handles DELETE /api/v1/users/{id}.
 func (userHandler *UserHandler) Delete(writer http.ResponseWriter, request *http.Request) {
-	if err := userHandler.service.Delete(request.Context(), request.PathValue("id")); err != nil {
+	id, err := pathID(request)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+
+	if err := userHandler.service.Delete(request.Context(), id); err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
 	}

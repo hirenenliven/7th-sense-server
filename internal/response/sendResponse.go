@@ -3,9 +3,8 @@ package response
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
-
-	"7th-sense-server/internal/logger"
 )
 
 // body is the shape of every API response.
@@ -29,7 +28,7 @@ type body struct {
 func SendResponse(writer http.ResponseWriter, request *http.Request, result error, data any) {
 	var apiResponse *Response
 	if !errors.As(result, &apiResponse) {
-		logger.Log(logger.LevelError, "unexpected error",
+		slog.Error("unexpected error",
 			"method", request.Method,
 			"path", request.URL.Path,
 			"error", result,
@@ -51,6 +50,6 @@ func SendResponse(writer http.ResponseWriter, request *http.Request, result erro
 		Data:       data,
 	})
 	if err != nil {
-		logger.Log(logger.LevelError, "response encode failed", "error", err)
+		slog.Error("response encode failed", "error", err)
 	}
 }
