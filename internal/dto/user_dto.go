@@ -24,8 +24,33 @@ const (
 	UserStatusInactive = "inactive"
 )
 
+// UI themes a user can choose (user_profiles.theme).
+const (
+	ThemeDark  = "dark_version"
+	ThemeLight = "light_version"
+)
+
 // dayStartLayouts are the accepted formats of CustomerDetails.DayStartFrom.
 var dayStartLayouts = []string{"15:04", "15:04:05"}
+
+// Filters a customer can choose on the customer form (CustomerDetails.Filters).
+const (
+	FilterCountry    = "country"
+	FilterState      = "state"
+	FilterBranch     = "branch"
+	FilterCity       = "city"
+	FilterLocation   = "location"
+	FilterShop       = "shop"
+	FilterLine       = "line"
+	FilterCell       = "cell"
+	FilterSupervisor = "supervisor"
+)
+
+// customerFilters is the set of accepted filter names.
+var customerFilters = map[string]bool{
+	FilterCountry: true, FilterState: true, FilterBranch: true, FilterCity: true, FilterLocation: true,
+	FilterShop: true, FilterLine: true, FilterCell: true, FilterSupervisor: true,
+}
 
 // CreateUserRequest is the body for POST /users: the login credentials plus
 // the customer details.
@@ -37,6 +62,7 @@ type CreateUserRequest struct {
 	LastName  string `json:"lastName"`
 	RoleID    int64  `json:"roleId"`
 	CompanyID *int64 `json:"companyId"`
+	Theme     string `json:"theme"` // ThemeDark or ThemeLight; empty uses the default
 	CustomerDetails
 }
 
@@ -58,6 +84,11 @@ func (request *CreateUserRequest) Validate() error {
 	if request.RoleID <= 0 {
 		return response.NewError(http.StatusBadRequest, "Please enter valid role")
 	}
+	theme, err := normalizeTheme(request.Theme)
+	if err != nil {
+		return err
+	}
+	request.Theme = theme
 	return request.CustomerDetails.validate()
 }
 
@@ -71,6 +102,7 @@ type UpdateUserRequest struct {
 	RoleID    int64  `json:"roleId"`
 	CompanyID *int64 `json:"companyId"`
 	Status    string `json:"status"`
+	Theme     string `json:"theme"` // ThemeDark or ThemeLight; empty keeps the current theme
 	CustomerDetails
 }
 
@@ -92,6 +124,11 @@ func (request *UpdateUserRequest) Validate() error {
 	if request.RoleID <= 0 {
 		return response.NewError(http.StatusBadRequest, "Please enter valid role")
 	}
+	theme, err := normalizeTheme(request.Theme)
+	if err != nil {
+		return err
+	}
+	request.Theme = theme
 	return request.CustomerDetails.validate()
 }
 
@@ -111,8 +148,8 @@ type CustomerDetails struct {
 	// Address
 	AddressLine1 string `json:"addressLine1"`
 	AddressLine2 string `json:"addressLine2"`
-	CountryID    *int64 `json:"countryId"`
-	StateID      *int64 `json:"stateId"`
+	Country      string `json:"country"` // country name, e.g. "India"
+	State        string `json:"state"`   // state name, e.g. "Gujarat"
 	City         string `json:"city"`
 	ZipCode      string `json:"zipCode"`
 
@@ -122,6 +159,9 @@ type CustomerDetails struct {
 	SecondaryPhone string `json:"secondaryPhone"`
 	TimeZone       string `json:"timeZone"`     // IANA name, e.g. "Asia/Kolkata"
 	DayStartFrom   string `json:"dayStartFrom"` // "HH:MM", e.g. "06:00"
+
+	// Filters checklist, e.g. ["country", "state", "shop"]. Empty means none chosen.
+	Filters []string `json:"filters"`
 }
 
 // validate trims the customer fields and checks they are usable.
@@ -133,6 +173,8 @@ func (details *CustomerDetails) validate() error {
 	details.CompanyLogo = strings.TrimSpace(details.CompanyLogo)
 	details.AddressLine1 = strings.TrimSpace(details.AddressLine1)
 	details.AddressLine2 = strings.TrimSpace(details.AddressLine2)
+	details.Country = strings.TrimSpace(details.Country)
+	details.State = strings.TrimSpace(details.State)
 	details.City = strings.TrimSpace(details.City)
 	details.ZipCode = strings.TrimSpace(details.ZipCode)
 	details.ContactPerson = strings.TrimSpace(details.ContactPerson)
@@ -168,16 +210,16 @@ func (details *CustomerDetails) validate() error {
 	if details.AddressLine1 == "" || len(details.AddressLine1) > 255 || len(details.AddressLine2) > 255 {
 		return response.NewError(http.StatusBadRequest, "Please enter valid address")
 	}
-	if details.CountryID == nil || *details.CountryID <= 0 {
+	if details.Country == "" || len(details.Country) > 100 {
 		return response.NewError(http.StatusBadRequest, "Please enter valid country")
 	}
-	if details.StateID == nil || *details.StateID <= 0 {
+	if details.State == "" || len(details.State) > 100 {
 		return response.NewError(http.StatusBadRequest, "Please enter valid state")
 	}
 	if details.City == "" || len(details.City) > 100 {
 		return response.NewError(http.StatusBadRequest, "Please enter valid city")
 	}
-	if !pinCodePattern.MatchString(details.ZipCode) {
+	if details.ZipCode == "" || len(details.ZipCode) > 20 {
 		return response.NewError(http.StatusBadRequest, "Please enter valid zip code")
 	}
 
@@ -197,7 +239,41 @@ func (details *CustomerDetails) validate() error {
 	if _, err := ParseDayStart(details.DayStartFrom); err != nil {
 		return response.NewError(http.StatusBadRequest, "Please enter valid day start time")
 	}
+
+	// Filters
+	filters, err := normalizeFilters(details.Filters)
+	if err != nil {
+		return err
+	}
+	details.Filters = filters
 	return nil
+}
+
+// normalizeFilters lowercases the filter names and drops duplicates, keeping the
+// order. It never returns nil, so an empty list clears the user's filters.
+func normalizeFilters(filters []string) ([]string, error) {
+	normalized := make([]string, 0, len(filters))
+	seen := make(map[string]bool, len(filters))
+	for _, filter := range filters {
+		filter = strings.ToLower(strings.TrimSpace(filter))
+		if !customerFilters[filter] {
+			return nil, response.NewError(http.StatusBadRequest, "Please enter valid filter")
+		}
+		if !seen[filter] {
+			seen[filter] = true
+			normalized = append(normalized, filter)
+		}
+	}
+	return normalized, nil
+}
+
+// normalizeTheme lowercases theme and checks it is a known theme. Empty is allowed.
+func normalizeTheme(theme string) (string, error) {
+	theme = strings.ToLower(strings.TrimSpace(theme))
+	if theme != "" && theme != ThemeDark && theme != ThemeLight {
+		return "", response.NewError(http.StatusBadRequest, "Please enter valid theme")
+	}
+	return theme, nil
 }
 
 // ParseDayStart parses a day start time such as "06:00" or "06:00:00".

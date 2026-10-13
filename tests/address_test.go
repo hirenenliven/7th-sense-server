@@ -17,9 +17,6 @@ func TestAddressCRUD(t *testing.T) {
 	ctx := context.Background()
 	addressService := service.NewAddressService(repository.NewAddressRepository(testDBPool))
 
-	var stateID int64 = 1
-	var countryID int64 = 1
-
 	t.Run("get before create returns empty list", func(t *testing.T) {
 		addresses, err := addressService.GetByUserID(ctx, testUserID)
 		if err != nil {
@@ -37,8 +34,8 @@ func TestAddressCRUD(t *testing.T) {
 			AddressLine1:  "123 Main Street",
 			AddressLine2:  "Apt 4B",
 			City:          "Rajkot",
-			StateID:       &stateID,
-			CountryID:     &countryID,
+			StateName:     "Gujarat",
+			CountryName:   "India",
 			PinCode:       "360001",
 			ContactPerson: "John Doe",
 			ContactPhone:  "+919876543210",
@@ -88,8 +85,8 @@ func TestAddressCRUD(t *testing.T) {
 			AddressLine1:  "456 Business Park",
 			AddressLine2:  "", // cleared
 			City:          "Ahmedabad",
-			StateID:       &stateID,
-			CountryID:     &countryID,
+			StateName:     "Gujarat",
+			CountryName:   "India",
 			PinCode:       "380001",
 			ContactPerson: "Jane Smith",
 			ContactPhone:  "+919876543211",

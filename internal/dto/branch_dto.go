@@ -30,6 +30,7 @@ type CreateBranchRequest struct {
 	Address    string `json:"address"`
 	City       string `json:"city"`
 	StateID    *int64 `json:"stateId"`
+	UserCityID *int64 `json:"userCityId"`
 	CustomerID *int64 `json:"customerId"`
 	GSTNumber  string `json:"gstNumber"`
 	PANNumber  string `json:"panNumber"`
@@ -64,6 +65,7 @@ type UpdateBranchRequest struct {
 	Address    string `json:"address"`
 	City       string `json:"city"`
 	StateID    *int64 `json:"stateId"`
+	UserCityID *int64 `json:"userCityId"`
 	CustomerID *int64 `json:"customerId"`
 	GSTNumber  string `json:"gstNumber"`
 	PANNumber  string `json:"panNumber"`

@@ -10,8 +10,8 @@ type Address struct {
 	AddressLine1  string     `db:"address_line1" json:"addressLine1"`
 	AddressLine2  string     `db:"address_line2" json:"addressLine2"`
 	City          string     `db:"city" json:"city"`
-	StateID       *int64     `db:"state_id" json:"stateId"`
-	CountryID     *int64     `db:"country_id" json:"countryId"`
+	StateName     string     `db:"state_name" json:"stateName"`
+	CountryName   string     `db:"country_name" json:"countryName"`
 	PinCode       string     `db:"pin_code" json:"pinCode"`
 	ContactPerson string     `db:"contact_person" json:"contactPerson"`
 	ContactPhone  string     `db:"contact_phone" json:"contactPhone"`

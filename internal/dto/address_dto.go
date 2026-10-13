@@ -28,8 +28,8 @@ type CreateAddressRequest struct {
 	AddressLine1  string `json:"addressLine1"`
 	AddressLine2  string `json:"addressLine2"`
 	City          string `json:"city"`
-	StateID       *int64 `json:"stateId"`
-	CountryID     *int64 `json:"countryId"`
+	StateName     string `json:"stateName"`
+	CountryName   string `json:"countryName"`
 	PinCode       string `json:"pinCode"`
 	ContactPerson string `json:"contactPerson"`
 	ContactPhone  string `json:"contactPhone"`
@@ -77,8 +77,8 @@ type UpdateAddressRequest struct {
 	AddressLine1  string `json:"addressLine1"`
 	AddressLine2  string `json:"addressLine2"`
 	City          string `json:"city"`
-	StateID       *int64 `json:"stateId"`
-	CountryID     *int64 `json:"countryId"`
+	StateName     string `json:"stateName"`
+	CountryName   string `json:"countryName"`
 	PinCode       string `json:"pinCode"`
 	ContactPerson string `json:"contactPerson"`
 	ContactPhone  string `json:"contactPhone"`

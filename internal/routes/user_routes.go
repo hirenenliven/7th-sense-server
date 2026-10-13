@@ -12,4 +12,5 @@ func registerUserRoutes(router *http.ServeMux, prefix string, userHandler *handl
 	router.HandleFunc("POST "+prefix+"/users", userHandler.Create)
 	router.HandleFunc("PUT "+prefix+"/users/{id}", userHandler.Update)
 	router.HandleFunc("DELETE "+prefix+"/users/{id}", userHandler.Delete)
+	router.HandleFunc("GET "+prefix+"/me", userHandler.Me)
 }

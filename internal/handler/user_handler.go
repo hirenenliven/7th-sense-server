@@ -28,6 +28,22 @@ func (userHandler *UserHandler) GetAll(writer http.ResponseWriter, request *http
 	response.SendResponse(writer, request, response.Success, users)
 }
 
+// Me handles GET /api/v1/me: the current user with its customer details.
+func (userHandler *UserHandler) Me(writer http.ResponseWriter, request *http.Request) {
+	userID, err := currentUserID(request)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+
+	user, err := userHandler.service.GetByID(request.Context(), userID)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+	response.SendResponse(writer, request, response.Success, user)
+}
+
 // GetByID handles GET /api/v1/users/{id}.
 func (userHandler *UserHandler) GetByID(writer http.ResponseWriter, request *http.Request) {
 	id, err := pathID(request)

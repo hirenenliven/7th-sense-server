@@ -28,7 +28,7 @@ func NewBranchRepository(dbPool *pgxpool.Pool) *BranchRepository {
 }
 
 func (branchRepository *BranchRepository) FindAll(ctx context.Context) ([]model.Branch, error) {
-	query := `SELECT id, code, name, email, address, city, state_id, customer_id,
+	query := `SELECT id, code, name, email, address, city, state_id, user_city_id, customer_id,
 			COALESCE(gst_number, '') AS gst_number,
 			COALESCE(pan_number, '') AS pan_number,
 			COALESCE(color_code, '') AS color_code,
@@ -50,7 +50,7 @@ func (branchRepository *BranchRepository) FindAll(ctx context.Context) ([]model.
 }
 
 func (branchRepository *BranchRepository) FindByID(ctx context.Context, id int64) (model.Branch, error) {
-	query := `SELECT id, code, name, email, address, city, state_id, customer_id,
+	query := `SELECT id, code, name, email, address, city, state_id, user_city_id, customer_id,
 			COALESCE(gst_number, '') AS gst_number,
 			COALESCE(pan_number, '') AS pan_number,
 			COALESCE(color_code, '') AS color_code,
@@ -68,9 +68,9 @@ func (branchRepository *BranchRepository) FindByID(ctx context.Context, id int64
 }
 
 func (branchRepository *BranchRepository) Create(ctx context.Context, branch model.Branch) (model.Branch, error) {
-	query := `INSERT INTO branches (code, name, email, address, city, state_id, customer_id, gst_number, pan_number, color_code, status)
-		VALUES ($1, $2, NULLIF($3, ''), NULLIF($4, ''), NULLIF($5, ''), $6, $7, NULLIF($8, ''), NULLIF($9, ''), NULLIF($10, ''), NULLIF($11, ''))
-		RETURNING id, code, name, email, address, city, state_id, customer_id,
+	query := `INSERT INTO branches (code, name, email, address, city, state_id, user_city_id, customer_id, gst_number, pan_number, color_code, status)
+		VALUES ($1, $2, NULLIF($3, ''), NULLIF($4, ''), NULLIF($5, ''), $6, $7, $8, NULLIF($9, ''), NULLIF($10, ''), NULLIF($11, ''), NULLIF($12, ''))
+		RETURNING id, code, name, email, address, city, state_id, user_city_id, customer_id,
 			COALESCE(gst_number, '') AS gst_number,
 			COALESCE(pan_number, '') AS pan_number,
 			COALESCE(color_code, '') AS color_code,
@@ -78,7 +78,7 @@ func (branchRepository *BranchRepository) Create(ctx context.Context, branch mod
 			is_deleted, deleted_at, created_at, updated_at`
 
 	rows, err := db.Execute(ctx, branchRepository.dbPool, query,
-		branch.Code, branch.Name, branch.Email, branch.Address, branch.City, branch.StateID, branch.CustomerID, branch.GSTNumber, branch.PANNumber, branch.ColorCode, branch.Status,
+		branch.Code, branch.Name, branch.Email, branch.Address, branch.City, branch.StateID, branch.UserCityID, branch.CustomerID, branch.GSTNumber, branch.PANNumber, branch.ColorCode, branch.Status,
 	)
 	if err != nil {
 		return model.Branch{}, fmt.Errorf("create branch: %w", err)
@@ -92,10 +92,10 @@ func (branchRepository *BranchRepository) Create(ctx context.Context, branch mod
 func (branchRepository *BranchRepository) Update(ctx context.Context, branch model.Branch) (model.Branch, error) {
 	query := `UPDATE branches
 		SET code = $2, name = $3, email = NULLIF($4, ''), address = NULLIF($5, ''), city = NULLIF($6, ''),
-			state_id = $7, customer_id = $8, gst_number = NULLIF($9, ''), pan_number = NULLIF($10, ''),
-			color_code = NULLIF($11, ''), status = COALESCE(NULLIF($12, ''), status)
+			state_id = $7, user_city_id = $8, customer_id = $9, gst_number = NULLIF($10, ''), pan_number = NULLIF($11, ''),
+			color_code = NULLIF($12, ''), status = COALESCE(NULLIF($13, ''), status)
 		WHERE id = $1 AND is_deleted = false
-		RETURNING id, code, name, email, address, city, state_id, customer_id,
+		RETURNING id, code, name, email, address, city, state_id, user_city_id, customer_id,
 			COALESCE(gst_number, '') AS gst_number,
 			COALESCE(pan_number, '') AS pan_number,
 			COALESCE(color_code, '') AS color_code,
@@ -103,7 +103,7 @@ func (branchRepository *BranchRepository) Update(ctx context.Context, branch mod
 			is_deleted, deleted_at, created_at, updated_at`
 
 	rows, err := db.Execute(ctx, branchRepository.dbPool, query,
-		branch.ID, branch.Code, branch.Name, branch.Email, branch.Address, branch.City, branch.StateID, branch.CustomerID, branch.GSTNumber, branch.PANNumber, branch.ColorCode, branch.Status,
+		branch.ID, branch.Code, branch.Name, branch.Email, branch.Address, branch.City, branch.StateID, branch.UserCityID, branch.CustomerID, branch.GSTNumber, branch.PANNumber, branch.ColorCode, branch.Status,
 	)
 	if err != nil {
 		return model.Branch{}, fmt.Errorf("update branch: %w", err)

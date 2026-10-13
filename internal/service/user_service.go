@@ -49,7 +49,11 @@ func newUserServices(database db.Querier) userServices {
 // NewUserService creates a UserService that stores users in dbPool and checks
 // branches with branchService.
 func NewUserService(dbPool *pgxpool.Pool, branchService *BranchService) *UserService {
-	return &UserService{dbPool: dbPool, branchService: branchService, services: newUserServices(dbPool)}
+	return &UserService{
+		dbPool:        dbPool,
+		branchService: branchService,
+		services:      newUserServices(dbPool),
+	}
 }
 
 func (userService *UserService) GetAll(ctx context.Context) ([]model.User, error) {
@@ -95,8 +99,9 @@ func (userService *UserService) Create(ctx context.Context, userRequest dto.Crea
 		if _, err := services.companyProfileService.Create(ctx, companyProfileFrom(user.ID, userRequest.CustomerDetails)); err != nil {
 			return err
 		}
-		profile := model.UserProfile{UserID: user.ID, Theme: defaultTheme, Language: defaultLanguage}
+		profile := model.UserProfile{UserID: user.ID, Theme: themeOrDefault(userRequest.Theme), Language: defaultLanguage}
 		setCustomerSettings(&profile, userRequest.CustomerDetails, dayStart)
+		profile.Filters = userRequest.Filters
 		if _, err := services.userProfileService.Create(ctx, profile); err != nil {
 			return err
 		}
@@ -114,7 +119,8 @@ func (userService *UserService) Create(ctx context.Context, userRequest dto.Crea
 
 // Update replaces the user and its customer details. Customer details the user
 // does not have yet are created. User profile fields that are not part of the
-// customer form (designation, birth date, theme, ...) keep their values.
+// customer form (designation, birth date, ...) keep their values; an empty
+// theme keeps the current theme.
 func (userService *UserService) Update(ctx context.Context, id int64, userRequest dto.UpdateUserRequest) (dto.UserResponse, error) {
 	if err := userService.checkBranch(ctx, *userRequest.BranchID); err != nil {
 		return dto.UserResponse{}, err
@@ -157,11 +163,16 @@ func (userService *UserService) Update(ctx context.Context, id int64, userReques
 		profile, err := services.userProfileService.GetByUserID(ctx, id)
 		switch {
 		case err != nil && err.Error() == "User profile not found":
-			profile = model.UserProfile{UserID: id, Theme: defaultTheme, Language: defaultLanguage}
+			profile = model.UserProfile{UserID: id, Theme: themeOrDefault(userRequest.Theme), Language: defaultLanguage}
 			setCustomerSettings(&profile, userRequest.CustomerDetails, dayStart)
+			profile.Filters = userRequest.Filters
 			_, err = services.userProfileService.Create(ctx, profile)
 		case err == nil:
+			if userRequest.Theme != "" {
+				profile.Theme = userRequest.Theme
+			}
 			setCustomerSettings(&profile, userRequest.CustomerDetails, dayStart)
+			profile.Filters = userRequest.Filters
 			_, err = services.userProfileService.Update(ctx, profile)
 		}
 		if err != nil {
@@ -221,9 +232,17 @@ func (userService *UserService) Delete(ctx context.Context, id int64) error {
 // Schema defaults of user_profiles.theme and language. The repository writes
 // an empty value as NULL, so new profiles set them explicitly.
 const (
-	defaultTheme    = "light_version"
+	defaultTheme    = dto.ThemeDark
 	defaultLanguage = "en"
 )
+
+// themeOrDefault returns theme, or defaultTheme when it is empty.
+func themeOrDefault(theme string) string {
+	if theme == "" {
+		return defaultTheme
+	}
+	return theme
+}
 
 // details reads the user with its customer details. Missing details are nil.
 func (services userServices) details(ctx context.Context, id int64) (dto.UserResponse, error) {
@@ -238,7 +257,10 @@ func (services userServices) details(ctx context.Context, id int64) (dto.UserRes
 	case err == nil:
 		userResponse.Profile = &profile
 	case err != nil && err.Error() != "User profile not found":
+		fmt.Printf("Error fetching profile for user %d: %v\n", id, err)
 		return dto.UserResponse{}, err
+	default:
+		fmt.Printf("Profile not found for user %d: %v\n", id, err)
 	}
 
 	companyProfile, err := services.companyProfileService.GetByUserID(ctx, id)
@@ -291,8 +313,8 @@ func setCustomerSettings(profile *model.UserProfile, details dto.CustomerDetails
 func setCustomerAddress(address *model.Address, details dto.CustomerDetails) {
 	address.AddressLine1 = details.AddressLine1
 	address.AddressLine2 = details.AddressLine2
-	address.CountryID = details.CountryID
-	address.StateID = details.StateID
+	address.CountryName = details.Country
+	address.StateName = details.State
 	address.City = details.City
 	address.PinCode = details.ZipCode
 	address.ContactPerson = details.ContactPerson

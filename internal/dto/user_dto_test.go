@@ -10,15 +10,15 @@ import (
 
 // validCustomerDetails returns customer details that pass validation.
 func validCustomerDetails() CustomerDetails {
-	branchID, countryID, stateID := int64(1), int64(1), int64(1)
+	branchID := int64(1)
 	return CustomerDetails{
 		BranchID:      &branchID,
 		CompanyName:   "Enliven Pvt Ltd",
 		GSTNumber:     "24AAACE1234F1Z5",
 		PANNumber:     "AAACE1234F",
 		AddressLine1:  "Plot 12, GIDC",
-		CountryID:     &countryID,
-		StateID:       &stateID,
+		Country:       "India",
+		State:         "Gujarat",
 		City:          "Rajkot",
 		ZipCode:       "360001",
 		ContactPerson: "Hiren",
@@ -65,11 +65,11 @@ func TestCreateUserRequestValidate(t *testing.T) {
 		{"website invalid", func(r *CreateUserRequest) { r.Website = "not a site" }, response.NewError(http.StatusBadRequest, "Please enter valid website")},
 		{"website ftp", func(r *CreateUserRequest) { r.Website = "ftp://example.com" }, response.NewError(http.StatusBadRequest, "Please enter valid website")},
 		{"address missing", func(r *CreateUserRequest) { r.AddressLine1 = "" }, response.NewError(http.StatusBadRequest, "Please enter valid address")},
-		{"country missing", func(r *CreateUserRequest) { r.CountryID = nil }, response.NewError(http.StatusBadRequest, "Please enter valid country")},
-		{"state missing", func(r *CreateUserRequest) { r.StateID = nil }, response.NewError(http.StatusBadRequest, "Please enter valid state")},
+		{"country missing", func(r *CreateUserRequest) { r.Country = " " }, response.NewError(http.StatusBadRequest, "Please enter valid country")},
+		{"state missing", func(r *CreateUserRequest) { r.State = "" }, response.NewError(http.StatusBadRequest, "Please enter valid state")},
 		{"city missing", func(r *CreateUserRequest) { r.City = "" }, response.NewError(http.StatusBadRequest, "Please enter valid city")},
 		{"zip missing", func(r *CreateUserRequest) { r.ZipCode = "" }, response.NewError(http.StatusBadRequest, "Please enter valid zip code")},
-		{"zip with letters", func(r *CreateUserRequest) { r.ZipCode = "36A001" }, response.NewError(http.StatusBadRequest, "Please enter valid zip code")},
+		{"zip too long", func(r *CreateUserRequest) { r.ZipCode = strings.Repeat("1", 21) }, response.NewError(http.StatusBadRequest, "Please enter valid zip code")},
 		{"contact person missing", func(r *CreateUserRequest) { r.ContactPerson = "" }, response.NewError(http.StatusBadRequest, "Please enter valid contact person")},
 		{"primary phone missing", func(r *CreateUserRequest) { r.PrimaryPhone = "" }, response.NewError(http.StatusBadRequest, "Please enter valid mobile")},
 		{"secondary phone invalid", func(r *CreateUserRequest) { r.SecondaryPhone = "12ab" }, response.NewError(http.StatusBadRequest, "Please enter valid mobile")},
@@ -157,5 +157,29 @@ func TestParseDayStart(t *testing.T) {
 	}
 	if dayStart.Hour() != 6 || dayStart.Minute() != 30 {
 		t.Errorf("ParseDayStart() = %v; want 06:30", dayStart)
+	}
+}
+
+func TestCustomerFiltersValidate(t *testing.T) {
+	request := CreateUserRequest{
+		Username: "hiren_c", Email: "hiren@example.com", Password: "secret123", RoleID: 4,
+		CustomerDetails: validCustomerDetails(),
+	}
+	request.Filters = []string{" Country", "state", "SHOP", "country"}
+	if err := request.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+	if strings.Join(request.Filters, ",") != "country,state,shop" {
+		t.Errorf("Filters = %v; want [country state shop] (lowercase, no duplicates)", request.Filters)
+	}
+
+	request.Filters = nil
+	if err := request.Validate(); err != nil || request.Filters == nil {
+		t.Errorf("Validate() with no filters: error = %v, filters = %#v; want nil error and empty list", err, request.Filters)
+	}
+
+	request.Filters = []string{"country", "machine"}
+	if err := request.Validate(); err == nil || err.Error() != "Please enter valid filter" {
+		t.Errorf("Validate() with unknown filter error = %v; want Please enter valid filter", err)
 	}
 }

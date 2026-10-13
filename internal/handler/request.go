@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"7th-sense-server/internal/middleware"
 	"7th-sense-server/internal/response"
 )
 
@@ -36,4 +37,28 @@ func pathID(request *http.Request) (int64, error) {
 		return 0, response.NewError(http.StatusBadRequest, "Please enter valid id")
 	}
 	return id, nil
+}
+
+// queryID reads the optional query parameter name as a positive integer. It
+// returns nil when the parameter is missing or empty.
+func queryID(request *http.Request, name string) (*int64, error) {
+	value := request.URL.Query().Get(name)
+	if value == "" {
+		return nil, nil
+	}
+	id, err := strconv.ParseInt(value, 10, 64)
+	if err != nil || id <= 0 {
+		return nil, response.NewError(http.StatusBadRequest, "Please enter valid "+name)
+	}
+	return &id, nil
+}
+
+// currentUserID returns the id of the user making the request (set by
+// middleware.Authenticate), or Unauthorized when there is none.
+func currentUserID(request *http.Request) (int64, error) {
+	userID, ok := middleware.UserID(request.Context())
+	if !ok {
+		return 0, response.Unauthorized
+	}
+	return userID, nil
 }

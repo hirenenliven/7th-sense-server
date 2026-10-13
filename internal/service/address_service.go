@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"net/http"
 
 	"7th-sense-server/internal/model"
 	"7th-sense-server/internal/repository"
@@ -45,10 +44,6 @@ func toAddressResponseError(err error) error {
 	switch {
 	case errors.Is(err, repository.ErrNotFound):
 		return response.NotFound
-	case errors.Is(err, repository.ErrInvalidCountry):
-		return response.NewError(http.StatusBadRequest, "Please enter valid country")
-	case errors.Is(err, repository.ErrInvalidState):
-		return response.NewError(http.StatusBadRequest, "Please enter valid state")
 	default:
 		return err
 	}

@@ -50,14 +50,33 @@ func run() error {
 	productRepository := repository.NewProductRepository(dbPool)
 	controllerRepository := repository.NewControllerRepository(dbPool)
 	machineRepository := repository.NewMachineRepository(dbPool)
+	// Organization: each service checks its parent with the service above it
+	userCountryService := service.NewUserCountryService(repository.NewUserCountryRepository(dbPool))
+	userStateService := service.NewUserStateService(repository.NewUserStateRepository(dbPool), userCountryService)
+	userCityService := service.NewUserCityService(repository.NewUserCityRepository(dbPool), userStateService)
+	userBranchService := service.NewUserBranchService(repository.NewUserBranchRepository(dbPool), userCityService)
+	userLocationService := service.NewUserLocationService(repository.NewUserLocationRepository(dbPool), userBranchService)
+	userShopService := service.NewUserShopService(repository.NewUserShopRepository(dbPool), userLocationService)
+	userLineService := service.NewUserLineService(repository.NewUserLineRepository(dbPool), userShopService)
+	userCellService := service.NewUserCellService(repository.NewUserCellRepository(dbPool), userLineService)
+	userSupervisorService := service.NewUserSupervisorService(repository.NewUserSupervisorRepository(dbPool), userCellService)
 	router := routes.New(routes.Handlers{
-		User:       handler.NewUserHandler(service.NewUserService(dbPool, branchService)),
-		Branch:     handler.NewBranchHandler(branchService),
-		Category:   handler.NewCategoryHandler(service.NewCategoryService(categoryRepository)),
-		Brand:      handler.NewBrandHandler(service.NewBrandService(brandRepository)),
-		Product:    handler.NewProductHandler(service.NewProductService(productRepository)),
-		Controller: handler.NewControllerHandler(service.NewControllerService(controllerRepository)),
-		Machine:    handler.NewMachineHandler(service.NewMachineService(machineRepository)),
+		User:           handler.NewUserHandler(service.NewUserService(dbPool, branchService)),
+		Branch:         handler.NewBranchHandler(branchService),
+		Category:       handler.NewCategoryHandler(service.NewCategoryService(categoryRepository)),
+		Brand:          handler.NewBrandHandler(service.NewBrandService(brandRepository)),
+		Product:        handler.NewProductHandler(service.NewProductService(productRepository)),
+		Controller:     handler.NewControllerHandler(service.NewControllerService(controllerRepository)),
+		Machine:        handler.NewMachineHandler(service.NewMachineService(machineRepository)),
+		UserCountry:    handler.NewUserCountryHandler(userCountryService),
+		UserState:      handler.NewUserStateHandler(userStateService),
+		UserCity:       handler.NewUserCityHandler(userCityService),
+		UserBranch:     handler.NewUserBranchHandler(userBranchService),
+		UserLocation:   handler.NewUserLocationHandler(userLocationService),
+		UserShop:       handler.NewUserShopHandler(userShopService),
+		UserLine:       handler.NewUserLineHandler(userLineService),
+		UserCell:       handler.NewUserCellHandler(userCellService),
+		UserSupervisor: handler.NewUserSupervisorHandler(userSupervisorService),
 	})
 
 	server := &http.Server{

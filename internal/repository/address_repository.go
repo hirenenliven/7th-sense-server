@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 
 	"7th-sense-server/internal/db"
 	"7th-sense-server/internal/model"
@@ -33,7 +32,8 @@ func (addressRepository *AddressRepository) FindByUserID(ctx context.Context, us
 			COALESCE(address_line1, '') AS address_line1,
 			COALESCE(address_line2, '') AS address_line2,
 			COALESCE(city, '') AS city,
-			state_id, country_id,
+			COALESCE(state_name, '') AS state_name,
+			COALESCE(country_name, '') AS country_name,
 			COALESCE(pin_code, '') AS pin_code,
 			COALESCE(contact_person, '') AS contact_person,
 			COALESCE(contact_phone, '') AS contact_phone,
@@ -55,14 +55,15 @@ func (addressRepository *AddressRepository) FindByUserID(ctx context.Context, us
 }
 
 func (addressRepository *AddressRepository) Create(ctx context.Context, address model.Address) (model.Address, error) {
-	query := `INSERT INTO addresses (user_id, address_type, address_line1, address_line2, city, state_id, country_id, pin_code, contact_person, contact_phone, is_default)
-		VALUES ($1, NULLIF($2, ''), NULLIF($3, ''), NULLIF($4, ''), NULLIF($5, ''), $6, $7, NULLIF($8, ''), NULLIF($9, ''), NULLIF($10, ''), $11)
+	query := `INSERT INTO addresses (user_id, address_type, address_line1, address_line2, city, state_name, country_name, pin_code, contact_person, contact_phone, is_default)
+		VALUES ($1, NULLIF($2, ''), NULLIF($3, ''), NULLIF($4, ''), NULLIF($5, ''), NULLIF($6, ''), NULLIF($7, ''), NULLIF($8, ''), NULLIF($9, ''), NULLIF($10, ''), $11)
 		RETURNING id, user_id,
 			COALESCE(address_type, '') AS address_type,
 			COALESCE(address_line1, '') AS address_line1,
 			COALESCE(address_line2, '') AS address_line2,
 			COALESCE(city, '') AS city,
-			state_id, country_id,
+			COALESCE(state_name, '') AS state_name,
+			COALESCE(country_name, '') AS country_name,
 			COALESCE(pin_code, '') AS pin_code,
 			COALESCE(contact_person, '') AS contact_person,
 			COALESCE(contact_phone, '') AS contact_phone,
@@ -70,7 +71,7 @@ func (addressRepository *AddressRepository) Create(ctx context.Context, address 
 			is_deleted, deleted_at, created_at, updated_at`
 
 	rows, err := db.Execute(ctx, addressRepository.database, query,
-		address.UserID, address.AddressType, address.AddressLine1, address.AddressLine2, address.City, address.StateID, address.CountryID, address.PinCode, address.ContactPerson, address.ContactPhone, address.IsDefault,
+		address.UserID, address.AddressType, address.AddressLine1, address.AddressLine2, address.City, address.StateName, address.CountryName, address.PinCode, address.ContactPerson, address.ContactPhone, address.IsDefault,
 	)
 	if err != nil {
 		return model.Address{}, fmt.Errorf("create address: %w", err)
@@ -82,15 +83,16 @@ func (addressRepository *AddressRepository) Create(ctx context.Context, address 
 func (addressRepository *AddressRepository) Update(ctx context.Context, address model.Address) (model.Address, error) {
 	query := `UPDATE addresses
 		SET address_type = NULLIF($2, ''), address_line1 = NULLIF($3, ''), address_line2 = NULLIF($4, ''),
-			city = NULLIF($5, ''), state_id = $6, country_id = $7, pin_code = NULLIF($8, ''),
-			contact_person = NULLIF($9, ''), contact_phone = NULLIF($10, ''), is_default = $11
+			city = NULLIF($5, ''), state_name = NULLIF($6, ''), country_name = NULLIF($7, ''),
+			pin_code = NULLIF($8, ''), contact_person = NULLIF($9, ''), contact_phone = NULLIF($10, ''), is_default = $11
 		WHERE id = $1 AND is_deleted = false
 		RETURNING id, user_id,
 			COALESCE(address_type, '') AS address_type,
 			COALESCE(address_line1, '') AS address_line1,
 			COALESCE(address_line2, '') AS address_line2,
 			COALESCE(city, '') AS city,
-			state_id, country_id,
+			COALESCE(state_name, '') AS state_name,
+			COALESCE(country_name, '') AS country_name,
 			COALESCE(pin_code, '') AS pin_code,
 			COALESCE(contact_person, '') AS contact_person,
 			COALESCE(contact_phone, '') AS contact_phone,
@@ -98,7 +100,7 @@ func (addressRepository *AddressRepository) Update(ctx context.Context, address 
 			is_deleted, deleted_at, created_at, updated_at`
 
 	rows, err := db.Execute(ctx, addressRepository.database, query,
-		address.ID, address.AddressType, address.AddressLine1, address.AddressLine2, address.City, address.StateID, address.CountryID, address.PinCode, address.ContactPerson, address.ContactPhone, address.IsDefault,
+		address.ID, address.AddressType, address.AddressLine1, address.AddressLine2, address.City, address.StateName, address.CountryName, address.PinCode, address.ContactPerson, address.ContactPhone, address.IsDefault,
 	)
 	if err != nil {
 		return model.Address{}, fmt.Errorf("update address: %w", err)
@@ -134,16 +136,6 @@ func mapAddressError(operation string, err error) error {
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound
-	}
-
-	var pgError *pgconn.PgError
-	if errors.As(err, &pgError) && pgError.Code == "23503" { // foreign_key_violation
-		switch pgError.ConstraintName {
-		case "addresses_country_id_fkey":
-			return ErrInvalidCountry
-		case "addresses_state_id_fkey":
-			return ErrInvalidState
-		}
 	}
 	return fmt.Errorf("%s: %w", operation, err)
 }

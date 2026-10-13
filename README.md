@@ -106,7 +106,7 @@ address are saved in one transaction (all or nothing).
  "branchId": 1, "companyName": "Enliven Pvt Ltd", "finixId": 77,
  "gstNumber": "24AAACE1234F1Z5", "panNumber": "AAACE1234F",
  "website": "www.example.com", "companyLogo": "uploads/logo.png",
- "addressLine1": "Plot 12, GIDC", "addressLine2": "", "countryId": 1, "stateId": 1,
+ "addressLine1": "Plot 12, GIDC", "addressLine2": "", "country": "India", "state": "Gujarat",
  "city": "Rajkot", "zipCode": "360001",
  "contactPerson": "Hiren", "primaryPhone": "+919876543210", "secondaryPhone": "",
  "timeZone": "Asia/Kolkata", "dayStartFrom": "06:00"}
@@ -126,8 +126,8 @@ address are saved in one transaction (all or nothing).
 | Password *      | `password`       | `users.password` (bcrypt, 8–72 chars)  |
 | Address - 1 *   | `addressLine1`   | `addresses.address_line1`              |
 | Address - 2     | `addressLine2`   | `addresses.address_line2`              |
-| Country *       | `countryId`      | `addresses.country_id`                 |
-| State *         | `stateId`        | `addresses.state_id`                   |
+| Country *       | `country`        | `addresses.country_id` (looked up by name) |
+| State *         | `state`          | `addresses.state_id` (looked up by name, within the country) |
 | City *          | `city`           | `addresses.city`                       |
 | Zip Code *      | `zipCode`        | `addresses.pin_code` (3–10 digits)     |
 | Contact Person *| `contactPerson`  | `user_profiles.contact_person`, `addresses.contact_person` |
@@ -135,6 +135,8 @@ address are saved in one transaction (all or nothing).
 | Secondary Phone | `secondaryPhone` | `user_profiles.contact_phone`          |
 | Time Zone *     | `timeZone`       | `user_profiles.timezone` (IANA name)   |
 | Day Start From *| `dayStartFrom`   | `user_profiles.start_day_time` (`HH:MM`) |
+
+`filters` is the filter checklist: any of `country`, `state`, `branch`, `city`, `location`, `shop`, `line`, `cell`, `supervisor` (case-insensitive, duplicates ignored). It is stored in `user_filters`, one row per filter; on update the list replaces the chosen filters and `[]` clears them. Responses include it as `"filters": [...]`.
 
 `roleId` is required (4 = customer); `firstName`, `lastName` and `companyId` are optional.
 

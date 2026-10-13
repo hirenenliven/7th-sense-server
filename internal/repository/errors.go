@@ -23,4 +23,6 @@ var (
 	ErrInvalidCountry = errors.New("invalid country")
 	// ErrInvalidState is returned when state_id does not reference an existing state.
 	ErrInvalidState = errors.New("invalid state")
+	// ErrInvalidParent is returned when an organization row's parent id does not reference an existing row.
+	ErrInvalidParent = errors.New("invalid parent")
 )

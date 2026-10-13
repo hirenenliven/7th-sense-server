@@ -11,6 +11,7 @@ type Branch struct {
 	Address    string     `db:"address" json:"address"`
 	City       string     `db:"city" json:"city"`
 	StateID    *int64     `db:"state_id" json:"stateId"`
+	UserCityID *int64     `db:"user_city_id" json:"userCityId"`
 	CustomerID *int64     `db:"customer_id" json:"customerId"`
 	GSTNumber  string     `db:"gst_number" json:"gstNumber"`
 	PANNumber  string     `db:"pan_number" json:"panNumber"`

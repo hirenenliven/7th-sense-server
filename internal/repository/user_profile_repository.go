@@ -39,6 +39,7 @@ func (userProfileRepository *UserProfileRepository) FindByUserID(ctx context.Con
 			COALESCE(timezone, '') AS timezone,
 			COALESCE(language, '') AS language,
 			start_day_time,
+			COALESCE(filters, '{}') AS filters,
 			is_deleted, deleted_at, created_at, updated_at
 		FROM user_profiles
 		WHERE user_id = $1 AND is_deleted = false`
@@ -52,8 +53,8 @@ func (userProfileRepository *UserProfileRepository) FindByUserID(ctx context.Con
 }
 
 func (userProfileRepository *UserProfileRepository) Create(ctx context.Context, profile model.UserProfile) (model.UserProfile, error) {
-	query := `INSERT INTO user_profiles (user_id, designation, grade, birth_date, joining_date, blood_group, profile_picture, contact_person, contact_phone, theme, timezone, language, start_day_time)
-		VALUES ($1, NULLIF($2, ''), NULLIF($3, ''), $4, $5, NULLIF($6, ''), NULLIF($7, ''), NULLIF($8, ''), NULLIF($9, ''), NULLIF($10, ''), NULLIF($11, ''), NULLIF($12, ''), $13)
+	query := `INSERT INTO user_profiles (user_id, designation, grade, birth_date, joining_date, blood_group, profile_picture, contact_person, contact_phone, theme, timezone, language, start_day_time, filters)
+		VALUES ($1, NULLIF($2, ''), NULLIF($3, ''), $4, $5, NULLIF($6, ''), NULLIF($7, ''), NULLIF($8, ''), NULLIF($9, ''), NULLIF($10, ''), NULLIF($11, ''), NULLIF($12, ''), $13, COALESCE($14, '{}'::text[]))
 		RETURNING id, user_id,
 			COALESCE(designation, '') AS designation,
 			COALESCE(grade, '') AS grade,
@@ -66,10 +67,11 @@ func (userProfileRepository *UserProfileRepository) Create(ctx context.Context, 
 			COALESCE(timezone, '') AS timezone,
 			COALESCE(language, '') AS language,
 			start_day_time,
+			COALESCE(filters, '{}') AS filters,
 			is_deleted, deleted_at, created_at, updated_at`
 
 	rows, err := db.Execute(ctx, userProfileRepository.database, query,
-		profile.UserID, profile.Designation, profile.Grade, profile.BirthDate, profile.JoiningDate, profile.BloodGroup, profile.ProfilePicture, profile.ContactPerson, profile.ContactPhone, profile.Theme, profile.Timezone, profile.Language, profile.StartDayTime,
+		profile.UserID, profile.Designation, profile.Grade, profile.BirthDate, profile.JoiningDate, profile.BloodGroup, profile.ProfilePicture, profile.ContactPerson, profile.ContactPhone, profile.Theme, profile.Timezone, profile.Language, profile.StartDayTime, profile.Filters,
 	)
 	if err != nil {
 		return model.UserProfile{}, fmt.Errorf("create user profile: %w", err)
@@ -83,7 +85,7 @@ func (userProfileRepository *UserProfileRepository) Update(ctx context.Context, 
 		SET designation = NULLIF($2, ''), grade = NULLIF($3, ''), birth_date = $4, joining_date = $5,
 			blood_group = NULLIF($6, ''), profile_picture = NULLIF($7, ''), contact_person = NULLIF($8, ''),
 			contact_phone = NULLIF($9, ''), theme = NULLIF($10, ''), timezone = NULLIF($11, ''),
-			language = NULLIF($12, ''), start_day_time = $13
+			language = NULLIF($12, ''), start_day_time = $13, filters = COALESCE($14, '{}'::text[])
 		WHERE user_id = $1 AND is_deleted = false
 		RETURNING id, user_id,
 			COALESCE(designation, '') AS designation,
@@ -97,10 +99,11 @@ func (userProfileRepository *UserProfileRepository) Update(ctx context.Context, 
 			COALESCE(timezone, '') AS timezone,
 			COALESCE(language, '') AS language,
 			start_day_time,
+			COALESCE(filters, '{}') AS filters,
 			is_deleted, deleted_at, created_at, updated_at`
 
 	rows, err := db.Execute(ctx, userProfileRepository.database, query,
-		profile.UserID, profile.Designation, profile.Grade, profile.BirthDate, profile.JoiningDate, profile.BloodGroup, profile.ProfilePicture, profile.ContactPerson, profile.ContactPhone, profile.Theme, profile.Timezone, profile.Language, profile.StartDayTime,
+		profile.UserID, profile.Designation, profile.Grade, profile.BirthDate, profile.JoiningDate, profile.BloodGroup, profile.ProfilePicture, profile.ContactPerson, profile.ContactPhone, profile.Theme, profile.Timezone, profile.Language, profile.StartDayTime, profile.Filters,
 	)
 	if err != nil {
 		return model.UserProfile{}, fmt.Errorf("update user profile: %w", err)

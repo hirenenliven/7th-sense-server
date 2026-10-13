@@ -157,6 +157,8 @@ Base path: `/api/v1`
 **Controllers**: GET/POST/PUT/DELETE `/controllers`
 **Addresses**: GET/POST/PUT/DELETE `/addresses`
 **Catalog**: GET/POST `/catalog`
+**Current user**: GET `/me`
+**Organization** (per user, `?user<Parent>Id=` on list): GET/POST/PUT/DELETE `/user-city|branch|location|shop|line|cell|supervisor`, GET/POST/DELETE `/user-country|state` — one set of files per table (`user_<level>_*.go`). The current user comes from `middleware.Authenticate` (dev user 6 until login exists).
 
 ## Configuration
 
