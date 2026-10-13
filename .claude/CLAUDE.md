@@ -157,8 +157,9 @@ Base path: `/api/v1`
 **Controllers**: GET/POST/PUT/DELETE `/controllers`
 **Addresses**: GET/POST/PUT/DELETE `/addresses`
 **Catalog**: GET/POST `/catalog`
+**Auth**: POST `/auth/login`, POST `/auth/logout` (public), GET `/auth/me` — HttpOnly `ts_session` cookie, hashed sessions in `auth_tokens` (see README › Authentication)
 **Current user**: GET `/me`
-**Organization** (per user, `?user<Parent>Id=` on list): GET/POST/PUT/DELETE `/user-city|branch|location|shop|line|cell|supervisor`, GET/POST/DELETE `/user-country|state` — one set of files per table (`user_<level>_*.go`). The current user comes from `middleware.Authenticate` (dev user 6 until login exists).
+**Organization** (per user, `?user<Parent>Id=` on list): GET/POST/PUT/DELETE `/user-city|branch|location|shop|line|cell|supervisor`, GET/POST/DELETE `/user-country|state` — one set of files per table (`user_<level>_*.go`). The current user comes from the session (`middleware.Authenticate`); an admin may act for another user with `?userId=<id>` on any of these routes (`targetUserID` in `handler/request.go`), non-admins get 403 for any id but their own. Every `/api` route except login/logout needs a session; admin-only routes are wrapped with `adminOnly` in `internal/routes`.
 
 ## Configuration
 
@@ -171,6 +172,7 @@ DB_USER=postgres
 DB_PASSWORD=your_password
 DB_DATABASE=7th_sense
 DB_SSLMODE=disable
+COOKIE_SECURE=false   # true when served over HTTPS
 ```
 
 Default values in `internal/config/config.go` if missing.

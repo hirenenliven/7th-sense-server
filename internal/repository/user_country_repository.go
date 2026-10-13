@@ -128,5 +128,8 @@ func mapUserCountryError(operation string, err error) error {
 			return ErrDuplicateName
 		}
 	}
+	if errors.As(err, &pgError) && pgError.Code == "23503" { // foreign_key_violation: user_id
+		return ErrInvalidUser
+	}
 	return fmt.Errorf("%s: %w", operation, err)
 }

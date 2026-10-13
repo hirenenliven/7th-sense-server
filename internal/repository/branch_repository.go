@@ -27,18 +27,32 @@ func NewBranchRepository(dbPool *pgxpool.Pool) *BranchRepository {
 	return &BranchRepository{dbPool: dbPool}
 }
 
-func (branchRepository *BranchRepository) FindAll(ctx context.Context) ([]model.Branch, error) {
-	query := `SELECT id, code, name, email, address, city, state_id, user_city_id, customer_id,
-			COALESCE(gst_number, '') AS gst_number,
-			COALESCE(pan_number, '') AS pan_number,
-			COALESCE(color_code, '') AS color_code,
-			COALESCE(status, '') AS status,
-			is_deleted, deleted_at, created_at, updated_at
-		FROM branches
-		WHERE is_deleted = false
-		ORDER BY id`
+// branchColumns is the column list read into model.Branch from branches b,
+// with the city name read from user_city c (LEFT JOIN: user_city_id is optional).
+const branchColumns = `b.id, b.code, b.name,
+			COALESCE(b.email, '') AS email,
+			COALESCE(b.address, '') AS address,
+			COALESCE(b.city, '') AS city,
+			b.state_id, b.user_city_id,
+			COALESCE(c.name, '') AS city_name,
+			b.customer_id,
+			COALESCE(b.gst_number, '') AS gst_number,
+			COALESCE(b.pan_number, '') AS pan_number,
+			COALESCE(b.color_code, '') AS color_code,
+			COALESCE(b.status, '') AS status,
+			b.is_deleted, b.deleted_at, b.created_at, b.updated_at`
 
-	rows, err := db.Execute(ctx, branchRepository.dbPool, query)
+// FindAll returns the branches ordered by id. A non-nil userCityID keeps only the
+// branches of that city.
+func (branchRepository *BranchRepository) FindAll(ctx context.Context, userCityID *int64) ([]model.Branch, error) {
+	query := `SELECT ` + branchColumns + `
+		FROM branches b
+		LEFT JOIN user_city c ON c.id = b.user_city_id
+		WHERE b.is_deleted = false
+			AND ($1::bigint IS NULL OR b.user_city_id = $1)
+		ORDER BY b.id`
+
+	rows, err := db.Execute(ctx, branchRepository.dbPool, query, userCityID)
 	if err != nil {
 		return nil, fmt.Errorf("find all branches: %w", err)
 	}
@@ -50,14 +64,10 @@ func (branchRepository *BranchRepository) FindAll(ctx context.Context) ([]model.
 }
 
 func (branchRepository *BranchRepository) FindByID(ctx context.Context, id int64) (model.Branch, error) {
-	query := `SELECT id, code, name, email, address, city, state_id, user_city_id, customer_id,
-			COALESCE(gst_number, '') AS gst_number,
-			COALESCE(pan_number, '') AS pan_number,
-			COALESCE(color_code, '') AS color_code,
-			COALESCE(status, '') AS status,
-			is_deleted, deleted_at, created_at, updated_at
-		FROM branches
-		WHERE id = $1 AND is_deleted = false`
+	query := `SELECT ` + branchColumns + `
+		FROM branches b
+		LEFT JOIN user_city c ON c.id = b.user_city_id
+		WHERE b.id = $1 AND b.is_deleted = false`
 
 	rows, err := db.Execute(ctx, branchRepository.dbPool, query, id)
 	if err != nil {
@@ -68,14 +78,14 @@ func (branchRepository *BranchRepository) FindByID(ctx context.Context, id int64
 }
 
 func (branchRepository *BranchRepository) Create(ctx context.Context, branch model.Branch) (model.Branch, error) {
-	query := `INSERT INTO branches (code, name, email, address, city, state_id, user_city_id, customer_id, gst_number, pan_number, color_code, status)
-		VALUES ($1, $2, NULLIF($3, ''), NULLIF($4, ''), NULLIF($5, ''), $6, $7, $8, NULLIF($9, ''), NULLIF($10, ''), NULLIF($11, ''), NULLIF($12, ''))
-		RETURNING id, code, name, email, address, city, state_id, user_city_id, customer_id,
-			COALESCE(gst_number, '') AS gst_number,
-			COALESCE(pan_number, '') AS pan_number,
-			COALESCE(color_code, '') AS color_code,
-			COALESCE(status, '') AS status,
-			is_deleted, deleted_at, created_at, updated_at`
+	query := `WITH saved AS (
+			INSERT INTO branches (code, name, email, address, city, state_id, user_city_id, customer_id, gst_number, pan_number, color_code, status)
+			VALUES ($1, $2, NULLIF($3, ''), NULLIF($4, ''), NULLIF($5, ''), $6, $7, $8, NULLIF($9, ''), NULLIF($10, ''), NULLIF($11, ''), NULLIF($12, ''))
+			RETURNING *
+		)
+		SELECT ` + branchColumns + `
+		FROM saved b
+		LEFT JOIN user_city c ON c.id = b.user_city_id`
 
 	rows, err := db.Execute(ctx, branchRepository.dbPool, query,
 		branch.Code, branch.Name, branch.Email, branch.Address, branch.City, branch.StateID, branch.UserCityID, branch.CustomerID, branch.GSTNumber, branch.PANNumber, branch.ColorCode, branch.Status,
@@ -90,17 +100,17 @@ func (branchRepository *BranchRepository) Create(ctx context.Context, branch mod
 // Update replaces the profile fields of branch.ID. An empty Status keeps the
 // current status.
 func (branchRepository *BranchRepository) Update(ctx context.Context, branch model.Branch) (model.Branch, error) {
-	query := `UPDATE branches
-		SET code = $2, name = $3, email = NULLIF($4, ''), address = NULLIF($5, ''), city = NULLIF($6, ''),
-			state_id = $7, user_city_id = $8, customer_id = $9, gst_number = NULLIF($10, ''), pan_number = NULLIF($11, ''),
-			color_code = NULLIF($12, ''), status = COALESCE(NULLIF($13, ''), status)
-		WHERE id = $1 AND is_deleted = false
-		RETURNING id, code, name, email, address, city, state_id, user_city_id, customer_id,
-			COALESCE(gst_number, '') AS gst_number,
-			COALESCE(pan_number, '') AS pan_number,
-			COALESCE(color_code, '') AS color_code,
-			COALESCE(status, '') AS status,
-			is_deleted, deleted_at, created_at, updated_at`
+	query := `WITH saved AS (
+			UPDATE branches
+			SET code = $2, name = $3, email = NULLIF($4, ''), address = NULLIF($5, ''), city = NULLIF($6, ''),
+				state_id = $7, user_city_id = $8, customer_id = $9, gst_number = NULLIF($10, ''), pan_number = NULLIF($11, ''),
+				color_code = NULLIF($12, ''), status = COALESCE(NULLIF($13, ''), status)
+			WHERE id = $1 AND is_deleted = false
+			RETURNING *
+		)
+		SELECT ` + branchColumns + `
+		FROM saved b
+		LEFT JOIN user_city c ON c.id = b.user_city_id`
 
 	rows, err := db.Execute(ctx, branchRepository.dbPool, query,
 		branch.ID, branch.Code, branch.Name, branch.Email, branch.Address, branch.City, branch.StateID, branch.UserCityID, branch.CustomerID, branch.GSTNumber, branch.PANNumber, branch.ColorCode, branch.Status,
@@ -132,6 +142,23 @@ func (branchRepository *BranchRepository) Delete(ctx context.Context, id int64) 
 	return nil
 }
 
+// HasLocations reports whether the branch id has active locations (user_location.branch_id).
+func (branchRepository *BranchRepository) HasLocations(ctx context.Context, id int64) (bool, error) {
+	query := `SELECT EXISTS (
+			SELECT 1 FROM user_location WHERE branch_id = $1 AND is_deleted = false
+		)`
+
+	rows, err := db.Execute(ctx, branchRepository.dbPool, query, id)
+	if err != nil {
+		return false, fmt.Errorf("check locations: %w", err)
+	}
+	found, err := pgx.CollectOneRow(rows, pgx.RowTo[bool])
+	if err != nil {
+		return false, fmt.Errorf("check locations: %w", err)
+	}
+	return found, nil
+}
+
 // mapBranchError turns driver errors into repository errors. A nil err stays nil.
 func mapBranchError(operation string, err error) error {
 	if err == nil {
@@ -147,6 +174,9 @@ func mapBranchError(operation string, err error) error {
 		case "branches_code_key":
 			return ErrDuplicateCode
 		}
+	}
+	if errors.As(err, &pgError) && pgError.Code == "23503" && pgError.ConstraintName == "branches_user_city_id_fkey" { // foreign_key_violation
+		return ErrInvalidParent
 	}
 	return fmt.Errorf("%s: %w", operation, err)
 }

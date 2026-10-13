@@ -18,9 +18,15 @@ func NewBranchHandler(branchService *service.BranchService) *BranchHandler {
 	return &BranchHandler{service: branchService}
 }
 
-// GetAll handles GET /api/v1/branches.
+// GetAll handles GET /api/v1/branches[?userCityId=<id>].
 func (branchHandler *BranchHandler) GetAll(writer http.ResponseWriter, request *http.Request) {
-	branches, err := branchHandler.service.GetAll(request.Context())
+	userCityID, err := queryID(request, "userCityId")
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+
+	branches, err := branchHandler.service.GetAll(request.Context(), userCityID)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -46,13 +52,19 @@ func (branchHandler *BranchHandler) GetByID(writer http.ResponseWriter, request 
 
 // Create handles POST /api/v1/branches.
 func (branchHandler *BranchHandler) Create(writer http.ResponseWriter, request *http.Request) {
+	userID, err := currentUserID(request)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+
 	var branchRequest dto.CreateBranchRequest
 	if err := decodeAndValidate(writer, request, &branchRequest); err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
 	}
 
-	branch, err := branchHandler.service.Create(request.Context(), branchRequest)
+	branch, err := branchHandler.service.Create(request.Context(), userID, branchRequest)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -62,6 +74,11 @@ func (branchHandler *BranchHandler) Create(writer http.ResponseWriter, request *
 
 // Update handles PUT /api/v1/branches/{id}.
 func (branchHandler *BranchHandler) Update(writer http.ResponseWriter, request *http.Request) {
+	userID, err := currentUserID(request)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
 	id, err := pathID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
@@ -74,7 +91,7 @@ func (branchHandler *BranchHandler) Update(writer http.ResponseWriter, request *
 		return
 	}
 
-	branch, err := branchHandler.service.Update(request.Context(), id, branchRequest)
+	branch, err := branchHandler.service.Update(request.Context(), userID, id, branchRequest)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return

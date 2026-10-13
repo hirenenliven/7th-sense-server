@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"7th-sense-server/internal/handler"
+	"7th-sense-server/internal/middleware"
+	"7th-sense-server/internal/model"
 	"7th-sense-server/internal/repository"
 	"7th-sense-server/internal/routes"
 	"7th-sense-server/internal/service"
@@ -25,6 +27,16 @@ type apiResponse struct {
 	Data       json.RawMessage `json:"data"`
 }
 
+// asTestUser is the authenticate middleware of the test routers: every request
+// acts as testUserID with the admin role, so suites test their entity without
+// logging in. auth_test.go covers the real session middleware.
+func asTestUser(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		user := model.AuthUser{ID: testUserID, Role: model.RoleAdmin}
+		next.ServeHTTP(writer, request.WithContext(middleware.WithAuthUser(request.Context(), user)))
+	})
+}
+
 // newCatalogRouter builds the real router with the catalog handlers wired to testDBPool.
 func newCatalogRouter() http.Handler {
 	return routes.New(routes.Handlers{
@@ -32,7 +44,7 @@ func newCatalogRouter() http.Handler {
 		Brand:      handler.NewBrandHandler(service.NewBrandService(repository.NewBrandRepository(testDBPool))),
 		Product:    handler.NewProductHandler(service.NewProductService(repository.NewProductRepository(testDBPool))),
 		Controller: handler.NewControllerHandler(service.NewControllerService(repository.NewControllerRepository(testDBPool))),
-	})
+	}, asTestUser)
 }
 
 // sendRequest sends method path with body encoded as JSON (nil sends no body)

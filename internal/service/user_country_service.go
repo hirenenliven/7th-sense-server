@@ -59,6 +59,8 @@ func toUserCountryResponseError(err error) error {
 		return response.NewError(http.StatusNotFound, "Country not found")
 	case errors.Is(err, repository.ErrDuplicateName):
 		return response.NewError(http.StatusBadRequest, "Country already exists")
+	case errors.Is(err, repository.ErrInvalidUser):
+		return response.NewError(http.StatusBadRequest, "Please enter valid user")
 	default:
 		return err
 	}

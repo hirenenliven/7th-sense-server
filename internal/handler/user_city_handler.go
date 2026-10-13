@@ -9,8 +9,8 @@ import (
 )
 
 // UserCityHandler handles HTTP requests for the user's cities (/user-city).
-// Every request acts for the current user (middleware.Authenticate), never for
-// a user id sent by the client.
+// Every request acts for the current user (middleware.Authenticate); an admin may act
+// for another user with ?userId=<id> (see targetUserID).
 type UserCityHandler struct {
 	service *service.UserCityService
 }
@@ -20,9 +20,9 @@ func NewUserCityHandler(userCityService *service.UserCityService) *UserCityHandl
 	return &UserCityHandler{service: userCityService}
 }
 
-// GetAll handles GET /api/v1/user-city[?userStateId=<id>].
+// GetAll handles GET /api/v1/user-city[?userStateId=<id>][&userId=<id>].
 func (userCityHandler *UserCityHandler) GetAll(writer http.ResponseWriter, request *http.Request) {
-	userID, err := currentUserID(request)
+	userID, err := targetUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -41,9 +41,9 @@ func (userCityHandler *UserCityHandler) GetAll(writer http.ResponseWriter, reque
 	response.SendResponse(writer, request, response.Success, cities)
 }
 
-// GetByID handles GET /api/v1/user-city/{id}.
+// GetByID handles GET /api/v1/user-city/{id}[?userId=<id>].
 func (userCityHandler *UserCityHandler) GetByID(writer http.ResponseWriter, request *http.Request) {
-	userID, err := currentUserID(request)
+	userID, err := targetUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -62,9 +62,9 @@ func (userCityHandler *UserCityHandler) GetByID(writer http.ResponseWriter, requ
 	response.SendResponse(writer, request, response.Success, city)
 }
 
-// Create handles POST /api/v1/user-city.
+// Create handles POST /api/v1/user-city[?userId=<id>].
 func (userCityHandler *UserCityHandler) Create(writer http.ResponseWriter, request *http.Request) {
-	userID, err := currentUserID(request)
+	userID, err := targetUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -84,9 +84,9 @@ func (userCityHandler *UserCityHandler) Create(writer http.ResponseWriter, reque
 	response.SendResponse(writer, request, response.Created, city)
 }
 
-// Update handles PUT /api/v1/user-city/{id}.
+// Update handles PUT /api/v1/user-city/{id}[?userId=<id>].
 func (userCityHandler *UserCityHandler) Update(writer http.ResponseWriter, request *http.Request) {
-	userID, err := currentUserID(request)
+	userID, err := targetUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -111,9 +111,9 @@ func (userCityHandler *UserCityHandler) Update(writer http.ResponseWriter, reque
 	response.SendResponse(writer, request, response.Success, city)
 }
 
-// Delete handles DELETE /api/v1/user-city/{id}.
+// Delete handles DELETE /api/v1/user-city/{id}[?userId=<id>].
 func (userCityHandler *UserCityHandler) Delete(writer http.ResponseWriter, request *http.Request) {
-	userID, err := currentUserID(request)
+	userID, err := targetUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return

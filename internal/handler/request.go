@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"7th-sense-server/internal/middleware"
+	"7th-sense-server/internal/model"
 	"7th-sense-server/internal/response"
 )
 
@@ -61,4 +62,25 @@ func currentUserID(request *http.Request) (int64, error) {
 		return 0, response.Unauthorized
 	}
 	return userID, nil
+}
+
+// targetUserID returns the user whose organization rows (/user-country … /user-supervisor)
+// the request reads or changes: the current user, or, for an admin, the user named by
+// ?userId=<id>. A non-admin naming any user but themself gets Forbidden.
+func targetUserID(request *http.Request) (int64, error) {
+	currentUser, ok := middleware.CurrentUser(request.Context())
+	if !ok {
+		return 0, response.Unauthorized
+	}
+	userID, err := queryID(request, "userId")
+	if err != nil {
+		return 0, err
+	}
+	if userID == nil || *userID == currentUser.ID {
+		return currentUser.ID, nil
+	}
+	if currentUser.Role != model.RoleAdmin {
+		return 0, response.Forbidden
+	}
+	return *userID, nil
 }

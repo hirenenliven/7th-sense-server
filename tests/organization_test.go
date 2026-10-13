@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"7th-sense-server/internal/handler"
+	"7th-sense-server/internal/middleware"
+	"7th-sense-server/internal/model"
 	"7th-sense-server/internal/repository"
 	"7th-sense-server/internal/routes"
 	"7th-sense-server/internal/service"
@@ -20,25 +22,29 @@ type orgRecord struct {
 	UserID      int64  `json:"userId"`
 	UserStateID int64  `json:"userStateId"`
 	StateName   string `json:"stateName"`
+	UserCityID  int64  `json:"userCityId"`
+	CityName    string `json:"cityName"`
+	BranchID    int64  `json:"branchId"`
+	BranchName  string `json:"branchName"`
 	Name        string `json:"name"`
 }
 
 // newOrganizationRouter builds the real router with the country, state, city,
-// branch and location handlers wired to testDBPool. Requests act as the dev
-// user (middleware.Authenticate).
+// branch and location handlers wired to testDBPool. Requests act as
+// testUserID (asTestUser).
 func newOrganizationRouter() http.Handler {
 	userCountryService := service.NewUserCountryService(repository.NewUserCountryRepository(testDBPool))
 	userStateService := service.NewUserStateService(repository.NewUserStateRepository(testDBPool), userCountryService)
 	userCityService := service.NewUserCityService(repository.NewUserCityRepository(testDBPool), userStateService)
-	userBranchService := service.NewUserBranchService(repository.NewUserBranchRepository(testDBPool), userCityService)
-	userLocationService := service.NewUserLocationService(repository.NewUserLocationRepository(testDBPool), userBranchService)
+	branchService := service.NewBranchService(repository.NewBranchRepository(testDBPool), userCityService)
+	userLocationService := service.NewUserLocationService(repository.NewUserLocationRepository(testDBPool), branchService)
 	return routes.New(routes.Handlers{
 		UserCountry:  handler.NewUserCountryHandler(userCountryService),
 		UserState:    handler.NewUserStateHandler(userStateService),
 		UserCity:     handler.NewUserCityHandler(userCityService),
-		UserBranch:   handler.NewUserBranchHandler(userBranchService),
+		Branch:       handler.NewBranchHandler(branchService),
 		UserLocation: handler.NewUserLocationHandler(userLocationService),
-	})
+	}, asTestUser)
 }
 
 // TestOrganizationHierarchy creates country → state → city → branch for the dev
@@ -66,13 +72,22 @@ func TestOrganizationHierarchy(t *testing.T) {
 	if city.UserStateID != state.ID || city.StateName != state.Name {
 		t.Fatalf("city = %+v; want parent %d %q", city, state.ID, state.Name)
 	}
-	branch := create(t, "/user-branch", map[string]any{"name": "Branch " + suffix, "userCityId": city.ID})
+	branchCode := "T" + suffix
+	branch := create(t, "/branches", map[string]any{"code": branchCode, "name": "Branch " + suffix, "userCityId": city.ID})
+	if branch.UserCityID != city.ID || branch.CityName != city.Name {
+		t.Fatalf("branch = %+v; want city %d %q", branch, city.ID, city.Name)
+	}
+	location := create(t, "/user-location", map[string]any{"name": "Location " + suffix, "branchId": branch.ID})
+	if location.BranchID != branch.ID || location.BranchName != branch.Name {
+		t.Fatalf("location = %+v; want branch %d %q", location, branch.ID, branch.Name)
+	}
 
 	t.Run("validation", func(t *testing.T) {
 		expectStatus(t, sendRequest(t, router, http.MethodPost, apiV1+"/user-city", map[string]any{"name": "  ", "userStateId": state.ID}), http.StatusBadRequest, "Please enter valid name")
 		expectStatus(t, sendRequest(t, router, http.MethodPost, apiV1+"/user-city", map[string]any{"name": "No parent"}), http.StatusBadRequest, "Please enter valid state")
 		expectStatus(t, sendRequest(t, router, http.MethodPost, apiV1+"/user-city", map[string]any{"name": "Unknown parent", "userStateId": unknownID}), http.StatusBadRequest, "Please enter valid state")
-		expectStatus(t, sendRequest(t, router, http.MethodPost, apiV1+"/user-location", map[string]any{"name": "Unknown parent", "userBranchId": unknownID}), http.StatusBadRequest, "Please enter valid branch")
+		expectStatus(t, sendRequest(t, router, http.MethodPost, apiV1+"/user-location", map[string]any{"name": "Unknown parent", "branchId": unknownID}), http.StatusBadRequest, "Please enter valid branch")
+		expectStatus(t, sendRequest(t, router, http.MethodPost, apiV1+"/branches", map[string]any{"code": branchCode + "X", "name": "Unknown city", "userCityId": unknownID}), http.StatusBadRequest, "Please enter valid city")
 	})
 
 	t.Run("duplicate name under the same parent is rejected, case-insensitively", func(t *testing.T) {
@@ -100,16 +115,16 @@ func TestOrganizationHierarchy(t *testing.T) {
 	})
 
 	t.Run("update renames and checks the parent", func(t *testing.T) {
-		path := fmt.Sprintf("%s/user-branch/%d", apiV1, branch.ID)
-		result := sendRequest(t, router, http.MethodPut, path, map[string]any{"name": "Branch renamed " + suffix, "userCityId": city.ID})
+		path := fmt.Sprintf("%s/user-location/%d", apiV1, location.ID)
+		result := sendRequest(t, router, http.MethodPut, path, map[string]any{"name": "Location renamed " + suffix, "branchId": branch.ID})
 		expectStatus(t, result, http.StatusOK, "success")
 		var updated orgRecord
 		decodeData(t, result, &updated)
-		if updated.Name != "Branch renamed "+suffix {
+		if updated.Name != "Location renamed "+suffix {
 			t.Fatalf("updated = %+v", updated)
 		}
-		expectStatus(t, sendRequest(t, router, http.MethodPut, path, map[string]any{"name": "x", "userCityId": unknownID}), http.StatusBadRequest, "Please enter valid city")
-		expectStatus(t, sendRequest(t, router, http.MethodPut, fmt.Sprintf("%s/user-branch/%d", apiV1, unknownID), map[string]any{"name": "x", "userCityId": city.ID}), http.StatusNotFound, "Branch not found")
+		expectStatus(t, sendRequest(t, router, http.MethodPut, path, map[string]any{"name": "x", "branchId": unknownID}), http.StatusBadRequest, "Please enter valid branch")
+		expectStatus(t, sendRequest(t, router, http.MethodPut, fmt.Sprintf("%s/user-location/%d", apiV1, unknownID), map[string]any{"name": "x", "branchId": branch.ID}), http.StatusNotFound, "Location not found")
 	})
 
 	t.Run("another user's rows are invisible", func(t *testing.T) {
@@ -121,6 +136,7 @@ func TestOrganizationHierarchy(t *testing.T) {
 
 	t.Run("delete is blocked while children exist", func(t *testing.T) {
 		expectStatus(t, sendRequest(t, router, http.MethodDelete, fmt.Sprintf("%s/user-city/%d", apiV1, city.ID), nil), http.StatusBadRequest, "This city has branches. Delete its branches first")
+		expectStatus(t, sendRequest(t, router, http.MethodDelete, fmt.Sprintf("%s/branches/%d", apiV1, branch.ID), nil), http.StatusBadRequest, "This branch has locations. Delete its locations first")
 	})
 
 	t.Run("delete bottom-up and reuse a deleted name", func(t *testing.T) {
@@ -128,7 +144,7 @@ func TestOrganizationHierarchy(t *testing.T) {
 			path  string
 			id    int64
 			label string
-		}{{"/user-branch", branch.ID, "Branch"}, {"/user-city", city.ID, "City"}} {
+		}{{"/user-location", location.ID, "Location"}, {"/branches", branch.ID, "Branch"}, {"/user-city", city.ID, "City"}} {
 			expectStatus(t, sendRequest(t, router, http.MethodDelete, fmt.Sprintf("%s%s/%d", apiV1, step.path, step.id), nil), http.StatusOK, step.label+" deleted")
 		}
 		recreated := create(t, "/user-city", map[string]any{"name": "City " + suffix, "userStateId": state.ID})
@@ -164,4 +180,63 @@ func insertOtherUserCountry(t *testing.T, name string) int64 {
 		_, _ = testDBPool.Exec(context.Background(), `UPDATE user_country SET is_deleted = true, deleted_at = NOW() WHERE id = $1`, id)
 	})
 	return id
+}
+
+// TestOrganizationForAnotherUser checks ?userId=: an admin reads and changes
+// another user's rows, a non-admin may only name themself.
+func TestOrganizationForAnotherUser(t *testing.T) {
+	adminRouter := newOrganizationRouter()
+	suffix := uniqueSuffix()
+	otherUserID := createAuthTestUser(t, "org_owner_"+suffix, model.RoleCustomer)
+	otherPath := func(path string) string { return fmt.Sprintf("%s%s?userId=%d", apiV1, path, otherUserID) }
+
+	result := sendRequest(t, adminRouter, http.MethodPost, otherPath("/user-country"), map[string]any{"name": "Owned " + suffix})
+	expectStatus(t, result, http.StatusCreated, "created")
+	var country orgRecord
+	decodeData(t, result, &country)
+	if country.UserID != otherUserID {
+		t.Fatalf("country = %+v; want user %d", country, otherUserID)
+	}
+
+	t.Run("admin lists the named user's rows only", func(t *testing.T) {
+		var others, own []orgRecord
+		decodeData(t, sendRequest(t, adminRouter, http.MethodGet, otherPath("/user-country"), nil), &others)
+		decodeData(t, sendRequest(t, adminRouter, http.MethodGet, apiV1+"/user-country", nil), &own)
+		if !containsOrgID(others, country.ID) || containsOrgID(own, country.ID) {
+			t.Fatalf("country %d: in other user's list = %v, in admin's list = %v; want true, false", country.ID, containsOrgID(others, country.ID), containsOrgID(own, country.ID))
+		}
+	})
+
+	t.Run("parents are checked against the named user", func(t *testing.T) {
+		expectStatus(t, sendRequest(t, adminRouter, http.MethodPost, otherPath("/user-state"), map[string]any{"name": "State " + suffix, "userCountryId": country.ID}), http.StatusCreated, "created")
+		expectStatus(t, sendRequest(t, adminRouter, http.MethodPost, apiV1+"/user-state", map[string]any{"name": "State " + suffix, "userCountryId": country.ID}), http.StatusBadRequest, "Please enter valid country")
+	})
+
+	t.Run("invalid or unknown user", func(t *testing.T) {
+		expectStatus(t, sendRequest(t, adminRouter, http.MethodGet, apiV1+"/user-country?userId=abc", nil), http.StatusBadRequest, "Please enter valid userId")
+		expectStatus(t, sendRequest(t, adminRouter, http.MethodPost, fmt.Sprintf("%s/user-country?userId=%d", apiV1, unknownID), map[string]any{"name": "Nobody " + suffix}), http.StatusBadRequest, "Please enter valid user")
+	})
+
+	t.Run("non-admin may only name themself", func(t *testing.T) {
+		asOtherUser := func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				user := model.AuthUser{ID: otherUserID, Role: model.RoleCustomer}
+				next.ServeHTTP(writer, request.WithContext(middleware.WithAuthUser(request.Context(), user)))
+			})
+		}
+		userCountryService := service.NewUserCountryService(repository.NewUserCountryRepository(testDBPool))
+		customerRouter := routes.New(routes.Handlers{UserCountry: handler.NewUserCountryHandler(userCountryService)}, asOtherUser)
+
+		expectStatus(t, sendRequest(t, customerRouter, http.MethodGet, otherPath("/user-country"), nil), http.StatusOK, "success")
+		expectStatus(t, sendRequest(t, customerRouter, http.MethodGet, fmt.Sprintf("%s/user-country?userId=%d", apiV1, testUserID), nil), http.StatusForbidden, "You do not have permission to do this")
+	})
+}
+
+func containsOrgID(records []orgRecord, id int64) bool {
+	for _, record := range records {
+		if record.ID == id {
+			return true
+		}
+	}
+	return false
 }

@@ -9,8 +9,8 @@ import (
 )
 
 // UserStateHandler handles HTTP requests for the user's states (/user-state).
-// Every request acts for the current user (middleware.Authenticate), never for
-// a user id sent by the client.
+// Every request acts for the current user (middleware.Authenticate); an admin may act
+// for another user with ?userId=<id> (see targetUserID).
 type UserStateHandler struct {
 	service *service.UserStateService
 }
@@ -20,9 +20,9 @@ func NewUserStateHandler(userStateService *service.UserStateService) *UserStateH
 	return &UserStateHandler{service: userStateService}
 }
 
-// GetAll handles GET /api/v1/user-state[?userCountryId=<id>].
+// GetAll handles GET /api/v1/user-state[?userCountryId=<id>][&userId=<id>].
 func (userStateHandler *UserStateHandler) GetAll(writer http.ResponseWriter, request *http.Request) {
-	userID, err := currentUserID(request)
+	userID, err := targetUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -41,9 +41,9 @@ func (userStateHandler *UserStateHandler) GetAll(writer http.ResponseWriter, req
 	response.SendResponse(writer, request, response.Success, states)
 }
 
-// GetByID handles GET /api/v1/user-state/{id}.
+// GetByID handles GET /api/v1/user-state/{id}[?userId=<id>].
 func (userStateHandler *UserStateHandler) GetByID(writer http.ResponseWriter, request *http.Request) {
-	userID, err := currentUserID(request)
+	userID, err := targetUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -62,9 +62,9 @@ func (userStateHandler *UserStateHandler) GetByID(writer http.ResponseWriter, re
 	response.SendResponse(writer, request, response.Success, state)
 }
 
-// Create handles POST /api/v1/user-state.
+// Create handles POST /api/v1/user-state[?userId=<id>].
 func (userStateHandler *UserStateHandler) Create(writer http.ResponseWriter, request *http.Request) {
-	userID, err := currentUserID(request)
+	userID, err := targetUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -84,9 +84,9 @@ func (userStateHandler *UserStateHandler) Create(writer http.ResponseWriter, req
 	response.SendResponse(writer, request, response.Created, state)
 }
 
-// Delete handles DELETE /api/v1/user-state/{id}.
+// Delete handles DELETE /api/v1/user-state/{id}[?userId=<id>].
 func (userStateHandler *UserStateHandler) Delete(writer http.ResponseWriter, request *http.Request) {
-	userID, err := currentUserID(request)
+	userID, err := targetUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return

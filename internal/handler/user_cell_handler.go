@@ -9,8 +9,8 @@ import (
 )
 
 // UserCellHandler handles HTTP requests for the user's cells (/user-cell).
-// Every request acts for the current user (middleware.Authenticate), never for
-// a user id sent by the client.
+// Every request acts for the current user (middleware.Authenticate); an admin may act
+// for another user with ?userId=<id> (see targetUserID).
 type UserCellHandler struct {
 	service *service.UserCellService
 }
@@ -20,9 +20,9 @@ func NewUserCellHandler(userCellService *service.UserCellService) *UserCellHandl
 	return &UserCellHandler{service: userCellService}
 }
 
-// GetAll handles GET /api/v1/user-cell[?userLineId=<id>].
+// GetAll handles GET /api/v1/user-cell[?userLineId=<id>][&userId=<id>].
 func (userCellHandler *UserCellHandler) GetAll(writer http.ResponseWriter, request *http.Request) {
-	userID, err := currentUserID(request)
+	userID, err := targetUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -41,9 +41,9 @@ func (userCellHandler *UserCellHandler) GetAll(writer http.ResponseWriter, reque
 	response.SendResponse(writer, request, response.Success, cells)
 }
 
-// GetByID handles GET /api/v1/user-cell/{id}.
+// GetByID handles GET /api/v1/user-cell/{id}[?userId=<id>].
 func (userCellHandler *UserCellHandler) GetByID(writer http.ResponseWriter, request *http.Request) {
-	userID, err := currentUserID(request)
+	userID, err := targetUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -62,9 +62,9 @@ func (userCellHandler *UserCellHandler) GetByID(writer http.ResponseWriter, requ
 	response.SendResponse(writer, request, response.Success, cell)
 }
 
-// Create handles POST /api/v1/user-cell.
+// Create handles POST /api/v1/user-cell[?userId=<id>].
 func (userCellHandler *UserCellHandler) Create(writer http.ResponseWriter, request *http.Request) {
-	userID, err := currentUserID(request)
+	userID, err := targetUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -84,9 +84,9 @@ func (userCellHandler *UserCellHandler) Create(writer http.ResponseWriter, reque
 	response.SendResponse(writer, request, response.Created, cell)
 }
 
-// Update handles PUT /api/v1/user-cell/{id}.
+// Update handles PUT /api/v1/user-cell/{id}[?userId=<id>].
 func (userCellHandler *UserCellHandler) Update(writer http.ResponseWriter, request *http.Request) {
-	userID, err := currentUserID(request)
+	userID, err := targetUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -111,9 +111,9 @@ func (userCellHandler *UserCellHandler) Update(writer http.ResponseWriter, reque
 	response.SendResponse(writer, request, response.Success, cell)
 }
 
-// Delete handles DELETE /api/v1/user-cell/{id}.
+// Delete handles DELETE /api/v1/user-cell/{id}[?userId=<id>].
 func (userCellHandler *UserCellHandler) Delete(writer http.ResponseWriter, request *http.Request) {
-	userID, err := currentUserID(request)
+	userID, err := targetUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return

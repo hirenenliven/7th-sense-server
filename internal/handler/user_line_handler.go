@@ -9,8 +9,8 @@ import (
 )
 
 // UserLineHandler handles HTTP requests for the user's lines (/user-line).
-// Every request acts for the current user (middleware.Authenticate), never for
-// a user id sent by the client.
+// Every request acts for the current user (middleware.Authenticate); an admin may act
+// for another user with ?userId=<id> (see targetUserID).
 type UserLineHandler struct {
 	service *service.UserLineService
 }
@@ -20,9 +20,9 @@ func NewUserLineHandler(userLineService *service.UserLineService) *UserLineHandl
 	return &UserLineHandler{service: userLineService}
 }
 
-// GetAll handles GET /api/v1/user-line[?userShopId=<id>].
+// GetAll handles GET /api/v1/user-line[?userShopId=<id>][&userId=<id>].
 func (userLineHandler *UserLineHandler) GetAll(writer http.ResponseWriter, request *http.Request) {
-	userID, err := currentUserID(request)
+	userID, err := targetUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -41,9 +41,9 @@ func (userLineHandler *UserLineHandler) GetAll(writer http.ResponseWriter, reque
 	response.SendResponse(writer, request, response.Success, lines)
 }
 
-// GetByID handles GET /api/v1/user-line/{id}.
+// GetByID handles GET /api/v1/user-line/{id}[?userId=<id>].
 func (userLineHandler *UserLineHandler) GetByID(writer http.ResponseWriter, request *http.Request) {
-	userID, err := currentUserID(request)
+	userID, err := targetUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -62,9 +62,9 @@ func (userLineHandler *UserLineHandler) GetByID(writer http.ResponseWriter, requ
 	response.SendResponse(writer, request, response.Success, line)
 }
 
-// Create handles POST /api/v1/user-line.
+// Create handles POST /api/v1/user-line[?userId=<id>].
 func (userLineHandler *UserLineHandler) Create(writer http.ResponseWriter, request *http.Request) {
-	userID, err := currentUserID(request)
+	userID, err := targetUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -84,9 +84,9 @@ func (userLineHandler *UserLineHandler) Create(writer http.ResponseWriter, reque
 	response.SendResponse(writer, request, response.Created, line)
 }
 
-// Update handles PUT /api/v1/user-line/{id}.
+// Update handles PUT /api/v1/user-line/{id}[?userId=<id>].
 func (userLineHandler *UserLineHandler) Update(writer http.ResponseWriter, request *http.Request) {
-	userID, err := currentUserID(request)
+	userID, err := targetUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -111,9 +111,9 @@ func (userLineHandler *UserLineHandler) Update(writer http.ResponseWriter, reque
 	response.SendResponse(writer, request, response.Success, line)
 }
 
-// Delete handles DELETE /api/v1/user-line/{id}.
+// Delete handles DELETE /api/v1/user-line/{id}[?userId=<id>].
 func (userLineHandler *UserLineHandler) Delete(writer http.ResponseWriter, request *http.Request) {
-	userID, err := currentUserID(request)
+	userID, err := targetUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return

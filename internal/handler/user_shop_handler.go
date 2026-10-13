@@ -9,8 +9,8 @@ import (
 )
 
 // UserShopHandler handles HTTP requests for the user's shops (/user-shop).
-// Every request acts for the current user (middleware.Authenticate), never for
-// a user id sent by the client.
+// Every request acts for the current user (middleware.Authenticate); an admin may act
+// for another user with ?userId=<id> (see targetUserID).
 type UserShopHandler struct {
 	service *service.UserShopService
 }
@@ -20,9 +20,9 @@ func NewUserShopHandler(userShopService *service.UserShopService) *UserShopHandl
 	return &UserShopHandler{service: userShopService}
 }
 
-// GetAll handles GET /api/v1/user-shop[?userLocationId=<id>].
+// GetAll handles GET /api/v1/user-shop[?userLocationId=<id>][&userId=<id>].
 func (userShopHandler *UserShopHandler) GetAll(writer http.ResponseWriter, request *http.Request) {
-	userID, err := currentUserID(request)
+	userID, err := targetUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -41,9 +41,9 @@ func (userShopHandler *UserShopHandler) GetAll(writer http.ResponseWriter, reque
 	response.SendResponse(writer, request, response.Success, shops)
 }
 
-// GetByID handles GET /api/v1/user-shop/{id}.
+// GetByID handles GET /api/v1/user-shop/{id}[?userId=<id>].
 func (userShopHandler *UserShopHandler) GetByID(writer http.ResponseWriter, request *http.Request) {
-	userID, err := currentUserID(request)
+	userID, err := targetUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -62,9 +62,9 @@ func (userShopHandler *UserShopHandler) GetByID(writer http.ResponseWriter, requ
 	response.SendResponse(writer, request, response.Success, shop)
 }
 
-// Create handles POST /api/v1/user-shop.
+// Create handles POST /api/v1/user-shop[?userId=<id>].
 func (userShopHandler *UserShopHandler) Create(writer http.ResponseWriter, request *http.Request) {
-	userID, err := currentUserID(request)
+	userID, err := targetUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -84,9 +84,9 @@ func (userShopHandler *UserShopHandler) Create(writer http.ResponseWriter, reque
 	response.SendResponse(writer, request, response.Created, shop)
 }
 
-// Update handles PUT /api/v1/user-shop/{id}.
+// Update handles PUT /api/v1/user-shop/{id}[?userId=<id>].
 func (userShopHandler *UserShopHandler) Update(writer http.ResponseWriter, request *http.Request) {
-	userID, err := currentUserID(request)
+	userID, err := targetUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -111,9 +111,9 @@ func (userShopHandler *UserShopHandler) Update(writer http.ResponseWriter, reque
 	response.SendResponse(writer, request, response.Success, shop)
 }
 
-// Delete handles DELETE /api/v1/user-shop/{id}.
+// Delete handles DELETE /api/v1/user-shop/{id}[?userId=<id>].
 func (userShopHandler *UserShopHandler) Delete(writer http.ResponseWriter, request *http.Request) {
-	userID, err := currentUserID(request)
+	userID, err := targetUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return

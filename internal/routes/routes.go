@@ -5,6 +5,7 @@ import (
 
 	"7th-sense-server/internal/handler"
 	"7th-sense-server/internal/middleware"
+	"7th-sense-server/internal/model"
 	"7th-sense-server/internal/response"
 )
 
@@ -12,6 +13,7 @@ const apiPrefix = "/api"
 
 // Handlers groups every handler the router needs.
 type Handlers struct {
+	Auth       *handler.AuthHandler
 	User       *handler.UserHandler
 	Branch     *handler.BranchHandler
 	Category   *handler.CategoryHandler
@@ -23,7 +25,6 @@ type Handlers struct {
 	UserCountry    *handler.UserCountryHandler
 	UserState      *handler.UserStateHandler
 	UserCity       *handler.UserCityHandler
-	UserBranch     *handler.UserBranchHandler
 	UserLocation   *handler.UserLocationHandler
 	UserShop       *handler.UserShopHandler
 	UserLine       *handler.UserLineHandler
@@ -32,17 +33,31 @@ type Handlers struct {
 }
 
 // New builds the main router with all routes and global middleware.
-func New(handlers Handlers) http.Handler {
+// authenticate resolves the logged-in user (middleware.Authenticate in the
+// server). Only /health, login and logout work without a session; every other
+// /api route answers 401 until the user logs in.
+func New(handlers Handlers, authenticate middleware.Middleware) http.Handler {
 	router := http.NewServeMux()
 
 	router.HandleFunc("GET /health", func(writer http.ResponseWriter, request *http.Request) {
 		response.SendResponse(writer, request, response.Success, nil)
 	})
 
-	// Register API versions
-	registerV1Routes(router, handlers)
+	if handlers.Auth != nil {
+		registerAuthRoutes(router, apiPrefix+"/v1", handlers.Auth, authenticate)
+	}
 
-	return middleware.Chain(router, middleware.Logger, middleware.Recoverer, middleware.Authenticate)
+	// Register API versions behind authentication
+	protectedRouter := http.NewServeMux()
+	registerV1Routes(protectedRouter, handlers)
+	router.Handle(apiPrefix+"/", authenticate(protectedRouter))
+
+	return middleware.Chain(router, middleware.Logger, middleware.Recoverer, middleware.CrossOrigin)
+}
+
+// adminOnly lets only admins call handlerFunc; other users get 403.
+func adminOnly(handlerFunc http.HandlerFunc) http.Handler {
+	return middleware.RequireRole(model.RoleAdmin)(handlerFunc)
 }
 
 // registerV1Routes registers all v1 API routes.
@@ -78,9 +93,6 @@ func registerV1Routes(router *http.ServeMux, handlers Handlers) {
 	}
 	if handlers.UserCity != nil {
 		registerUserCityRoutes(router, v1Prefix, handlers.UserCity)
-	}
-	if handlers.UserBranch != nil {
-		registerUserBranchRoutes(router, v1Prefix, handlers.UserBranch)
 	}
 	if handlers.UserLocation != nil {
 		registerUserLocationRoutes(router, v1Prefix, handlers.UserLocation)

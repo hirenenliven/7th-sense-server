@@ -90,11 +90,42 @@ Every response has the same shape (`data` is left out when there is none):
 | Method | Path                | Description |
 |--------|---------------------|-------------|
 | GET    | /health             | Health check |
+| POST   | /api/v1/auth/login  | Log in (public) |
+| POST   | /api/v1/auth/logout | Log out (public, idempotent) |
+| GET    | /api/v1/auth/me     | Logged-in user with role |
 | GET    | /api/v1/users       | List users  |
 | GET    | /api/v1/users/{id}  | Get user    |
 | POST   | /api/v1/users       | Create user |
 | PUT    | /api/v1/users/{id}  | Update user |
 | DELETE | /api/v1/users/{id}  | Delete user |
+
+### Authentication & authorization
+
+Every `/api` route needs a logged-in user except `POST /auth/login` and `POST /auth/logout`;
+without a session the API answers `401 Please log in to continue`.
+
+```json
+POST /api/v1/auth/login
+{"username": "sevenadmin", "password": "…", "remember": true}
+```
+
+- **Session cookie:** login sets `ts_session` (HttpOnly, `SameSite=Strict`, `Path=/api`; `Secure` when
+  `COOKIE_SECURE=true`). The token never appears in a response body. `remember: true` keeps it 30 days,
+  otherwise it is a browser-session cookie and the server ends the session after 12 hours.
+- **Storage:** one `auth_tokens` row per session (`token_type = 'session'`) holding the **SHA-256 hash** of
+  the token, so a database leak gives no usable sessions. Logout soft-deletes the row (migration `014`).
+- **Every request** re-checks the session *and* the user: deleting a user or setting `status = 'inactive'`
+  ends their sessions immediately.
+- **Roles** (`roles.name`): `middleware.RequireRole` guards routes; `routes.adminOnly` wraps admin routes
+  (`403 You do not have permission to do this`). Admin-only: all of `/users`, and `POST/PUT/DELETE` on
+  `/categories`, `/brands`, `/products`, `/controllers`, `/machines`. Everything else is open to any
+  logged-in user; organization data is still scoped to that user.
+- **Guessing:** 5 wrong passwords for one username lock it for 15 minutes (`429`). Unknown usernames take as
+  long as wrong passwords, and both answer `401 Invalid username or password`.
+- **CSRF:** `middleware.CrossOrigin` (Go's `http.CrossOriginProtection`) rejects cross-site browser writes.
+- Handlers read the user with `middleware.CurrentUser(ctx)` / `currentUserID(request)`, never from the body.
+- Tests: routers take the authenticate middleware; suites pass `asTestUser` (user 6, admin), and
+  `tests/auth_test.go` covers the real flow.
 
 ### Users
 

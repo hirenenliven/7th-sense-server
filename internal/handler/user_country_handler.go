@@ -9,8 +9,8 @@ import (
 )
 
 // UserCountryHandler handles HTTP requests for the user's countries (/user-country).
-// Every request acts for the current user (middleware.Authenticate), never for
-// a user id sent by the client.
+// Every request acts for the current user (middleware.Authenticate); an admin may act
+// for another user with ?userId=<id> (see targetUserID).
 type UserCountryHandler struct {
 	service *service.UserCountryService
 }
@@ -20,9 +20,9 @@ func NewUserCountryHandler(userCountryService *service.UserCountryService) *User
 	return &UserCountryHandler{service: userCountryService}
 }
 
-// GetAll handles GET /api/v1/user-country.
+// GetAll handles GET /api/v1/user-country[?userId=<id>].
 func (userCountryHandler *UserCountryHandler) GetAll(writer http.ResponseWriter, request *http.Request) {
-	userID, err := currentUserID(request)
+	userID, err := targetUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -36,9 +36,9 @@ func (userCountryHandler *UserCountryHandler) GetAll(writer http.ResponseWriter,
 	response.SendResponse(writer, request, response.Success, countries)
 }
 
-// GetByID handles GET /api/v1/user-country/{id}.
+// GetByID handles GET /api/v1/user-country/{id}[?userId=<id>].
 func (userCountryHandler *UserCountryHandler) GetByID(writer http.ResponseWriter, request *http.Request) {
-	userID, err := currentUserID(request)
+	userID, err := targetUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -57,9 +57,9 @@ func (userCountryHandler *UserCountryHandler) GetByID(writer http.ResponseWriter
 	response.SendResponse(writer, request, response.Success, country)
 }
 
-// Create handles POST /api/v1/user-country.
+// Create handles POST /api/v1/user-country[?userId=<id>].
 func (userCountryHandler *UserCountryHandler) Create(writer http.ResponseWriter, request *http.Request) {
-	userID, err := currentUserID(request)
+	userID, err := targetUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -79,9 +79,9 @@ func (userCountryHandler *UserCountryHandler) Create(writer http.ResponseWriter,
 	response.SendResponse(writer, request, response.Created, country)
 }
 
-// Delete handles DELETE /api/v1/user-country/{id}.
+// Delete handles DELETE /api/v1/user-country/{id}[?userId=<id>].
 func (userCountryHandler *UserCountryHandler) Delete(writer http.ResponseWriter, request *http.Request) {
-	userID, err := currentUserID(request)
+	userID, err := targetUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return

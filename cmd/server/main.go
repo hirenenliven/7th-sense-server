@@ -14,6 +14,7 @@ import (
 	"7th-sense-server/internal/db"
 	"7th-sense-server/internal/handler"
 	"7th-sense-server/internal/logger"
+	"7th-sense-server/internal/middleware"
 	"7th-sense-server/internal/repository"
 	"7th-sense-server/internal/routes"
 	"7th-sense-server/internal/service"
@@ -43,8 +44,6 @@ func run() error {
 	defer dbPool.Close()
 	slog.Info("connected to database", "name", appConfig.DB.Name)
 
-	branchRepository := repository.NewBranchRepository(dbPool)
-	branchService := service.NewBranchService(branchRepository)
 	categoryRepository := repository.NewCategoryRepository(dbPool)
 	brandRepository := repository.NewBrandRepository(dbPool)
 	productRepository := repository.NewProductRepository(dbPool)
@@ -54,13 +53,15 @@ func run() error {
 	userCountryService := service.NewUserCountryService(repository.NewUserCountryRepository(dbPool))
 	userStateService := service.NewUserStateService(repository.NewUserStateRepository(dbPool), userCountryService)
 	userCityService := service.NewUserCityService(repository.NewUserCityRepository(dbPool), userStateService)
-	userBranchService := service.NewUserBranchService(repository.NewUserBranchRepository(dbPool), userCityService)
-	userLocationService := service.NewUserLocationService(repository.NewUserLocationRepository(dbPool), userBranchService)
+	branchService := service.NewBranchService(repository.NewBranchRepository(dbPool), userCityService)
+	userLocationService := service.NewUserLocationService(repository.NewUserLocationRepository(dbPool), branchService)
 	userShopService := service.NewUserShopService(repository.NewUserShopRepository(dbPool), userLocationService)
 	userLineService := service.NewUserLineService(repository.NewUserLineRepository(dbPool), userShopService)
 	userCellService := service.NewUserCellService(repository.NewUserCellRepository(dbPool), userLineService)
 	userSupervisorService := service.NewUserSupervisorService(repository.NewUserSupervisorRepository(dbPool), userCellService)
+	authService := service.NewAuthService(repository.NewAuthRepository(dbPool))
 	router := routes.New(routes.Handlers{
+		Auth:           handler.NewAuthHandler(authService, appConfig.CookieSecure),
 		User:           handler.NewUserHandler(service.NewUserService(dbPool, branchService)),
 		Branch:         handler.NewBranchHandler(branchService),
 		Category:       handler.NewCategoryHandler(service.NewCategoryService(categoryRepository)),
@@ -71,13 +72,12 @@ func run() error {
 		UserCountry:    handler.NewUserCountryHandler(userCountryService),
 		UserState:      handler.NewUserStateHandler(userStateService),
 		UserCity:       handler.NewUserCityHandler(userCityService),
-		UserBranch:     handler.NewUserBranchHandler(userBranchService),
 		UserLocation:   handler.NewUserLocationHandler(userLocationService),
 		UserShop:       handler.NewUserShopHandler(userShopService),
 		UserLine:       handler.NewUserLineHandler(userLineService),
 		UserCell:       handler.NewUserCellHandler(userCellService),
 		UserSupervisor: handler.NewUserSupervisorHandler(userSupervisorService),
-	})
+	}, middleware.Authenticate(authService))
 
 	server := &http.Server{
 		Addr:         ":" + appConfig.Port,

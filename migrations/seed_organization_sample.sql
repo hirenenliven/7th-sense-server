@@ -19,15 +19,15 @@ SELECT 6, s.id, 'Rajkot' FROM user_state s
 WHERE s.user_id = 6 AND s.name = 'Gujarat' AND s.is_deleted = false
   AND NOT EXISTS (SELECT 1 FROM user_city x WHERE x.user_state_id = s.id AND x.name = 'Rajkot' AND x.is_deleted = false);
 
-INSERT INTO user_branch (user_id, user_city_id, name)
-SELECT 6, p.id, 'Main Branch' FROM user_city p
+INSERT INTO branches (code, name, customer_id, user_city_id, status)
+SELECT 'MAINRJK', 'Main Branch', 6, p.id, 'active' FROM user_city p
 WHERE p.user_id = 6 AND p.name = 'Rajkot' AND p.is_deleted = false
-  AND NOT EXISTS (SELECT 1 FROM user_branch x WHERE x.user_city_id = p.id AND x.name = 'Main Branch' AND x.is_deleted = false);
+  AND NOT EXISTS (SELECT 1 FROM branches x WHERE x.code = 'MAINRJK');
 
-INSERT INTO user_location (user_id, user_branch_id, name)
-SELECT 6, p.id, 'U1' FROM user_branch p
-WHERE p.user_id = 6 AND p.name = 'Main Branch' AND p.is_deleted = false
-  AND NOT EXISTS (SELECT 1 FROM user_location x WHERE x.user_branch_id = p.id AND x.name = 'U1' AND x.is_deleted = false);
+INSERT INTO user_location (user_id, branch_id, name)
+SELECT 6, p.id, 'U1' FROM branches p
+WHERE p.code = 'MAINRJK' AND p.is_deleted = false
+  AND NOT EXISTS (SELECT 1 FROM user_location x WHERE x.branch_id = p.id AND x.name = 'U1' AND x.is_deleted = false);
 
 INSERT INTO user_shop (user_id, user_location_id, name)
 SELECT 6, p.id, 'Shop1' FROM user_location p

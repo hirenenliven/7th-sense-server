@@ -121,13 +121,13 @@ func (userCityRepository *UserCityRepository) Delete(ctx context.Context, userID
 	return nil
 }
 
-// HasBranches reports whether the city id owned by userID has active branches.
-func (userCityRepository *UserCityRepository) HasBranches(ctx context.Context, userID, id int64) (bool, error) {
+// HasBranches reports whether the city id has active branches (branches.user_city_id).
+func (userCityRepository *UserCityRepository) HasBranches(ctx context.Context, id int64) (bool, error) {
 	query := `SELECT EXISTS (
-			SELECT 1 FROM user_branch WHERE user_city_id = $1 AND user_id = $2 AND is_deleted = false
+			SELECT 1 FROM branches WHERE user_city_id = $1 AND is_deleted = false
 		)`
 
-	rows, err := db.Execute(ctx, userCityRepository.database, query, id, userID)
+	rows, err := db.Execute(ctx, userCityRepository.database, query, id)
 	if err != nil {
 		return false, fmt.Errorf("check branches: %w", err)
 	}

@@ -9,8 +9,8 @@ import (
 )
 
 // UserLocationHandler handles HTTP requests for the user's locations (/user-location).
-// Every request acts for the current user (middleware.Authenticate), never for
-// a user id sent by the client.
+// Every request acts for the current user (middleware.Authenticate); an admin may act
+// for another user with ?userId=<id> (see targetUserID).
 type UserLocationHandler struct {
 	service *service.UserLocationService
 }
@@ -20,20 +20,20 @@ func NewUserLocationHandler(userLocationService *service.UserLocationService) *U
 	return &UserLocationHandler{service: userLocationService}
 }
 
-// GetAll handles GET /api/v1/user-location[?userBranchId=<id>].
+// GetAll handles GET /api/v1/user-location[?branchId=<id>][&userId=<id>].
 func (userLocationHandler *UserLocationHandler) GetAll(writer http.ResponseWriter, request *http.Request) {
-	userID, err := currentUserID(request)
+	userID, err := targetUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
 	}
-	userBranchID, err := queryID(request, "userBranchId")
+	branchID, err := queryID(request, "branchId")
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
 	}
 
-	locations, err := userLocationHandler.service.GetAll(request.Context(), userID, userBranchID)
+	locations, err := userLocationHandler.service.GetAll(request.Context(), userID, branchID)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -41,9 +41,9 @@ func (userLocationHandler *UserLocationHandler) GetAll(writer http.ResponseWrite
 	response.SendResponse(writer, request, response.Success, locations)
 }
 
-// GetByID handles GET /api/v1/user-location/{id}.
+// GetByID handles GET /api/v1/user-location/{id}[?userId=<id>].
 func (userLocationHandler *UserLocationHandler) GetByID(writer http.ResponseWriter, request *http.Request) {
-	userID, err := currentUserID(request)
+	userID, err := targetUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -62,9 +62,9 @@ func (userLocationHandler *UserLocationHandler) GetByID(writer http.ResponseWrit
 	response.SendResponse(writer, request, response.Success, location)
 }
 
-// Create handles POST /api/v1/user-location.
+// Create handles POST /api/v1/user-location[?userId=<id>].
 func (userLocationHandler *UserLocationHandler) Create(writer http.ResponseWriter, request *http.Request) {
-	userID, err := currentUserID(request)
+	userID, err := targetUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -84,9 +84,9 @@ func (userLocationHandler *UserLocationHandler) Create(writer http.ResponseWrite
 	response.SendResponse(writer, request, response.Created, location)
 }
 
-// Update handles PUT /api/v1/user-location/{id}.
+// Update handles PUT /api/v1/user-location/{id}[?userId=<id>].
 func (userLocationHandler *UserLocationHandler) Update(writer http.ResponseWriter, request *http.Request) {
-	userID, err := currentUserID(request)
+	userID, err := targetUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -111,9 +111,9 @@ func (userLocationHandler *UserLocationHandler) Update(writer http.ResponseWrite
 	response.SendResponse(writer, request, response.Success, location)
 }
 
-// Delete handles DELETE /api/v1/user-location/{id}.
+// Delete handles DELETE /api/v1/user-location/{id}[?userId=<id>].
 func (userLocationHandler *UserLocationHandler) Delete(writer http.ResponseWriter, request *http.Request) {
-	userID, err := currentUserID(request)
+	userID, err := targetUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return

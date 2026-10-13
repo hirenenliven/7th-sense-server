@@ -9,8 +9,8 @@ import (
 )
 
 // UserSupervisorHandler handles HTTP requests for the user's supervisors (/user-supervisor).
-// Every request acts for the current user (middleware.Authenticate), never for
-// a user id sent by the client.
+// Every request acts for the current user (middleware.Authenticate); an admin may act
+// for another user with ?userId=<id> (see targetUserID).
 type UserSupervisorHandler struct {
 	service *service.UserSupervisorService
 }
@@ -20,9 +20,9 @@ func NewUserSupervisorHandler(userSupervisorService *service.UserSupervisorServi
 	return &UserSupervisorHandler{service: userSupervisorService}
 }
 
-// GetAll handles GET /api/v1/user-supervisor[?userCellId=<id>].
+// GetAll handles GET /api/v1/user-supervisor[?userCellId=<id>][&userId=<id>].
 func (userSupervisorHandler *UserSupervisorHandler) GetAll(writer http.ResponseWriter, request *http.Request) {
-	userID, err := currentUserID(request)
+	userID, err := targetUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -41,9 +41,9 @@ func (userSupervisorHandler *UserSupervisorHandler) GetAll(writer http.ResponseW
 	response.SendResponse(writer, request, response.Success, supervisors)
 }
 
-// GetByID handles GET /api/v1/user-supervisor/{id}.
+// GetByID handles GET /api/v1/user-supervisor/{id}[?userId=<id>].
 func (userSupervisorHandler *UserSupervisorHandler) GetByID(writer http.ResponseWriter, request *http.Request) {
-	userID, err := currentUserID(request)
+	userID, err := targetUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -62,9 +62,9 @@ func (userSupervisorHandler *UserSupervisorHandler) GetByID(writer http.Response
 	response.SendResponse(writer, request, response.Success, supervisor)
 }
 
-// Create handles POST /api/v1/user-supervisor.
+// Create handles POST /api/v1/user-supervisor[?userId=<id>].
 func (userSupervisorHandler *UserSupervisorHandler) Create(writer http.ResponseWriter, request *http.Request) {
-	userID, err := currentUserID(request)
+	userID, err := targetUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -84,9 +84,9 @@ func (userSupervisorHandler *UserSupervisorHandler) Create(writer http.ResponseW
 	response.SendResponse(writer, request, response.Created, supervisor)
 }
 
-// Update handles PUT /api/v1/user-supervisor/{id}.
+// Update handles PUT /api/v1/user-supervisor/{id}[?userId=<id>].
 func (userSupervisorHandler *UserSupervisorHandler) Update(writer http.ResponseWriter, request *http.Request) {
-	userID, err := currentUserID(request)
+	userID, err := targetUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -111,9 +111,9 @@ func (userSupervisorHandler *UserSupervisorHandler) Update(writer http.ResponseW
 	response.SendResponse(writer, request, response.Success, supervisor)
 }
 
-// Delete handles DELETE /api/v1/user-supervisor/{id}.
+// Delete handles DELETE /api/v1/user-supervisor/{id}[?userId=<id>].
 func (userSupervisorHandler *UserSupervisorHandler) Delete(writer http.ResponseWriter, request *http.Request) {
-	userID, err := currentUserID(request)
+	userID, err := targetUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return

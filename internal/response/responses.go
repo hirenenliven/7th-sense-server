@@ -39,6 +39,13 @@ var (
 	InvalidJSON       = newResponse(http.StatusBadRequest, "Invalid JSON body")
 	TryAgain          = newResponse(http.StatusBadRequest, "Something went wrong, Please try again later")
 
+	// Authentication and authorization responses
+	InvalidCredentials   = newResponse(http.StatusUnauthorized, "Invalid username or password")
+	LoginRequired        = newResponse(http.StatusUnauthorized, "Please log in to continue")
+	Forbidden            = newResponse(http.StatusForbidden, "You do not have permission to do this")
+	AccountInactive      = newResponse(http.StatusForbidden, "Your account is inactive. Please contact your administrator")
+	TooManyLoginAttempts = newResponse(http.StatusTooManyRequests, "Too many login attempts. Please try again in 15 minutes")
+
 	// Validation error responses
 	ValidName              = newResponse(http.StatusBadRequest, "Please enter valid name")
 	ValidCode              = newResponse(http.StatusBadRequest, "Please enter valid code")

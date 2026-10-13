@@ -6,10 +6,11 @@ import (
 	"7th-sense-server/internal/handler"
 )
 
+// Everyone logged in can read; only admins can change.
 func registerProductRoutes(router *http.ServeMux, prefix string, productHandler *handler.ProductHandler) {
 	router.HandleFunc("GET "+prefix+"/products", productHandler.GetAll)
 	router.HandleFunc("GET "+prefix+"/products/{id}", productHandler.GetByID)
-	router.HandleFunc("POST "+prefix+"/products", productHandler.Create)
-	router.HandleFunc("PUT "+prefix+"/products/{id}", productHandler.Update)
-	router.HandleFunc("DELETE "+prefix+"/products/{id}", productHandler.Delete)
+	router.Handle("POST "+prefix+"/products", adminOnly(productHandler.Create))
+	router.Handle("PUT "+prefix+"/products/{id}", adminOnly(productHandler.Update))
+	router.Handle("DELETE "+prefix+"/products/{id}", adminOnly(productHandler.Delete))
 }

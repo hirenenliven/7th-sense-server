@@ -59,7 +59,7 @@ type machineRecord struct {
 func newMachineRouter() http.Handler {
 	return routes.New(routes.Handlers{
 		Machine: handler.NewMachineHandler(service.NewMachineService(repository.NewMachineRepository(testDBPool))),
-	})
+	}, asTestUser)
 }
 
 func TestMachineCRUD(t *testing.T) {

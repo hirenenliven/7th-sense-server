@@ -6,11 +6,12 @@ import (
 	"7th-sense-server/internal/handler"
 )
 
+// User management is admin-only; /me is every user's own record.
 func registerUserRoutes(router *http.ServeMux, prefix string, userHandler *handler.UserHandler) {
-	router.HandleFunc("GET "+prefix+"/users", userHandler.GetAll)
-	router.HandleFunc("GET "+prefix+"/users/{id}", userHandler.GetByID)
-	router.HandleFunc("POST "+prefix+"/users", userHandler.Create)
-	router.HandleFunc("PUT "+prefix+"/users/{id}", userHandler.Update)
-	router.HandleFunc("DELETE "+prefix+"/users/{id}", userHandler.Delete)
+	router.Handle("GET "+prefix+"/users", adminOnly(userHandler.GetAll))
+	router.Handle("GET "+prefix+"/users/{id}", adminOnly(userHandler.GetByID))
+	router.Handle("POST "+prefix+"/users", adminOnly(userHandler.Create))
+	router.Handle("PUT "+prefix+"/users/{id}", adminOnly(userHandler.Update))
+	router.Handle("DELETE "+prefix+"/users/{id}", adminOnly(userHandler.Delete))
 	router.HandleFunc("GET "+prefix+"/me", userHandler.Me)
 }

@@ -25,18 +25,18 @@ func NewUserLocationRepository(database db.Querier) *UserLocationRepository {
 	return &UserLocationRepository{database: database}
 }
 
-// FindAll returns the user's locations ordered by name. A non-nil userBranchID keeps
+// FindAll returns the user's locations ordered by name. A non-nil branchID keeps
 // only the locations of that branch.
-func (userLocationRepository *UserLocationRepository) FindAll(ctx context.Context, userID int64, userBranchID *int64) ([]model.UserLocation, error) {
-	query := `SELECT u.id, u.user_id, u.user_branch_id, p.name AS branch_name, u.name,
+func (userLocationRepository *UserLocationRepository) FindAll(ctx context.Context, userID int64, branchID *int64) ([]model.UserLocation, error) {
+	query := `SELECT u.id, u.user_id, u.branch_id, p.name AS branch_name, u.name,
 			u.is_deleted, u.deleted_at, u.created_at, u.updated_at
 		FROM user_location u
-		JOIN user_branch p ON p.id = u.user_branch_id
+		JOIN branches p ON p.id = u.branch_id
 		WHERE u.user_id = $1 AND u.is_deleted = false
-			AND ($2::bigint IS NULL OR u.user_branch_id = $2)
+			AND ($2::bigint IS NULL OR u.branch_id = $2)
 		ORDER BY lower(u.name), u.id`
 
-	rows, err := db.Execute(ctx, userLocationRepository.database, query, userID, userBranchID)
+	rows, err := db.Execute(ctx, userLocationRepository.database, query, userID, branchID)
 	if err != nil {
 		return nil, fmt.Errorf("find all locations: %w", err)
 	}
@@ -48,10 +48,10 @@ func (userLocationRepository *UserLocationRepository) FindAll(ctx context.Contex
 }
 
 func (userLocationRepository *UserLocationRepository) FindByID(ctx context.Context, userID, id int64) (model.UserLocation, error) {
-	query := `SELECT u.id, u.user_id, u.user_branch_id, p.name AS branch_name, u.name,
+	query := `SELECT u.id, u.user_id, u.branch_id, p.name AS branch_name, u.name,
 			u.is_deleted, u.deleted_at, u.created_at, u.updated_at
 		FROM user_location u
-		JOIN user_branch p ON p.id = u.user_branch_id
+		JOIN branches p ON p.id = u.branch_id
 		WHERE u.id = $1 AND u.user_id = $2 AND u.is_deleted = false`
 
 	rows, err := db.Execute(ctx, userLocationRepository.database, query, id, userID)
@@ -64,15 +64,15 @@ func (userLocationRepository *UserLocationRepository) FindByID(ctx context.Conte
 
 func (userLocationRepository *UserLocationRepository) Create(ctx context.Context, location model.UserLocation) (model.UserLocation, error) {
 	query := `WITH saved AS (
-			INSERT INTO user_location (user_id, user_branch_id, name) VALUES ($1, $2, $3)
+			INSERT INTO user_location (user_id, branch_id, name) VALUES ($1, $2, $3)
 			RETURNING *
 		)
-		SELECT u.id, u.user_id, u.user_branch_id, p.name AS branch_name, u.name,
+		SELECT u.id, u.user_id, u.branch_id, p.name AS branch_name, u.name,
 			u.is_deleted, u.deleted_at, u.created_at, u.updated_at
 		FROM saved u
-		JOIN user_branch p ON p.id = u.user_branch_id`
+		JOIN branches p ON p.id = u.branch_id`
 
-	rows, err := db.Execute(ctx, userLocationRepository.database, query, location.UserID, location.UserBranchID, location.Name)
+	rows, err := db.Execute(ctx, userLocationRepository.database, query, location.UserID, location.BranchID, location.Name)
 	if err != nil {
 		return model.UserLocation{}, fmt.Errorf("create location: %w", err)
 	}
@@ -84,16 +84,16 @@ func (userLocationRepository *UserLocationRepository) Create(ctx context.Context
 func (userLocationRepository *UserLocationRepository) Update(ctx context.Context, location model.UserLocation) (model.UserLocation, error) {
 	query := `WITH saved AS (
 			UPDATE user_location
-			SET user_branch_id = $3, name = $4
+			SET branch_id = $3, name = $4
 			WHERE id = $1 AND user_id = $2 AND is_deleted = false
 			RETURNING *
 		)
-		SELECT u.id, u.user_id, u.user_branch_id, p.name AS branch_name, u.name,
+		SELECT u.id, u.user_id, u.branch_id, p.name AS branch_name, u.name,
 			u.is_deleted, u.deleted_at, u.created_at, u.updated_at
 		FROM saved u
-		JOIN user_branch p ON p.id = u.user_branch_id`
+		JOIN branches p ON p.id = u.branch_id`
 
-	rows, err := db.Execute(ctx, userLocationRepository.database, query, location.ID, location.UserID, location.UserBranchID, location.Name)
+	rows, err := db.Execute(ctx, userLocationRepository.database, query, location.ID, location.UserID, location.BranchID, location.Name)
 	if err != nil {
 		return model.UserLocation{}, fmt.Errorf("update location: %w", err)
 	}

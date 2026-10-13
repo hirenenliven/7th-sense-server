@@ -11,6 +11,9 @@ import (
 type Config struct {
 	Port string
 	DB   DBConfig
+	// CookieSecure sends the session cookie over HTTPS only. Set
+	// COOKIE_SECURE=true whenever the API is served over HTTPS.
+	CookieSecure bool
 }
 
 // DBConfig holds the PostgreSQL connection settings.
@@ -40,6 +43,7 @@ func Load() Config {
 			Name:     getEnv("DB_DATABASE", "7th_sense"),
 			SSLMode:  getEnv("DB_SSLMODE", "disable"),
 		},
+		CookieSecure: getEnv("COOKIE_SECURE", "false") == "true",
 	}
 }
 

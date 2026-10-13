@@ -3,26 +3,74 @@ package middleware
 import (
 	"context"
 	"net/http"
+	"slices"
+
+	"7th-sense-server/internal/model"
+	"7th-sense-server/internal/response"
+	"7th-sense-server/internal/service"
 )
 
-// devUserID is the user every request acts as until login is built.
-// TODO(auth): replace with the user id resolved from the request's auth token.
-const devUserID int64 = 6
+// SessionCookieName is the cookie that carries the session token. It is
+// HttpOnly, so page scripts can never read it.
+const SessionCookieName = "ts_session"
 
-type userIDKey struct{}
+type authUserKey struct{}
 
-// Authenticate puts the current user's id in the request context. Handlers read
-// it with UserID; a user id is never taken from the request body.
-func Authenticate(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		ctx := context.WithValue(request.Context(), userIDKey{}, devUserID)
-		next.ServeHTTP(writer, request.WithContext(ctx))
-	})
+// Authenticate resolves the session cookie to the logged-in user and puts it
+// in the request context (read it with CurrentUser or UserID). Requests
+// without a valid session get 401 and never reach the handler.
+func Authenticate(authService *service.AuthService) Middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			token := ""
+			if cookie, err := request.Cookie(SessionCookieName); err == nil {
+				token = cookie.Value
+			}
+
+			user, err := authService.Authenticate(request.Context(), token)
+			if err != nil {
+				response.SendResponse(writer, request, err, nil)
+				return
+			}
+			next.ServeHTTP(writer, request.WithContext(WithAuthUser(request.Context(), user)))
+		})
+	}
 }
 
-// UserID returns the current user's id set by Authenticate. ok is false when
+// RequireRole lets only users with one of roles through; others get 403. It
+// must run after Authenticate.
+func RequireRole(roles ...string) Middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			user, ok := CurrentUser(request.Context())
+			if !ok {
+				response.SendResponse(writer, request, response.LoginRequired, nil)
+				return
+			}
+			if !slices.Contains(roles, user.Role) {
+				response.SendResponse(writer, request, response.Forbidden, nil)
+				return
+			}
+			next.ServeHTTP(writer, request)
+		})
+	}
+}
+
+// WithAuthUser returns ctx carrying user as the logged-in user.
+func WithAuthUser(ctx context.Context, user model.AuthUser) context.Context {
+	return context.WithValue(ctx, authUserKey{}, user)
+}
+
+// CurrentUser returns the logged-in user set by Authenticate. ok is false when
 // the request was not authenticated.
+func CurrentUser(ctx context.Context) (user model.AuthUser, ok bool) {
+	user, ok = ctx.Value(authUserKey{}).(model.AuthUser)
+	return user, ok && user.ID > 0
+}
+
+// UserID returns the logged-in user's id set by Authenticate. ok is false when
+// the request was not authenticated. A user id is never taken from the request body.
 func UserID(ctx context.Context) (userID int64, ok bool) {
-	userID, ok = ctx.Value(userIDKey{}).(int64)
-	return userID, ok && userID > 0
+	user, ok := CurrentUser(ctx)
+	return user.ID, ok
 }

@@ -64,7 +64,7 @@ func (userCityService *UserCityService) Update(ctx context.Context, userID, id i
 // Delete soft-deletes the city. A city that still has branches is kept:
 // its branches must be deleted first.
 func (userCityService *UserCityService) Delete(ctx context.Context, userID, id int64) error {
-	hasBranches, err := userCityService.userCityRepository.HasBranches(ctx, userID, id)
+	hasBranches, err := userCityService.userCityRepository.HasBranches(ctx, id)
 	if err != nil {
 		return err
 	}
