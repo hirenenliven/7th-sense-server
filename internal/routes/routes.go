@@ -12,9 +12,13 @@ const apiPrefix = "/api"
 
 // Handlers groups every handler the router needs.
 type Handlers struct {
-	User   *handler.UserHandler
-	Item   *handler.ItemHandler
-	Branch *handler.BranchHandler
+	User       *handler.UserHandler
+	Item       *handler.ItemHandler
+	Branch     *handler.BranchHandler
+	Category   *handler.CategoryHandler
+	Brand      *handler.BrandHandler
+	Product    *handler.ProductHandler
+	Controller *handler.ControllerHandler
 }
 
 // New builds the main router with all routes and global middleware.
@@ -43,5 +47,17 @@ func registerV1Routes(router *http.ServeMux, handlers Handlers) {
 	}
 	if handlers.Branch != nil {
 		registerBranchRoutes(router, v1Prefix, handlers.Branch)
+	}
+	if handlers.Category != nil {
+		registerCategoryRoutes(router, v1Prefix, handlers.Category)
+	}
+	if handlers.Brand != nil {
+		registerBrandRoutes(router, v1Prefix, handlers.Brand)
+	}
+	if handlers.Product != nil {
+		registerProductRoutes(router, v1Prefix, handlers.Product)
+	}
+	if handlers.Controller != nil {
+		registerControllerRoutes(router, v1Prefix, handlers.Controller)
 	}
 }

@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS roles (
 CREATE TABLE IF NOT EXISTS categories (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
-    code VARCHAR(50) UNIQUE,
+    code VARCHAR(50),
     description TEXT,
     is_deleted BOOLEAN NOT NULL DEFAULT false,
     deleted_at TIMESTAMPTZ,
@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS categories (
 CREATE TABLE IF NOT EXISTS brands (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
-    code VARCHAR(50) UNIQUE,
+    code VARCHAR(50),
     description TEXT,
     is_deleted BOOLEAN NOT NULL DEFAULT false,
     deleted_at TIMESTAMPTZ,
@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS brands (
 CREATE TABLE IF NOT EXISTS products (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
-    code VARCHAR(50) UNIQUE,
+    code VARCHAR(50),
     category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
     image VARCHAR(255) DEFAULT 'no_image_available.png',
     description TEXT,
@@ -76,7 +76,7 @@ CREATE TABLE IF NOT EXISTS products (
 CREATE TABLE IF NOT EXISTS controllers (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
-    code VARCHAR(50) UNIQUE,
+    code VARCHAR(50),
     variant VARCHAR(100),
     brand_id INTEGER REFERENCES brands(id) ON DELETE SET NULL,
     description TEXT,
@@ -158,19 +158,23 @@ CREATE INDEX IF NOT EXISTS idx_branches_is_deleted ON branches(is_deleted);
 
 -- Create indexes for categories
 CREATE UNIQUE INDEX IF NOT EXISTS categories_name_key ON categories (name) WHERE is_deleted = false;
+CREATE UNIQUE INDEX IF NOT EXISTS categories_code_key ON categories (code) WHERE is_deleted = false;
 CREATE INDEX IF NOT EXISTS idx_categories_is_deleted ON categories(is_deleted);
 
 -- Create indexes for brands
 CREATE UNIQUE INDEX IF NOT EXISTS brands_name_key ON brands (name) WHERE is_deleted = false;
+CREATE UNIQUE INDEX IF NOT EXISTS brands_code_key ON brands (code) WHERE is_deleted = false;
 CREATE INDEX IF NOT EXISTS idx_brands_is_deleted ON brands(is_deleted);
 
 -- Create indexes for products
 CREATE UNIQUE INDEX IF NOT EXISTS products_name_key ON products (name) WHERE is_deleted = false;
+CREATE UNIQUE INDEX IF NOT EXISTS products_code_key ON products (code) WHERE is_deleted = false;
 CREATE INDEX IF NOT EXISTS idx_products_category_id ON products(category_id);
 CREATE INDEX IF NOT EXISTS idx_products_is_deleted ON products(is_deleted);
 
 -- Create indexes for controllers
 CREATE UNIQUE INDEX IF NOT EXISTS controllers_name_key ON controllers (name) WHERE is_deleted = false;
+CREATE UNIQUE INDEX IF NOT EXISTS controllers_code_key ON controllers (code) WHERE is_deleted = false;
 CREATE INDEX IF NOT EXISTS idx_controllers_brand_id ON controllers(brand_id);
 CREATE INDEX IF NOT EXISTS idx_controllers_is_deleted ON controllers(is_deleted);
 

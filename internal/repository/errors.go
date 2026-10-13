@@ -11,4 +11,10 @@ var (
 	ErrDuplicateUsername = errors.New("duplicate username")
 	// ErrDuplicateCode is returned when the code is already used by another branch.
 	ErrDuplicateCode = errors.New("duplicate code")
+	// ErrDuplicateName is returned when the name is already used by another record of the same table.
+	ErrDuplicateName = errors.New("duplicate name")
+	// ErrInvalidCategory is returned when category_id does not reference an existing category.
+	ErrInvalidCategory = errors.New("invalid category")
+	// ErrInvalidBrand is returned when brand_id does not reference an existing brand.
+	ErrInvalidBrand = errors.New("invalid brand")
 )
