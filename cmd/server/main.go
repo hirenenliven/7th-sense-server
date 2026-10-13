@@ -49,6 +49,7 @@ func run() error {
 	brandRepository := repository.NewBrandRepository(dbPool)
 	productRepository := repository.NewProductRepository(dbPool)
 	controllerRepository := repository.NewControllerRepository(dbPool)
+	machineRepository := repository.NewMachineRepository(dbPool)
 	router := routes.New(routes.Handlers{
 		User:       handler.NewUserHandler(service.NewUserService(userRepository)),
 		Branch:     handler.NewBranchHandler(service.NewBranchService(branchRepository)),
@@ -56,6 +57,7 @@ func run() error {
 		Brand:      handler.NewBrandHandler(service.NewBrandService(brandRepository)),
 		Product:    handler.NewProductHandler(service.NewProductService(productRepository)),
 		Controller: handler.NewControllerHandler(service.NewControllerService(controllerRepository)),
+		Machine:    handler.NewMachineHandler(service.NewMachineService(machineRepository)),
 	})
 
 	server := &http.Server{
