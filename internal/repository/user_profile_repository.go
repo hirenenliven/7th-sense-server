@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"7th-sense-server/internal/db"
 	"7th-sense-server/internal/model"
@@ -18,12 +17,13 @@ import (
 // Selected column names must match the db tags on model.UserProfile, so nullable
 // columns are read with COALESCE and given their column name with AS.
 type UserProfileRepository struct {
-	dbPool *pgxpool.Pool
+	database db.Querier
 }
 
-// NewUserProfileRepository creates a UserProfileRepository that uses dbPool.
-func NewUserProfileRepository(dbPool *pgxpool.Pool) *UserProfileRepository {
-	return &UserProfileRepository{dbPool: dbPool}
+// NewUserProfileRepository creates a UserProfileRepository that runs its queries on database
+// (a connection pool or a transaction).
+func NewUserProfileRepository(database db.Querier) *UserProfileRepository {
+	return &UserProfileRepository{database: database}
 }
 
 func (userProfileRepository *UserProfileRepository) FindByUserID(ctx context.Context, userID int64) (model.UserProfile, error) {
@@ -43,7 +43,7 @@ func (userProfileRepository *UserProfileRepository) FindByUserID(ctx context.Con
 		FROM user_profiles
 		WHERE user_id = $1 AND is_deleted = false`
 
-	rows, err := db.Execute(ctx, userProfileRepository.dbPool, query, userID)
+	rows, err := db.Execute(ctx, userProfileRepository.database, query, userID)
 	if err != nil {
 		return model.UserProfile{}, fmt.Errorf("find user profile: %w", err)
 	}
@@ -68,7 +68,7 @@ func (userProfileRepository *UserProfileRepository) Create(ctx context.Context, 
 			start_day_time,
 			is_deleted, deleted_at, created_at, updated_at`
 
-	rows, err := db.Execute(ctx, userProfileRepository.dbPool, query,
+	rows, err := db.Execute(ctx, userProfileRepository.database, query,
 		profile.UserID, profile.Designation, profile.Grade, profile.BirthDate, profile.JoiningDate, profile.BloodGroup, profile.ProfilePicture, profile.ContactPerson, profile.ContactPhone, profile.Theme, profile.Timezone, profile.Language, profile.StartDayTime,
 	)
 	if err != nil {
@@ -99,7 +99,7 @@ func (userProfileRepository *UserProfileRepository) Update(ctx context.Context, 
 			start_day_time,
 			is_deleted, deleted_at, created_at, updated_at`
 
-	rows, err := db.Execute(ctx, userProfileRepository.dbPool, query,
+	rows, err := db.Execute(ctx, userProfileRepository.database, query,
 		profile.UserID, profile.Designation, profile.Grade, profile.BirthDate, profile.JoiningDate, profile.BloodGroup, profile.ProfilePicture, profile.ContactPerson, profile.ContactPhone, profile.Theme, profile.Timezone, profile.Language, profile.StartDayTime,
 	)
 	if err != nil {
@@ -115,7 +115,7 @@ func (userProfileRepository *UserProfileRepository) Delete(ctx context.Context, 
 		SET is_deleted = true, deleted_at = NOW()
 		WHERE user_id = $1 AND is_deleted = false`
 
-	rows, err := db.Execute(ctx, userProfileRepository.dbPool, query, userID)
+	rows, err := db.Execute(ctx, userProfileRepository.database, query, userID)
 	if err != nil {
 		return fmt.Errorf("delete user profile: %w", err)
 	}

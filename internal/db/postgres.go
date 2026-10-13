@@ -39,10 +39,22 @@ func Connect(ctx context.Context, dbConfig config.DBConfig) (*pgxpool.Pool, erro
 	return pool, nil
 }
 
+// Querier runs SQL queries. Both *pgxpool.Pool and pgx.Tx implement it, so a
+// repository created with a transaction runs its queries inside that transaction.
+type Querier interface {
+	Query(ctx context.Context, query string, args ...any) (pgx.Rows, error)
+}
+
 // Execute runs any SQL query with parameters and returns its rows.
 //   - SELECT / ... RETURNING: read the rows with pgx.CollectRows or pgx.CollectOneRow.
 //   - INSERT / UPDATE / DELETE without RETURNING: call rows.Close(), check rows.Err(),
 //     then use rows.CommandTag().RowsAffected().
-func Execute(ctx context.Context, pool *pgxpool.Pool, query string, args ...any) (pgx.Rows, error) {
-	return pool.Query(ctx, query, args...)
+func Execute(ctx context.Context, querier Querier, query string, args ...any) (pgx.Rows, error) {
+	return querier.Query(ctx, query, args...)
+}
+
+// WithTransaction runs fn inside a transaction. The transaction is committed
+// when fn returns nil and rolled back when it returns an error.
+func WithTransaction(ctx context.Context, pool *pgxpool.Pool, fn func(tx pgx.Tx) error) error {
+	return pgx.BeginFunc(ctx, pool, fn)
 }

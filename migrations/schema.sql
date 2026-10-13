@@ -249,6 +249,7 @@ CREATE INDEX IF NOT EXISTS idx_user_profiles_is_deleted ON user_profiles(is_dele
 CREATE TABLE IF NOT EXISTS company_profiles (
     id SERIAL PRIMARY KEY,
     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE UNIQUE,
+    company_name VARCHAR(150),
     gst_number VARCHAR(30),
     pan_number VARCHAR(30),
     website VARCHAR(255),

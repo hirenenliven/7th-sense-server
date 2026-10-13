@@ -1,6 +1,7 @@
 package dto
 
 import (
+	"net/http"
 	"regexp"
 	"strings"
 
@@ -46,26 +47,26 @@ func (request *CreateAddressRequest) Validate() error {
 	request.ContactPhone = strings.TrimSpace(request.ContactPhone)
 
 	if request.UserID <= 0 {
-		return response.InvalidID
+		return response.NewError(http.StatusBadRequest, "Please enter valid id")
 	}
 	if request.AddressType == "" {
 		request.AddressType = AddressTypeHome
 	}
 	if request.AddressType != AddressTypeHome && request.AddressType != AddressTypeWork &&
 		request.AddressType != AddressTypeShipping && request.AddressType != AddressTypeBilling {
-		return response.ValidAddress
+		return response.NewError(http.StatusBadRequest, "Please enter valid address type")
 	}
 	if request.AddressLine1 == "" {
-		return response.ValidAddress
+		return response.NewError(http.StatusBadRequest, "Please enter valid address")
 	}
 	if request.City == "" {
-		return response.ValidCity
+		return response.NewError(http.StatusBadRequest, "Please enter valid city")
 	}
 	if request.PinCode != "" && !pinCodePattern.MatchString(request.PinCode) {
-		return response.ValidAddress
+		return response.NewError(http.StatusBadRequest, "Please enter valid address")
 	}
 	if request.ContactPhone != "" && !phonePattern.MatchString(request.ContactPhone) {
-		return response.ValidMobile
+		return response.NewError(http.StatusBadRequest, "Please enter valid mobile")
 	}
 	return nil
 }
@@ -96,25 +97,25 @@ func (request *UpdateAddressRequest) Validate() error {
 
 	if request.AddressType != "" && request.AddressType != AddressTypeHome && request.AddressType != AddressTypeWork &&
 		request.AddressType != AddressTypeShipping && request.AddressType != AddressTypeBilling {
-		return response.ValidAddress
+		return response.NewError(http.StatusBadRequest, "Please enter valid address type")
 	}
 	if request.AddressLine1 != "" && len(request.AddressLine1) > 255 {
-		return response.ValidAddress
+		return response.NewError(http.StatusBadRequest, "Please enter valid address")
 	}
 	if request.AddressLine2 != "" && len(request.AddressLine2) > 255 {
-		return response.ValidAddress
+		return response.NewError(http.StatusBadRequest, "Please enter valid address")
 	}
 	if request.City != "" && len(request.City) > 100 {
-		return response.ValidCity
+		return response.NewError(http.StatusBadRequest, "Please enter valid city")
 	}
 	if request.PinCode != "" && !pinCodePattern.MatchString(request.PinCode) {
-		return response.ValidAddress
+		return response.NewError(http.StatusBadRequest, "Please enter valid address")
 	}
 	if request.ContactPerson != "" && len(request.ContactPerson) > 100 {
-		return response.ValidName
+		return response.NewError(http.StatusBadRequest, "Please enter valid name")
 	}
 	if request.ContactPhone != "" && !phonePattern.MatchString(request.ContactPhone) {
-		return response.ValidMobile
+		return response.NewError(http.StatusBadRequest, "Please enter valid mobile")
 	}
 	return nil
 }

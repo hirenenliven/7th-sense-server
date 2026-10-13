@@ -24,7 +24,7 @@ func decodeAndValidate(writer http.ResponseWriter, request *http.Request, reques
 		if errors.As(err, &maxBytesError) {
 			return response.RequestEntryLarge
 		}
-		return response.InvalidJSON
+		return response.NewError(http.StatusBadRequest, "Please enter valid json")
 	}
 	return requestBody.Validate()
 }
@@ -33,7 +33,7 @@ func decodeAndValidate(writer http.ResponseWriter, request *http.Request, reques
 func pathID(request *http.Request) (int64, error) {
 	id, err := strconv.ParseInt(request.PathValue("id"), 10, 64)
 	if err != nil || id <= 0 {
-		return 0, response.InvalidID
+		return 0, response.NewError(http.StatusBadRequest, "Please enter valid id")
 	}
 	return id, nil
 }

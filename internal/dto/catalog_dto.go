@@ -1,6 +1,7 @@
 package dto
 
 import (
+	"net/http"
 	"regexp"
 
 	"7th-sense-server/internal/response"
@@ -16,13 +17,13 @@ const maxDescriptionLength = 1000
 // description are optional.
 func validateCatalogFields(name, code, description string) error {
 	if name == "" || len(name) > 100 {
-		return response.ValidName
+		return response.NewError(http.StatusBadRequest, "Please enter valid name")
 	}
 	if code != "" && !catalogCodePattern.MatchString(code) {
-		return response.ValidCode
+		return response.NewError(http.StatusBadRequest, "Please enter valid code")
 	}
 	if len(description) > maxDescriptionLength {
-		return response.ValidDescription
+		return response.NewError(http.StatusBadRequest, "Please enter valid description")
 	}
 	return nil
 }

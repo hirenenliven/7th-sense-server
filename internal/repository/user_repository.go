@@ -7,7 +7,6 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"7th-sense-server/internal/db"
 	"7th-sense-server/internal/model"
@@ -19,12 +18,13 @@ import (
 // Selected column names must match the db tags on model.User, so nullable
 // columns are read with COALESCE and given their column name with AS.
 type UserRepository struct {
-	dbPool *pgxpool.Pool
+	database db.Querier
 }
 
-// NewUserRepository creates a UserRepository that uses dbPool.
-func NewUserRepository(dbPool *pgxpool.Pool) *UserRepository {
-	return &UserRepository{dbPool: dbPool}
+// NewUserRepository creates a UserRepository that runs its queries on database
+// (a connection pool or a transaction).
+func NewUserRepository(database db.Querier) *UserRepository {
+	return &UserRepository{database: database}
 }
 
 func (userRepository *UserRepository) FindAll(ctx context.Context) ([]model.User, error) {
@@ -39,7 +39,7 @@ func (userRepository *UserRepository) FindAll(ctx context.Context) ([]model.User
 		WHERE is_deleted = false
 		ORDER BY id`
 
-	rows, err := db.Execute(ctx, userRepository.dbPool, query)
+	rows, err := db.Execute(ctx, userRepository.database, query)
 	if err != nil {
 		return nil, fmt.Errorf("find all users: %w", err)
 	}
@@ -61,7 +61,7 @@ func (userRepository *UserRepository) FindByID(ctx context.Context, id int64) (m
 		FROM users
 		WHERE id = $1 AND is_deleted = false`
 
-	rows, err := db.Execute(ctx, userRepository.dbPool, query, id)
+	rows, err := db.Execute(ctx, userRepository.database, query, id)
 	if err != nil {
 		return model.User{}, fmt.Errorf("find user: %w", err)
 	}
@@ -80,7 +80,7 @@ func (userRepository *UserRepository) Create(ctx context.Context, user model.Use
 			COALESCE(status, '') AS status,
 			created_at, updated_at`
 
-	rows, err := db.Execute(ctx, userRepository.dbPool, query,
+	rows, err := db.Execute(ctx, userRepository.database, query,
 		user.Username, user.Email, user.Password, user.FirstName, user.LastName, user.Mobile, user.RoleID, user.BranchID, user.CompanyID,
 	)
 	if err != nil {
@@ -107,7 +107,7 @@ func (userRepository *UserRepository) Update(ctx context.Context, user model.Use
 			COALESCE(status, '') AS status,
 			created_at, updated_at`
 
-	rows, err := db.Execute(ctx, userRepository.dbPool, query,
+	rows, err := db.Execute(ctx, userRepository.database, query,
 		user.ID, user.Username, user.Email, user.FirstName, user.LastName, user.Mobile, user.RoleID, user.BranchID, user.CompanyID, user.Status,
 	)
 	if err != nil {
@@ -123,7 +123,7 @@ func (userRepository *UserRepository) Delete(ctx context.Context, id int64) erro
 		SET is_deleted = true, deleted_at = NOW()
 		WHERE id = $1 AND is_deleted = false`
 
-	rows, err := db.Execute(ctx, userRepository.dbPool, query, id)
+	rows, err := db.Execute(ctx, userRepository.database, query, id)
 	if err != nil {
 		return fmt.Errorf("delete user: %w", err)
 	}
@@ -147,12 +147,14 @@ func mapUserError(operation string, err error) error {
 	}
 
 	var pgError *pgconn.PgError
-	if errors.As(err, &pgError) && pgError.Code == "23505" { // unique_violation
-		switch pgError.ConstraintName {
-		case "users_email_key":
+	if errors.As(err, &pgError) {
+		switch {
+		case pgError.Code == "23505" && pgError.ConstraintName == "users_email_key": // unique_violation
 			return ErrDuplicateEmail
-		case "users_username_key":
+		case pgError.Code == "23505" && pgError.ConstraintName == "users_username_key":
 			return ErrDuplicateUsername
+		case pgError.Code == "23503" && pgError.ConstraintName == "users_role_id_fkey": // foreign_key_violation
+			return ErrInvalidRole
 		}
 	}
 	return fmt.Errorf("%s: %w", operation, err)

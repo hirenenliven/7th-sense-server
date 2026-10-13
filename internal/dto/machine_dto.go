@@ -1,6 +1,7 @@
 package dto
 
 import (
+	"net/http"
 	"regexp"
 	"strings"
 
@@ -95,58 +96,58 @@ func (request *CreateMachineRequest) Validate() error {
 
 	// Validate required fields
 	if !namePattern.MatchString(request.Name) {
-		return response.ValidName
+		return response.NewError(http.StatusBadRequest, "Please enter valid name")
 	}
 	if !serialPattern.MatchString(request.SerialNumber) {
-		return response.ValidSerialNumber
+		return response.NewError(http.StatusBadRequest, "Please enter valid serial number")
 	}
 	if !ipPattern.MatchString(request.LiveIP) {
-		return response.ValidIP
+		return response.NewError(http.StatusBadRequest, "Please enter valid IP address")
 	}
 	if request.Port <= 0 || request.Port > 65535 {
-		return response.ValidPort
+		return response.NewError(http.StatusBadRequest, "Please enter valid port")
 	}
 	if !machineUsernamePattern.MatchString(request.Username) {
-		return response.ValidUserName
+		return response.NewError(http.StatusBadRequest, "Please enter valid username")
 	}
 	if len(request.Password) == 0 {
-		return response.ValidPassword
+		return response.NewError(http.StatusBadRequest, "Please enter valid password")
 	}
 	if !ipPattern.MatchString(request.LocalIP) {
-		return response.ValidIP
+		return response.NewError(http.StatusBadRequest, "Please enter valid IP address")
 	}
 	if len(request.ControllerVersion) > 10 {
-		return response.ValidControllerVersion
+		return response.NewError(http.StatusBadRequest, "Please enter valid controller version")
 	}
 	if !datePattern.MatchString(request.InstallationDate) {
-		return response.ValidDate
+		return response.NewError(http.StatusBadRequest, "Please enter valid date")
 	}
 	if !datePattern.MatchString(request.BillDate) {
-		return response.ValidDate
+		return response.NewError(http.StatusBadRequest, "Please enter valid date")
 	}
 	if !datePattern.MatchString(request.WarrantyDate) {
-		return response.ValidDate
+		return response.NewError(http.StatusBadRequest, "Please enter valid date")
 	}
 	if !decimalPattern.MatchString(request.HourlyCost) {
-		return response.ValidPrice
+		return response.NewError(http.StatusBadRequest, "Please enter valid price")
 	}
 	if request.Status != "" && request.Status != MachineStatusActive && request.Status != MachineStatusInactive {
-		return response.ValidStatus
+		return response.NewError(http.StatusBadRequest, "Please enter valid status")
 	}
 	if request.HealthIDs != "" && len(request.HealthIDs) > 100 {
-		return response.ValidHealthIDs
+		return response.NewError(http.StatusBadRequest, "Please enter valid health IDs")
 	}
 	if request.Longitude != "" && !coordinatePattern.MatchString(request.Longitude) {
-		return response.ValidCoordinate
+		return response.NewError(http.StatusBadRequest, "Please enter valid coordinate")
 	}
 	if request.Latitude != "" && !coordinatePattern.MatchString(request.Latitude) {
-		return response.ValidCoordinate
+		return response.NewError(http.StatusBadRequest, "Please enter valid coordinate")
 	}
 	if request.MachineSystemType != "" && request.MachineSystemType != MachineSystemTypeNewPlc && request.MachineSystemType != MachineSystemTypeOldPlc {
-		return response.ValidMachineSystemType
+		return response.NewError(http.StatusBadRequest, "Please enter valid machine system type")
 	}
 	if request.SecurityMode != "" && request.SecurityMode != SecurityModeNone && request.SecurityMode != SecurityModeBasic256Sha256 {
-		return response.ValidSecurityMode
+		return response.NewError(http.StatusBadRequest, "Please enter valid security mode")
 	}
 
 	return nil
@@ -212,56 +213,56 @@ func (request *UpdateMachineRequest) Validate() error {
 
 	// Validate fields if provided
 	if request.Name != "" && !namePattern.MatchString(request.Name) {
-		return response.ValidName
+		return response.NewError(http.StatusBadRequest, "Please enter valid name")
 	}
 	if request.SerialNumber != "" && !serialPattern.MatchString(request.SerialNumber) {
-		return response.ValidSerialNumber
+		return response.NewError(http.StatusBadRequest, "Please enter valid serial number")
 	}
 	if request.LiveIP != "" && !ipPattern.MatchString(request.LiveIP) {
-		return response.ValidIP
+		return response.NewError(http.StatusBadRequest, "Please enter valid IP address")
 	}
 	if request.Port != 0 && (request.Port <= 0 || request.Port > 65535) {
-		return response.ValidPort
+		return response.NewError(http.StatusBadRequest, "Please enter valid port")
 	}
 	if request.Username != "" && !machineUsernamePattern.MatchString(request.Username) {
-		return response.ValidUserName
+		return response.NewError(http.StatusBadRequest, "Please enter valid username")
 	}
 	// Password is optional in update
 	if request.LocalIP != "" && !ipPattern.MatchString(request.LocalIP) {
-		return response.ValidIP
+		return response.NewError(http.StatusBadRequest, "Please enter valid IP address")
 	}
 	if request.ControllerVersion != "" && len(request.ControllerVersion) > 10 {
-		return response.ValidControllerVersion
+		return response.NewError(http.StatusBadRequest, "Please enter valid controller version")
 	}
 	if request.InstallationDate != "" && !datePattern.MatchString(request.InstallationDate) {
-		return response.ValidDate
+		return response.NewError(http.StatusBadRequest, "Please enter valid date")
 	}
 	if request.BillDate != "" && !datePattern.MatchString(request.BillDate) {
-		return response.ValidDate
+		return response.NewError(http.StatusBadRequest, "Please enter valid date")
 	}
 	if request.WarrantyDate != "" && !datePattern.MatchString(request.WarrantyDate) {
-		return response.ValidDate
+		return response.NewError(http.StatusBadRequest, "Please enter valid date")
 	}
 	if request.HourlyCost != "" && !decimalPattern.MatchString(request.HourlyCost) {
-		return response.ValidPrice
+		return response.NewError(http.StatusBadRequest, "Please enter valid price")
 	}
 	if request.Status != "" && request.Status != MachineStatusActive && request.Status != MachineStatusInactive {
-		return response.ValidStatus
+		return response.NewError(http.StatusBadRequest, "Please enter valid status")
 	}
 	if request.HealthIDs != "" && len(request.HealthIDs) > 100 {
-		return response.ValidHealthIDs
+		return response.NewError(http.StatusBadRequest, "Please enter valid health IDs")
 	}
 	if request.Longitude != "" && !coordinatePattern.MatchString(request.Longitude) {
-		return response.ValidCoordinate
+		return response.NewError(http.StatusBadRequest, "Please enter valid coordinate")
 	}
 	if request.Latitude != "" && !coordinatePattern.MatchString(request.Latitude) {
-		return response.ValidCoordinate
+		return response.NewError(http.StatusBadRequest, "Please enter valid coordinate")
 	}
 	if request.MachineSystemType != "" && request.MachineSystemType != MachineSystemTypeNewPlc && request.MachineSystemType != MachineSystemTypeOldPlc {
-		return response.ValidMachineSystemType
+		return response.NewError(http.StatusBadRequest, "Please enter valid machine system type")
 	}
 	if request.SecurityMode != "" && request.SecurityMode != SecurityModeNone && request.SecurityMode != SecurityModeBasic256Sha256 {
-		return response.ValidSecurityMode
+		return response.NewError(http.StatusBadRequest, "Please enter valid security mode")
 	}
 
 	return nil

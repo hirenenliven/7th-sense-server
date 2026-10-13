@@ -17,4 +17,10 @@ var (
 	ErrInvalidCategory = errors.New("invalid category")
 	// ErrInvalidBrand is returned when brand_id does not reference an existing brand.
 	ErrInvalidBrand = errors.New("invalid brand")
+	// ErrInvalidRole is returned when role_id does not reference an existing role.
+	ErrInvalidRole = errors.New("invalid role")
+	// ErrInvalidCountry is returned when country_id does not reference an existing country.
+	ErrInvalidCountry = errors.New("invalid country")
+	// ErrInvalidState is returned when state_id does not reference an existing state.
+	ErrInvalidState = errors.New("invalid state")
 )

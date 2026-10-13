@@ -1,6 +1,7 @@
 package dto
 
 import (
+	"net/http"
 	"strings"
 
 	"7th-sense-server/internal/response"
@@ -52,10 +53,10 @@ func validateProductFields(name, code string, categoryID *int64, image, descript
 		return err
 	}
 	if categoryID != nil && *categoryID <= 0 {
-		return response.ValidCategory
+		return response.NewError(http.StatusBadRequest, "Please enter valid category")
 	}
 	if len(image) > 255 {
-		return response.ValidImage
+		return response.NewError(http.StatusBadRequest, "Please enter valid image")
 	}
 	return nil
 }

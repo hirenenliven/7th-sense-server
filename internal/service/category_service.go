@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"net/http"
 
 	"7th-sense-server/internal/dto"
 	"7th-sense-server/internal/model"
@@ -57,11 +58,11 @@ func (categoryService *CategoryService) Delete(ctx context.Context, id int64) er
 func toCategoryResponseError(err error) error {
 	switch {
 	case errors.Is(err, repository.ErrNotFound):
-		return response.CategoryNotFound
+		return response.NewError(http.StatusNotFound, "Category not found")
 	case errors.Is(err, repository.ErrDuplicateName):
-		return response.NameExists
+		return response.NewError(http.StatusBadRequest, "Name already exists")
 	case errors.Is(err, repository.ErrDuplicateCode):
-		return response.CodeExists
+		return response.NewError(http.StatusBadRequest, "Code already exists")
 	default:
 		return err
 	}

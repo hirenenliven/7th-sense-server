@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"net/http"
 
 	"7th-sense-server/internal/model"
 	"7th-sense-server/internal/repository"
@@ -43,7 +44,7 @@ func (companyProfileService *CompanyProfileService) Delete(ctx context.Context, 
 func toCompanyProfileResponseError(err error) error {
 	switch {
 	case errors.Is(err, repository.ErrNotFound):
-		return response.CompanyProfileNotFound
+		return response.NewError(http.StatusNotFound, "Company profile not found")
 	default:
 		return err
 	}

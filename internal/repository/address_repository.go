@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"7th-sense-server/internal/db"
 	"7th-sense-server/internal/model"
@@ -18,12 +18,13 @@ import (
 // Selected column names must match the db tags on model.Address, so nullable
 // columns are read with COALESCE and given their column name with AS.
 type AddressRepository struct {
-	dbPool *pgxpool.Pool
+	database db.Querier
 }
 
-// NewAddressRepository creates an AddressRepository that uses dbPool.
-func NewAddressRepository(dbPool *pgxpool.Pool) *AddressRepository {
-	return &AddressRepository{dbPool: dbPool}
+// NewAddressRepository creates an AddressRepository that runs its queries on database
+// (a connection pool or a transaction).
+func NewAddressRepository(database db.Querier) *AddressRepository {
+	return &AddressRepository{database: database}
 }
 
 func (addressRepository *AddressRepository) FindByUserID(ctx context.Context, userID int64) ([]model.Address, error) {
@@ -42,7 +43,7 @@ func (addressRepository *AddressRepository) FindByUserID(ctx context.Context, us
 		WHERE user_id = $1 AND is_deleted = false
 		ORDER BY id`
 
-	rows, err := db.Execute(ctx, addressRepository.dbPool, query, userID)
+	rows, err := db.Execute(ctx, addressRepository.database, query, userID)
 	if err != nil {
 		return nil, fmt.Errorf("find addresses by user: %w", err)
 	}
@@ -68,7 +69,7 @@ func (addressRepository *AddressRepository) Create(ctx context.Context, address 
 			is_default,
 			is_deleted, deleted_at, created_at, updated_at`
 
-	rows, err := db.Execute(ctx, addressRepository.dbPool, query,
+	rows, err := db.Execute(ctx, addressRepository.database, query,
 		address.UserID, address.AddressType, address.AddressLine1, address.AddressLine2, address.City, address.StateID, address.CountryID, address.PinCode, address.ContactPerson, address.ContactPhone, address.IsDefault,
 	)
 	if err != nil {
@@ -96,7 +97,7 @@ func (addressRepository *AddressRepository) Update(ctx context.Context, address 
 			is_default,
 			is_deleted, deleted_at, created_at, updated_at`
 
-	rows, err := db.Execute(ctx, addressRepository.dbPool, query,
+	rows, err := db.Execute(ctx, addressRepository.database, query,
 		address.ID, address.AddressType, address.AddressLine1, address.AddressLine2, address.City, address.StateID, address.CountryID, address.PinCode, address.ContactPerson, address.ContactPhone, address.IsDefault,
 	)
 	if err != nil {
@@ -112,7 +113,7 @@ func (addressRepository *AddressRepository) Delete(ctx context.Context, id int64
 		SET is_deleted = true, deleted_at = NOW()
 		WHERE id = $1 AND is_deleted = false`
 
-	rows, err := db.Execute(ctx, addressRepository.dbPool, query, id)
+	rows, err := db.Execute(ctx, addressRepository.database, query, id)
 	if err != nil {
 		return fmt.Errorf("delete address: %w", err)
 	}
@@ -133,6 +134,16 @@ func mapAddressError(operation string, err error) error {
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound
+	}
+
+	var pgError *pgconn.PgError
+	if errors.As(err, &pgError) && pgError.Code == "23503" { // foreign_key_violation
+		switch pgError.ConstraintName {
+		case "addresses_country_id_fkey":
+			return ErrInvalidCountry
+		case "addresses_state_id_fkey":
+			return ErrInvalidState
+		}
 	}
 	return fmt.Errorf("%s: %w", operation, err)
 }

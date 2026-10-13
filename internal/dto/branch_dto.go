@@ -1,6 +1,7 @@
 package dto
 
 import (
+	"net/http"
 	"net/mail"
 	"regexp"
 	"strings"
@@ -23,17 +24,17 @@ const (
 
 // CreateBranchRequest is the body for POST /branches.
 type CreateBranchRequest struct {
-	Code      string  `json:"code"`
-	Name      string  `json:"name"`
-	Email     string  `json:"email"`
-	Address   string  `json:"address"`
-	City      string  `json:"city"`
-	StateID   *int64  `json:"stateId"`
+	Code       string `json:"code"`
+	Name       string `json:"name"`
+	Email      string `json:"email"`
+	Address    string `json:"address"`
+	City       string `json:"city"`
+	StateID    *int64 `json:"stateId"`
 	CustomerID *int64 `json:"customerId"`
-	GSTNumber string  `json:"gstNumber"`
-	PANNumber string  `json:"panNumber"`
-	ColorCode string  `json:"colorCode"`
-	Status    string  `json:"status"`
+	GSTNumber  string `json:"gstNumber"`
+	PANNumber  string `json:"panNumber"`
+	ColorCode  string `json:"colorCode"`
+	Status     string `json:"status"`
 }
 
 // Validate trims the fields and checks they are usable.
@@ -57,17 +58,17 @@ func (request *CreateBranchRequest) Validate() error {
 // UpdateBranchRequest is the body for PUT /branches/{id}. An empty status keeps
 // the current one.
 type UpdateBranchRequest struct {
-	Code      string  `json:"code"`
-	Name      string  `json:"name"`
-	Email     string  `json:"email"`
-	Address   string  `json:"address"`
-	City      string  `json:"city"`
-	StateID   *int64  `json:"stateId"`
+	Code       string `json:"code"`
+	Name       string `json:"name"`
+	Email      string `json:"email"`
+	Address    string `json:"address"`
+	City       string `json:"city"`
+	StateID    *int64 `json:"stateId"`
 	CustomerID *int64 `json:"customerId"`
-	GSTNumber string  `json:"gstNumber"`
-	PANNumber string  `json:"panNumber"`
-	ColorCode string  `json:"colorCode"`
-	Status    string  `json:"status"`
+	GSTNumber  string `json:"gstNumber"`
+	PANNumber  string `json:"panNumber"`
+	ColorCode  string `json:"colorCode"`
+	Status     string `json:"status"`
 }
 
 // Validate trims the fields and checks they are usable.
@@ -91,33 +92,33 @@ func (request *UpdateBranchRequest) Validate() error {
 // validateBranchFields checks the fields shared by create and update.
 func validateBranchFields(code, name, email, address, city, gstNumber, panNumber, colorCode, status string) error {
 	if !codePattern.MatchString(code) {
-		return response.ValidCode
+		return response.NewError(http.StatusBadRequest, "Please enter valid code")
 	}
 	if len(name) == 0 || len(name) > 200 {
-		return response.ValidName
+		return response.NewError(http.StatusBadRequest, "Please enter valid name")
 	}
 	if email != "" {
 		if address, err := mail.ParseAddress(email); err != nil || address.Address != email || len(email) > 255 {
-			return response.ValidEmail
+			return response.NewError(http.StatusBadRequest, "Please enter valid email")
 		}
 	}
 	if len(address) > 500 {
-		return response.ValidAddress
+		return response.NewError(http.StatusBadRequest, "Please enter valid address")
 	}
 	if len(city) > 100 {
-		return response.ValidCity
+		return response.NewError(http.StatusBadRequest, "Please enter valid city")
 	}
 	if gstNumber != "" && !gstPattern.MatchString(gstNumber) {
-		return response.ValidGSTNumber
+		return response.NewError(http.StatusBadRequest, "Please enter valid GST number")
 	}
 	if panNumber != "" && !panPattern.MatchString(panNumber) {
-		return response.ValidPANNumber
+		return response.NewError(http.StatusBadRequest, "Please enter valid PAN number")
 	}
 	if colorCode != "" && !colorCodePattern.MatchString(colorCode) {
-		return response.ValidColorCode
+		return response.NewError(http.StatusBadRequest, "Please enter valid color code")
 	}
 	if status != "" && status != BranchStatusActive && status != BranchStatusInactive {
-		return response.ValidStatus
+		return response.NewError(http.StatusBadRequest, "Please enter valid status")
 	}
 	return nil
 }

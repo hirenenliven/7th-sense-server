@@ -98,23 +98,54 @@ Every response has the same shape (`data` is left out when there is none):
 
 ### Users
 
-`POST /api/v1/users`
+`POST /api/v1/users` creates a customer: the user, its company profile, user profile and
+address are saved in one transaction (all or nothing).
 
 ```json
-{"username": "hiren_c", "email": "hiren@example.com", "password": "secret123",
- "firstName": "Hiren", "lastName": "Chavda", "mobile": "+919876543210"}
+{"username": "hiren_c", "email": "hiren@example.com", "password": "secret123", "roleId": 4,
+ "branchId": 1, "companyName": "Enliven Pvt Ltd", "finixId": 77,
+ "gstNumber": "24AAACE1234F1Z5", "panNumber": "AAACE1234F",
+ "website": "www.example.com", "companyLogo": "uploads/logo.png",
+ "addressLine1": "Plot 12, GIDC", "addressLine2": "", "countryId": 1, "stateId": 1,
+ "city": "Rajkot", "zipCode": "360001",
+ "contactPerson": "Hiren", "primaryPhone": "+919876543210", "secondaryPhone": "",
+ "timeZone": "Asia/Kolkata", "dayStartFrom": "06:00"}
 ```
 
+| Form field      | JSON             | Stored in                              |
+|-----------------|------------------|----------------------------------------|
+| Branch *        | `branchId`       | `users.branch_id` (must exist)         |
+| Company Name *  | `companyName`    | `company_profiles.company_name`        |
+| Finix ID        | `finixId`        | `company_profiles.finix_id`            |
+| GST No. *       | `gstNumber`      | `company_profiles.gst_number`          |
+| PAN No. *       | `panNumber`      | `company_profiles.pan_number`          |
+| Website         | `website`        | `company_profiles.website`             |
+| Company Logo    | `companyLogo`    | `user_profiles.profile_picture` (path/URL) |
+| Email *         | `email`          | `users.email` (unique, lowercase)      |
+| User Name *     | `username`       | `users.username` (unique)              |
+| Password *      | `password`       | `users.password` (bcrypt, 8–72 chars)  |
+| Address - 1 *   | `addressLine1`   | `addresses.address_line1`              |
+| Address - 2     | `addressLine2`   | `addresses.address_line2`              |
+| Country *       | `countryId`      | `addresses.country_id`                 |
+| State *         | `stateId`        | `addresses.state_id`                   |
+| City *          | `city`           | `addresses.city`                       |
+| Zip Code *      | `zipCode`        | `addresses.pin_code` (3–10 digits)     |
+| Contact Person *| `contactPerson`  | `user_profiles.contact_person`, `addresses.contact_person` |
+| Primary Phone * | `primaryPhone`   | `users.mobile`, `addresses.contact_phone` |
+| Secondary Phone | `secondaryPhone` | `user_profiles.contact_phone`          |
+| Time Zone *     | `timeZone`       | `user_profiles.timezone` (IANA name)   |
+| Day Start From *| `dayStartFrom`   | `user_profiles.start_day_time` (`HH:MM`) |
+
+`roleId` is required (4 = customer); `firstName`, `lastName` and `companyId` are optional.
+
+`GET /api/v1/users/{id}` and the create/update responses return the user with `profile`,
+`companyProfile` and `address` objects (`null` when missing). `GET /api/v1/users` lists users only.
+
 `PUT /api/v1/users/{id}` takes the same fields without `password`, plus an optional
-`status` (`active` / `inactive`; empty keeps the current one). PUT replaces the profile:
-omitted `firstName`, `lastName` and `mobile` are cleared.
+`status` (`active` / `inactive`; empty keeps the current one). It replaces the form fields;
+user profile fields that are not on the form (designation, birth date, theme, ...) are kept.
 
-- `username`: 3–50 letters, digits, `_` or `.`; unique
-- `email`: valid, unique (stored lowercase)
-- `password`: 8–72 characters, stored as a bcrypt hash and never returned
-- `mobile`: optional, 7–15 digits with an optional leading `+`
-
-`DELETE` is a soft delete: the row stays with `is_deleted = true` and `deleted_at` set, and is
+`DELETE` is a soft delete of the user, its profiles and addresses: the rows stay with `is_deleted = true` and `deleted_at` set, and is
 hidden from every other endpoint. Its email and username can be used again by a new user.
 
 The same five routes exist for `/api/v1/items`. They are registered only once a database-backed

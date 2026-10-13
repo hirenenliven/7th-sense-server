@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"net/http"
 
 	"7th-sense-server/internal/dto"
 	"7th-sense-server/internal/model"
@@ -57,11 +58,11 @@ func (brandService *BrandService) Delete(ctx context.Context, id int64) error {
 func toBrandResponseError(err error) error {
 	switch {
 	case errors.Is(err, repository.ErrNotFound):
-		return response.BrandNotFound
+		return response.NewError(http.StatusNotFound, "Brand not found")
 	case errors.Is(err, repository.ErrDuplicateName):
-		return response.NameExists
+		return response.NewError(http.StatusBadRequest, "Name already exists")
 	case errors.Is(err, repository.ErrDuplicateCode):
-		return response.CodeExists
+		return response.NewError(http.StatusBadRequest, "Code already exists")
 	default:
 		return err
 	}

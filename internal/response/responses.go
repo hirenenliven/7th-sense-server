@@ -16,6 +16,11 @@ func newResponse(statusCode int, message string) *Response {
 	return &Response{StatusCode: statusCode, Message: message}
 }
 
+// NewError creates a new error response with custom message
+func NewError(statusCode int, message string) *Response {
+	return newResponse(statusCode, message)
+}
+
 // Common responses (same set and names as the Node.js RESPONSES object).
 var (
 	Success           = newResponse(http.StatusOK, "success")
@@ -31,53 +36,17 @@ var (
 	ExpectationFailed = newResponse(http.StatusExpectationFailed, "expectation failed")
 	ServerError       = newResponse(http.StatusInternalServerError, "internal server error")
 	Unavailable       = newResponse(http.StatusServiceUnavailable, "service unavailable")
-	ValidEmail        = newResponse(http.StatusBadRequest, "Please enter valid email")
-	ValidUserName     = newResponse(http.StatusBadRequest, "Please enter valid UserName")
-	ValidPassword     = newResponse(http.StatusBadRequest, "Please enter valid password")
+	InvalidJSON       = newResponse(http.StatusBadRequest, "Invalid JSON body")
 	TryAgain          = newResponse(http.StatusBadRequest, "Something went wrong, Please try again later")
-)
 
-// Responses specific to this project's entities.
-var (
-	InvalidJSON            = newResponse(http.StatusBadRequest, "Invalid JSON body")
-	InvalidID              = newResponse(http.StatusBadRequest, "Please enter valid id")
+	// Validation error responses
 	ValidName              = newResponse(http.StatusBadRequest, "Please enter valid name")
-	ValidMobile            = newResponse(http.StatusBadRequest, "Please enter valid mobile")
-	ValidStatus            = newResponse(http.StatusBadRequest, "Please enter valid status")
-	ValidPrice             = newResponse(http.StatusBadRequest, "Please enter valid price")
-	ValidRole              = newResponse(http.StatusBadRequest, "Please enter valid role")
-	EmailExists            = newResponse(http.StatusBadRequest, "Email already exists")
-	UsernameExists         = newResponse(http.StatusBadRequest, "Username already exists")
-	UserNotFound           = newResponse(http.StatusNotFound, "User not found")
-	ItemNotFound           = newResponse(http.StatusNotFound, "Item not found")
 	ValidCode              = newResponse(http.StatusBadRequest, "Please enter valid code")
-	ValidAddress           = newResponse(http.StatusBadRequest, "Please enter valid address")
-	ValidCity              = newResponse(http.StatusBadRequest, "Please enter valid city")
-	ValidGSTNumber         = newResponse(http.StatusBadRequest, "Please enter valid GST number")
-	ValidPANNumber         = newResponse(http.StatusBadRequest, "Please enter valid PAN number")
-	ValidColorCode         = newResponse(http.StatusBadRequest, "Please enter valid color code")
-	BranchNotFound         = newResponse(http.StatusNotFound, "Branch not found")
-	CodeExists             = newResponse(http.StatusBadRequest, "Code already exists")
-	UserProfileNotFound    = newResponse(http.StatusNotFound, "User profile not found")
-	CompanyProfileNotFound = newResponse(http.StatusNotFound, "Company profile not found")
-	NameExists             = newResponse(http.StatusBadRequest, "Name already exists")
 	ValidDescription       = newResponse(http.StatusBadRequest, "Please enter valid description")
 	ValidCategory          = newResponse(http.StatusBadRequest, "Please enter valid category")
-	ValidBrand             = newResponse(http.StatusBadRequest, "Please enter valid brand")
 	ValidImage             = newResponse(http.StatusBadRequest, "Please enter valid image")
+	ValidBrand             = newResponse(http.StatusBadRequest, "Please enter valid brand")
 	ValidVariant           = newResponse(http.StatusBadRequest, "Please enter valid variant")
-	CategoryNotFound       = newResponse(http.StatusNotFound, "Category not found")
-	BrandNotFound          = newResponse(http.StatusNotFound, "Brand not found")
-	ProductNotFound        = newResponse(http.StatusNotFound, "Product not found")
-	ControllerNotFound     = newResponse(http.StatusNotFound, "Controller not found")
-	MachineNotFound        = newResponse(http.StatusNotFound, "Machine not found")
-	ValidSerialNumber      = newResponse(http.StatusBadRequest, "Please enter valid serial number")
-	ValidIP                = newResponse(http.StatusBadRequest, "Please enter valid IP address")
-	ValidPort              = newResponse(http.StatusBadRequest, "Please enter valid port")
-	ValidControllerVersion = newResponse(http.StatusBadRequest, "Please enter valid controller version")
-	ValidDate              = newResponse(http.StatusBadRequest, "Please enter valid date")
-	ValidHealthIDs         = newResponse(http.StatusBadRequest, "Please enter valid health IDs")
-	ValidCoordinate        = newResponse(http.StatusBadRequest, "Please enter valid coordinate")
-	ValidMachineSystemType = newResponse(http.StatusBadRequest, "Please enter valid machine system type")
-	ValidSecurityMode      = newResponse(http.StatusBadRequest, "Please enter valid security mode")
+	UserProfileNotFound    = newResponse(http.StatusNotFound, "User profile not found")
+	CompanyProfileNotFound = newResponse(http.StatusNotFound, "Company profile not found")
 )

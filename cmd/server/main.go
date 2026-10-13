@@ -43,16 +43,16 @@ func run() error {
 	defer dbPool.Close()
 	slog.Info("connected to database", "name", appConfig.DB.Name)
 
-	userRepository := repository.NewUserRepository(dbPool)
 	branchRepository := repository.NewBranchRepository(dbPool)
+	branchService := service.NewBranchService(branchRepository)
 	categoryRepository := repository.NewCategoryRepository(dbPool)
 	brandRepository := repository.NewBrandRepository(dbPool)
 	productRepository := repository.NewProductRepository(dbPool)
 	controllerRepository := repository.NewControllerRepository(dbPool)
 	machineRepository := repository.NewMachineRepository(dbPool)
 	router := routes.New(routes.Handlers{
-		User:       handler.NewUserHandler(service.NewUserService(userRepository)),
-		Branch:     handler.NewBranchHandler(service.NewBranchService(branchRepository)),
+		User:       handler.NewUserHandler(service.NewUserService(dbPool, branchService)),
+		Branch:     handler.NewBranchHandler(branchService),
 		Category:   handler.NewCategoryHandler(service.NewCategoryService(categoryRepository)),
 		Brand:      handler.NewBrandHandler(service.NewBrandService(brandRepository)),
 		Product:    handler.NewProductHandler(service.NewProductService(productRepository)),

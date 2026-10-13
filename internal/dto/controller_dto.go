@@ -1,6 +1,7 @@
 package dto
 
 import (
+	"net/http"
 	"strings"
 
 	"7th-sense-server/internal/response"
@@ -50,10 +51,10 @@ func validateControllerFields(name, code, variant string, brandID *int64, descri
 		return err
 	}
 	if len(variant) > 100 {
-		return response.ValidVariant
+		return response.NewError(http.StatusBadRequest, "Please enter valid variant")
 	}
 	if brandID != nil && *brandID <= 0 {
-		return response.ValidBrand
+		return response.NewError(http.StatusBadRequest, "Please enter valid brand")
 	}
 	return nil
 }

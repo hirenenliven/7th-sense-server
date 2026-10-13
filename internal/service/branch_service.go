@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"net/http"
 
 	"7th-sense-server/internal/dto"
 	"7th-sense-server/internal/model"
@@ -31,35 +32,35 @@ func (branchService *BranchService) GetByID(ctx context.Context, id int64) (mode
 
 func (branchService *BranchService) Create(ctx context.Context, branchRequest dto.CreateBranchRequest) (model.Branch, error) {
 	branch, err := branchService.branchRepository.Create(ctx, model.Branch{
-		Code:      branchRequest.Code,
-		Name:      branchRequest.Name,
-		Email:     branchRequest.Email,
-		Address:   branchRequest.Address,
-		City:      branchRequest.City,
-		StateID:   branchRequest.StateID,
+		Code:       branchRequest.Code,
+		Name:       branchRequest.Name,
+		Email:      branchRequest.Email,
+		Address:    branchRequest.Address,
+		City:       branchRequest.City,
+		StateID:    branchRequest.StateID,
 		CustomerID: branchRequest.CustomerID,
-		GSTNumber: branchRequest.GSTNumber,
-		PANNumber: branchRequest.PANNumber,
-		ColorCode: branchRequest.ColorCode,
-		Status:    branchRequest.Status,
+		GSTNumber:  branchRequest.GSTNumber,
+		PANNumber:  branchRequest.PANNumber,
+		ColorCode:  branchRequest.ColorCode,
+		Status:     branchRequest.Status,
 	})
 	return branch, toBranchResponseError(err)
 }
 
 func (branchService *BranchService) Update(ctx context.Context, id int64, branchRequest dto.UpdateBranchRequest) (model.Branch, error) {
 	branch, err := branchService.branchRepository.Update(ctx, model.Branch{
-		ID:        id,
-		Code:      branchRequest.Code,
-		Name:      branchRequest.Name,
-		Email:     branchRequest.Email,
-		Address:   branchRequest.Address,
-		City:      branchRequest.City,
-		StateID:   branchRequest.StateID,
+		ID:         id,
+		Code:       branchRequest.Code,
+		Name:       branchRequest.Name,
+		Email:      branchRequest.Email,
+		Address:    branchRequest.Address,
+		City:       branchRequest.City,
+		StateID:    branchRequest.StateID,
 		CustomerID: branchRequest.CustomerID,
-		GSTNumber: branchRequest.GSTNumber,
-		PANNumber: branchRequest.PANNumber,
-		ColorCode: branchRequest.ColorCode,
-		Status:    branchRequest.Status,
+		GSTNumber:  branchRequest.GSTNumber,
+		PANNumber:  branchRequest.PANNumber,
+		ColorCode:  branchRequest.ColorCode,
+		Status:     branchRequest.Status,
 	})
 	return branch, toBranchResponseError(err)
 }
@@ -73,9 +74,9 @@ func (branchService *BranchService) Delete(ctx context.Context, id int64) error 
 func toBranchResponseError(err error) error {
 	switch {
 	case errors.Is(err, repository.ErrNotFound):
-		return response.BranchNotFound
+		return response.NewError(http.StatusNotFound, "Branch not found")
 	case errors.Is(err, repository.ErrDuplicateCode):
-		return response.CodeExists
+		return response.NewError(http.StatusBadRequest, "Code already exists")
 	default:
 		return err
 	}

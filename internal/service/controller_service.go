@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"net/http"
 
 	"7th-sense-server/internal/dto"
 	"7th-sense-server/internal/model"
@@ -61,13 +62,13 @@ func (controllerService *ControllerService) Delete(ctx context.Context, id int64
 func toControllerResponseError(err error) error {
 	switch {
 	case errors.Is(err, repository.ErrNotFound):
-		return response.ControllerNotFound
+		return response.NewError(http.StatusNotFound, "Controller not found")
 	case errors.Is(err, repository.ErrDuplicateName):
-		return response.NameExists
+		return response.NewError(http.StatusBadRequest, "Name already exists")
 	case errors.Is(err, repository.ErrDuplicateCode):
-		return response.CodeExists
+		return response.NewError(http.StatusBadRequest, "Code already exists")
 	case errors.Is(err, repository.ErrInvalidBrand):
-		return response.ValidBrand
+		return response.NewError(http.StatusBadRequest, "Please enter valid brand")
 	default:
 		return err
 	}

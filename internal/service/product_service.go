@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"net/http"
 
 	"7th-sense-server/internal/dto"
 	"7th-sense-server/internal/model"
@@ -72,13 +73,13 @@ func productImageOrDefault(image string) string {
 func toProductResponseError(err error) error {
 	switch {
 	case errors.Is(err, repository.ErrNotFound):
-		return response.ProductNotFound
+		return response.NewError(http.StatusNotFound, "Product not found")
 	case errors.Is(err, repository.ErrDuplicateName):
-		return response.NameExists
+		return response.NewError(http.StatusBadRequest, "Name already exists")
 	case errors.Is(err, repository.ErrDuplicateCode):
-		return response.CodeExists
+		return response.NewError(http.StatusBadRequest, "Code already exists")
 	case errors.Is(err, repository.ErrInvalidCategory):
-		return response.ValidCategory
+		return response.NewError(http.StatusBadRequest, "Please enter valid category")
 	default:
 		return err
 	}

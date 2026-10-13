@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"net/http"
 
 	"7th-sense-server/internal/dto"
 	"7th-sense-server/internal/model"
@@ -119,9 +120,9 @@ func (machineService *MachineService) Delete(ctx context.Context, id int64) erro
 func toMachineResponseError(err error) error {
 	switch {
 	case errors.Is(err, repository.ErrNotFound):
-		return response.MachineNotFound
+		return response.NewError(http.StatusNotFound, "Machine not found")
 	case errors.Is(err, repository.ErrDuplicateName):
-		return response.NameExists
+		return response.NewError(http.StatusBadRequest, "Name already exists")
 	default:
 		return err
 	}
