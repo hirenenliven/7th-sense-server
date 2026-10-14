@@ -21,16 +21,12 @@ import (
 const authTestPassword = "Secret#123"
 
 // newAuthRouter builds the real router with the real session middleware, the
-// auth handler and the (admin-only) user handler.
+// auth handler and the user handler (user managers only).
 func newAuthRouter() http.Handler {
-	userCountryService := service.NewUserCountryService(repository.NewUserCountryRepository(testDBPool))
-	userStateService := service.NewUserStateService(repository.NewUserStateRepository(testDBPool), userCountryService)
-	userCityService := service.NewUserCityService(repository.NewUserCityRepository(testDBPool), userStateService)
-	branchService := service.NewBranchService(repository.NewBranchRepository(testDBPool), userCityService)
 	authService := service.NewAuthService(repository.NewAuthRepository(testDBPool))
 	return routes.New(routes.Handlers{
 		Auth: handler.NewAuthHandler(authService, false),
-		User: handler.NewUserHandler(service.NewUserService(testDBPool, branchService)),
+		User: newUserHandler(),
 	}, middleware.Authenticate(authService))
 }
 
@@ -115,8 +111,14 @@ func TestAuthentication(t *testing.T) {
 	suffix := uniqueSuffix()
 	adminName := "auth_admin_" + suffix
 	customerName := "auth_customer_" + suffix
+	operatorName := "auth_operator_" + suffix
 	adminID := createAuthTestUser(t, adminName, model.RoleAdmin)
-	createAuthTestUser(t, customerName, model.RoleCustomer)
+	customerID := createAuthTestUser(t, customerName, model.RoleCustomer)
+	createAuthTestUser(t, operatorName, model.RoleOperator)
+	// The admin is a member of the customer's company
+	if _, err := testDBPool.Exec(context.Background(), `UPDATE users SET company_id = $2 WHERE id = $1`, adminID, customerID); err != nil {
+		t.Fatalf("set admin company: %v", err)
+	}
 
 	t.Run("login validation and wrong credentials", func(t *testing.T) {
 		result, _ := authRequest(t, router, http.MethodPost, apiV1+"/auth/login", map[string]any{"password": "x"}, nil, nil)
@@ -167,10 +169,15 @@ func TestAuthentication(t *testing.T) {
 		}
 	})
 
-	t.Run("admin-only routes", func(t *testing.T) {
-		result, _ := authRequest(t, router, http.MethodGet, apiV1+"/users", nil, customerSession, nil)
+	t.Run("user routes are for user managers", func(t *testing.T) {
+		operatorSession := login(t, router, operatorName, false)
+		result, _ := authRequest(t, router, http.MethodGet, apiV1+"/users", nil, operatorSession, nil)
 		expectStatus(t, result, http.StatusForbidden, "You do not have permission to do this")
 
+		result, _ = authRequest(t, router, http.MethodGet, apiV1+"/users", nil, customerSession, nil)
+		expectStatus(t, result, http.StatusOK, "success")
+
+		// 200 needs the admin's company, so this also checks the session reads company_id
 		result, _ = authRequest(t, router, http.MethodGet, apiV1+"/users", nil, adminSession, nil)
 		expectStatus(t, result, http.StatusOK, "success")
 	})

@@ -36,6 +36,7 @@ func (authRepository *AuthRepository) FindUserByUsername(ctx context.Context, us
 			COALESCE(users.first_name, '') AS first_name,
 			COALESCE(users.last_name, '') AS last_name,
 			COALESCE(users.status, '') AS status,
+			users.company_id,
 			roles.name AS role
 		FROM users
 		JOIN roles ON roles.id = users.role_id
@@ -86,6 +87,7 @@ func (authRepository *AuthRepository) FindUserBySession(ctx context.Context, tok
 			COALESCE(users.first_name, '') AS first_name,
 			COALESCE(users.last_name, '') AS last_name,
 			COALESCE(users.status, '') AS status,
+			users.company_id,
 			roles.name AS role`
 
 	rows, err := db.Execute(ctx, authRepository.database, query, tokenHash, sessionTokenType)

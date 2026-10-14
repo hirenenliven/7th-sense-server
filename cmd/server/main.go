@@ -68,9 +68,10 @@ func run() error {
 	// A machine checks its customer, brand, controller, model and the customer's line
 	machineService := service.NewMachineService(machineRepository, repository.NewUserRepository(dbPool),
 		machineModelService, brandService, controllerService, userLineService)
+	roleService := service.NewRoleService(repository.NewRoleRepository(dbPool))
 	router := routes.New(routes.Handlers{
 		Auth:           handler.NewAuthHandler(authService, appConfig.CookieSecure),
-		User:           handler.NewUserHandler(service.NewUserService(dbPool, branchService)),
+		User:           handler.NewUserHandler(service.NewUserService(dbPool, branchService, roleService, machineService)),
 		Branch:         handler.NewBranchHandler(branchService),
 		Category:       handler.NewCategoryHandler(service.NewCategoryService(categoryRepository)),
 		Brand:          handler.NewBrandHandler(brandService),
@@ -86,6 +87,7 @@ func run() error {
 		UserLine:       handler.NewUserLineHandler(userLineService),
 		UserCell:       handler.NewUserCellHandler(userCellService),
 		UserSupervisor: handler.NewUserSupervisorHandler(userSupervisorService),
+		Role:           handler.NewRoleHandler(roleService),
 	}, middleware.Authenticate(authService))
 
 	server := &http.Server{

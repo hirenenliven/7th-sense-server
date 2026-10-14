@@ -27,19 +27,24 @@ func NewUserRepository(database db.Querier) *UserRepository {
 	return &UserRepository{database: database}
 }
 
-func (userRepository *UserRepository) FindAll(ctx context.Context) ([]model.User, error) {
+// FindAll returns the users. A non-empty role keeps only users with that role
+// name; a non-nil companyID only the members of that customer.
+func (userRepository *UserRepository) FindAll(ctx context.Context, role string, companyID *int64) ([]model.User, error) {
 	query := `SELECT id, username, email, password,
 			COALESCE(first_name, '') AS first_name,
 			COALESCE(last_name, '') AS last_name,
 			COALESCE(mobile, '') AS mobile,
-			role_id, branch_id, company_id,
+			role_id, COALESCE((SELECT name FROM roles WHERE roles.id = users.role_id), '') AS role,
+			branch_id, company_id,
 			COALESCE(status, '') AS status,
 			created_at, updated_at
 		FROM users
 		WHERE is_deleted = false
+			AND (NULLIF($1, '') IS NULL OR role_id = (SELECT id FROM roles WHERE name = $1))
+			AND ($2::integer IS NULL OR company_id = $2)
 		ORDER BY id`
 
-	rows, err := db.Execute(ctx, userRepository.database, query)
+	rows, err := db.Execute(ctx, userRepository.database, query, role, companyID)
 	if err != nil {
 		return nil, fmt.Errorf("find all users: %w", err)
 	}
@@ -55,7 +60,8 @@ func (userRepository *UserRepository) FindByID(ctx context.Context, id int64) (m
 			COALESCE(first_name, '') AS first_name,
 			COALESCE(last_name, '') AS last_name,
 			COALESCE(mobile, '') AS mobile,
-			role_id, branch_id, company_id,
+			role_id, COALESCE((SELECT name FROM roles WHERE roles.id = users.role_id), '') AS role,
+			branch_id, company_id,
 			COALESCE(status, '') AS status,
 			created_at, updated_at
 		FROM users
@@ -76,7 +82,8 @@ func (userRepository *UserRepository) Create(ctx context.Context, user model.Use
 			COALESCE(first_name, '') AS first_name,
 			COALESCE(last_name, '') AS last_name,
 			COALESCE(mobile, '') AS mobile,
-			role_id, branch_id, company_id,
+			role_id, COALESCE((SELECT name FROM roles WHERE roles.id = users.role_id), '') AS role,
+			branch_id, company_id,
 			COALESCE(status, '') AS status,
 			created_at, updated_at`
 
@@ -103,7 +110,8 @@ func (userRepository *UserRepository) Update(ctx context.Context, user model.Use
 			COALESCE(first_name, '') AS first_name,
 			COALESCE(last_name, '') AS last_name,
 			COALESCE(mobile, '') AS mobile,
-			role_id, branch_id, company_id,
+			role_id, COALESCE((SELECT name FROM roles WHERE roles.id = users.role_id), '') AS role,
+			branch_id, company_id,
 			COALESCE(status, '') AS status,
 			created_at, updated_at`
 
@@ -177,21 +185,4 @@ func (userRepository *UserRepository) IsCustomer(ctx context.Context, id int64) 
 		return false, fmt.Errorf("check customer: %w", err)
 	}
 	return isCustomer, nil
-}
-
-// RoleIDByName returns the id of the role called name (roles.name), or
-// ErrNotFound. Role ids differ between databases, so roles are found by name.
-func (userRepository *UserRepository) RoleIDByName(ctx context.Context, name string) (int64, error) {
-	rows, err := db.Execute(ctx, userRepository.database, `SELECT id FROM roles WHERE name = $1`, name)
-	if err != nil {
-		return 0, fmt.Errorf("find role: %w", err)
-	}
-	roleID, err := pgx.CollectOneRow(rows, pgx.RowTo[int64])
-	if errors.Is(err, pgx.ErrNoRows) {
-		return 0, ErrNotFound
-	}
-	if err != nil {
-		return 0, fmt.Errorf("find role: %w", err)
-	}
-	return roleID, nil
 }

@@ -32,6 +32,7 @@ type Handlers struct {
 	UserLine       *handler.UserLineHandler
 	UserCell       *handler.UserCellHandler
 	UserSupervisor *handler.UserSupervisorHandler
+	Role           *handler.RoleHandler
 }
 
 // New builds the main router with all routes and global middleware.
@@ -57,9 +58,11 @@ func New(handlers Handlers, authenticate middleware.Middleware) http.Handler {
 	return middleware.Chain(router, middleware.Logger, middleware.Recoverer, middleware.CrossOrigin)
 }
 
-// adminOnly lets only admins call handlerFunc; other users get 403.
-func adminOnly(handlerFunc http.HandlerFunc) http.Handler {
-	return middleware.RequireRole(model.AdminRoles...)(handlerFunc)
+// userManagersOnly lets only the roles that manage users (superadmin, customer,
+// admin) call handlerFunc; other users get 403. The service limits each of them
+// to the users and roles they may manage.
+func userManagersOnly(handlerFunc http.HandlerFunc) http.Handler {
+	return middleware.RequireRole(model.UserManagerRoles...)(handlerFunc)
 }
 
 // superAdminOnly lets only the superadmin call handlerFunc; everyone else (admins
@@ -119,5 +122,8 @@ func registerV1Routes(router *http.ServeMux, handlers Handlers) {
 	}
 	if handlers.UserSupervisor != nil {
 		registerUserSupervisorRoutes(router, v1Prefix, handlers.UserSupervisor)
+	}
+	if handlers.Role != nil {
+		registerRoleRoutes(router, v1Prefix, handlers.Role)
 	}
 }

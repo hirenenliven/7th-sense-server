@@ -2,6 +2,7 @@ package dto
 
 import (
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 
@@ -55,8 +56,9 @@ func TestCreateUserRequestValidate(t *testing.T) {
 		{"password too short", func(r *CreateUserRequest) { r.Password = "short" }, response.NewError(http.StatusBadRequest, "Please enter valid password")},
 		{"password too long", func(r *CreateUserRequest) { r.Password = strings.Repeat("a", 73) }, response.NewError(http.StatusBadRequest, "Please enter valid password")},
 		{"first name too long", func(r *CreateUserRequest) { r.FirstName = strings.Repeat("a", 101) }, response.NewError(http.StatusBadRequest, "Please enter valid name")},
-		{"role missing defaults to admin", func(r *CreateUserRequest) { r.RoleID = 0 }, nil},
-		{"role negative", func(r *CreateUserRequest) { r.RoleID = -1 }, response.NewError(http.StatusBadRequest, "Please enter valid role")},
+		{"role missing", func(r *CreateUserRequest) { r.RoleID = 0 }, response.NewError(http.StatusBadRequest, "Please enter valid role")},
+		{"company invalid", func(r *CreateUserRequest) { companyID := int64(0); r.CompanyID = &companyID }, response.NewError(http.StatusBadRequest, "Please select valid customer")},
+		{"machine id invalid", func(r *CreateUserRequest) { r.MachineIDs = []int64{3, -1} }, response.NewError(http.StatusBadRequest, "Please select valid machines")},
 		{"branch missing", func(r *CreateUserRequest) { r.BranchID = nil }, response.NewError(http.StatusBadRequest, "Please enter valid branch")},
 		{"company name missing", func(r *CreateUserRequest) { r.CompanyName = " " }, response.NewError(http.StatusBadRequest, "Please enter valid company name")},
 		{"finix id negative", func(r *CreateUserRequest) { finixID := int64(-1); r.FinixID = &finixID }, response.NewError(http.StatusBadRequest, "Please enter valid Finix ID")},
@@ -205,5 +207,18 @@ func TestUpdateThemeRequestValidate(t *testing.T) {
 		if err == nil && request.Theme != testCase.wantTheme {
 			t.Errorf("Validate(%q) theme = %q; want %q", testCase.theme, request.Theme, testCase.wantTheme)
 		}
+	}
+}
+
+func TestCreateUserRequestValidateDropsDuplicateMachines(t *testing.T) {
+	request := CreateUserRequest{
+		Username: "hiren_c", Email: "hiren@example.com", Password: "secret123", RoleID: 4,
+		MachineIDs: []int64{7, 3, 7, 3, 9}, CustomerDetails: validCustomerDetails(),
+	}
+	if err := request.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v", err)
+	}
+	if want := []int64{7, 3, 9}; !slices.Equal(request.MachineIDs, want) {
+		t.Errorf("MachineIDs = %v; want %v", request.MachineIDs, want)
 	}
 }

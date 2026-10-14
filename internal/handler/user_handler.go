@@ -2,9 +2,9 @@ package handler
 
 import (
 	"net/http"
+	"strings"
 
 	"7th-sense-server/internal/dto"
-	"7th-sense-server/internal/middleware"
 	"7th-sense-server/internal/response"
 	"7th-sense-server/internal/service"
 )
@@ -19,9 +19,23 @@ func NewUserHandler(userService *service.UserService) *UserHandler {
 	return &UserHandler{service: userService}
 }
 
-// GetAll handles GET /api/v1/users.
+// GetAll handles GET /api/v1/users[?filterRole=<role name>][&companyId=<customer id>]:
+// the users the current user may see, e.g. ?filterRole=customer for the customer list.
+// filterRole narrows the list by the listed users' role; the caller is always the session user.
 func (userHandler *UserHandler) GetAll(writer http.ResponseWriter, request *http.Request) {
-	users, err := userHandler.service.GetAll(request.Context())
+	actor, err := currentUser(request)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+	companyID, err := queryID(request, "companyId")
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+	filter := dto.UserListFilter{Role: strings.ToLower(strings.TrimSpace(request.URL.Query().Get("filterRole"))), CompanyID: companyID}
+
+	users, err := userHandler.service.GetAll(request.Context(), actor, filter)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -37,7 +51,7 @@ func (userHandler *UserHandler) Me(writer http.ResponseWriter, request *http.Req
 		return
 	}
 
-	user, err := userHandler.service.GetByID(request.Context(), userID)
+	user, err := userHandler.service.GetCurrent(request.Context(), userID)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -68,13 +82,18 @@ func (userHandler *UserHandler) UpdateTheme(writer http.ResponseWriter, request 
 
 // GetByID handles GET /api/v1/users/{id}.
 func (userHandler *UserHandler) GetByID(writer http.ResponseWriter, request *http.Request) {
+	actor, err := currentUser(request)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
 	id, err := pathID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
 	}
 
-	user, err := userHandler.service.GetByID(request.Context(), id)
+	user, err := userHandler.service.GetByID(request.Context(), actor, id)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -90,9 +109,9 @@ func (userHandler *UserHandler) Create(writer http.ResponseWriter, request *http
 		return
 	}
 
-	actor, ok := middleware.CurrentUser(request.Context())
-	if !ok {
-		response.SendResponse(writer, request, response.Unauthorized, nil)
+	actor, err := currentUser(request)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
 		return
 	}
 
@@ -118,9 +137,9 @@ func (userHandler *UserHandler) Update(writer http.ResponseWriter, request *http
 		return
 	}
 
-	actor, ok := middleware.CurrentUser(request.Context())
-	if !ok {
-		response.SendResponse(writer, request, response.Unauthorized, nil)
+	actor, err := currentUser(request)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
 		return
 	}
 
@@ -140,9 +159,9 @@ func (userHandler *UserHandler) Delete(writer http.ResponseWriter, request *http
 		return
 	}
 
-	actor, ok := middleware.CurrentUser(request.Context())
-	if !ok {
-		response.SendResponse(writer, request, response.Unauthorized, nil)
+	actor, err := currentUser(request)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
 		return
 	}
 

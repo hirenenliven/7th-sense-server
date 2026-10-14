@@ -44,15 +44,64 @@ func NewMachineService(
 	}
 }
 
-// GetAll returns the machines. A non-nil customerID keeps only that customer's machines.
-func (machineService *MachineService) GetAll(ctx context.Context, customerID *int64) ([]model.Machine, error) {
-	return machineService.machineRepository.FindAll(ctx, customerID)
+// GetAll returns the machines actor may access (see machineScope). A non-nil
+// customerID keeps only that customer's machines.
+func (machineService *MachineService) GetAll(ctx context.Context, actor model.AuthUser, customerID *int64) ([]model.Machine, error) {
+	scope, err := machineScope(actor, customerID)
+	if err != nil {
+		return nil, err
+	}
+	return machineService.machineRepository.FindAll(ctx, scope)
 }
 
-// GetByID returns the machine. A non-nil customerID finds it only when that customer owns it.
-func (machineService *MachineService) GetByID(ctx context.Context, customerID *int64, id int64) (model.Machine, error) {
-	machine, err := machineService.machineRepository.FindByID(ctx, customerID, id)
+// GetByID returns the machine when actor may access it (see machineScope), else
+// "Machine not found". A non-nil customerID finds it only when that customer owns it.
+func (machineService *MachineService) GetByID(ctx context.Context, actor model.AuthUser, customerID *int64, id int64) (model.Machine, error) {
+	scope, err := machineScope(actor, customerID)
+	if err != nil {
+		return model.Machine{}, err
+	}
+	return machineService.find(ctx, scope, id)
+}
+
+// find returns machine id when it is in scope.
+func (machineService *MachineService) find(ctx context.Context, scope model.MachineScope, id int64) (model.Machine, error) {
+	machine, err := machineService.machineRepository.FindByID(ctx, scope, id)
 	return machine, toMachineResponseError(err)
+}
+
+// CheckOwnedBy returns "Please select valid machines" unless every one of ids is
+// a machine of customer ownerID.
+func (machineService *MachineService) CheckOwnedBy(ctx context.Context, ownerID int64, ids []int64) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	count, err := machineService.machineRepository.CountOwnedBy(ctx, ownerID, ids)
+	if err != nil {
+		return err
+	}
+	if count != len(ids) {
+		return response.NewError(http.StatusBadRequest, "Please select valid machines")
+	}
+	return nil
+}
+
+// machineScope returns the machines actor may read. The superadmin reads every
+// machine (customerID narrows to one customer). A customer and its admins read
+// every machine of their company; other users only the machines assigned to them
+// (user_machine_access). Asking for another customer's machines is Forbidden.
+func machineScope(actor model.AuthUser, customerID *int64) (model.MachineScope, error) {
+	if actor.Role == model.RoleSuperAdmin {
+		return model.MachineScope{OwnerID: customerID}, nil
+	}
+	company := actor.Company()
+	if customerID != nil && (company == nil || *customerID != *company) {
+		return model.MachineScope{}, response.Forbidden
+	}
+	if company != nil && model.SeesAllCompanyMachines(actor.Role) {
+		return model.MachineScope{OwnerID: company}, nil
+	}
+	return model.MachineScope{OwnerID: company, AssignedUserID: &actor.ID}, nil
 }
 
 func (machineService *MachineService) Create(ctx context.Context, machineRequest dto.CreateMachineRequest) (model.Machine, error) {
@@ -67,7 +116,7 @@ func (machineService *MachineService) Create(ctx context.Context, machineRequest
 	if err != nil {
 		return model.Machine{}, toMachineResponseError(err)
 	}
-	return machineService.GetByID(ctx, nil, id)
+	return machineService.find(ctx, model.MachineScope{}, id)
 }
 
 // Update replaces the form fields. A blank password or status keeps the saved one.
@@ -83,7 +132,7 @@ func (machineService *MachineService) Update(ctx context.Context, id int64, mach
 	if err := machineService.machineRepository.Update(ctx, machine); err != nil {
 		return model.Machine{}, toMachineResponseError(err)
 	}
-	return machineService.GetByID(ctx, nil, id)
+	return machineService.find(ctx, model.MachineScope{}, id)
 }
 
 func (machineService *MachineService) Delete(ctx context.Context, id int64) error {

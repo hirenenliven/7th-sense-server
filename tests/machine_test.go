@@ -44,12 +44,17 @@ type machineRecord struct {
 // machineFixture holds the rows a machine refers to: a customer with one line, a brand
 // with a controller and its model, plus a controller (and model) of another brand.
 type machineFixture struct {
-	customerID, lineID, brandID, controllerID, modelID, otherControllerID, otherModelID int64
+	customerID, branchID, lineID, brandID, controllerID, modelID, otherControllerID, otherModelID int64
 }
 
 // newMachineRouter builds the real router with the machine handler wired to testDBPool;
 // authenticate decides who the requests act as.
 func newMachineRouter(authenticate middleware.Middleware) http.Handler {
+	return routes.New(routes.Handlers{Machine: handler.NewMachineHandler(newMachineService())}, authenticate)
+}
+
+// newMachineService builds the machine service on the test database.
+func newMachineService() *service.MachineService {
 	userCountryService := service.NewUserCountryService(repository.NewUserCountryRepository(testDBPool))
 	userStateService := service.NewUserStateService(repository.NewUserStateRepository(testDBPool), userCountryService)
 	userCityService := service.NewUserCityService(repository.NewUserCityRepository(testDBPool), userStateService)
@@ -60,7 +65,7 @@ func newMachineRouter(authenticate middleware.Middleware) http.Handler {
 	brandService := service.NewBrandService(repository.NewBrandRepository(testDBPool))
 	controllerService := service.NewControllerService(repository.NewControllerRepository(testDBPool), brandService)
 	machineModelService := service.NewMachineModelService(repository.NewMachineModelRepository(testDBPool), controllerService)
-	machineService := service.NewMachineService(
+	return service.NewMachineService(
 		repository.NewMachineRepository(testDBPool),
 		repository.NewUserRepository(testDBPool),
 		machineModelService,
@@ -68,7 +73,6 @@ func newMachineRouter(authenticate middleware.Middleware) http.Handler {
 		controllerService,
 		userLineService,
 	)
-	return routes.New(routes.Handlers{Machine: handler.NewMachineHandler(machineService)}, authenticate)
 }
 
 // actAs is an authenticate middleware that makes every request come from userID with role.
@@ -110,8 +114,8 @@ func newMachineFixture(t *testing.T, suffix string) machineFixture {
 	countryID := insertTestRow(t, "user_country", `INSERT INTO user_country (user_id, name) VALUES ($1, $2) RETURNING id`, customer, "Country "+suffix)
 	stateID := insertTestRow(t, "user_state", `INSERT INTO user_state (user_id, user_country_id, name) VALUES ($1, $2, $3) RETURNING id`, customer, countryID, "State "+suffix)
 	cityID := insertTestRow(t, "user_city", `INSERT INTO user_city (user_id, user_state_id, name) VALUES ($1, $2, $3) RETURNING id`, customer, stateID, "City "+suffix)
-	branchID := insertTestRow(t, "branches", `INSERT INTO branches (code, name, user_city_id) VALUES ($1, $2, $3) RETURNING id`, "M"+suffix, "Branch "+suffix, cityID)
-	locationID := insertTestRow(t, "user_location", `INSERT INTO user_location (user_id, branch_id, name) VALUES ($1, $2, $3) RETURNING id`, customer, branchID, "Location "+suffix)
+	fixture.branchID = insertTestRow(t, "branches", `INSERT INTO branches (code, name, user_city_id) VALUES ($1, $2, $3) RETURNING id`, "M"+suffix, "Branch "+suffix, cityID)
+	locationID := insertTestRow(t, "user_location", `INSERT INTO user_location (user_id, branch_id, name) VALUES ($1, $2, $3) RETURNING id`, customer, fixture.branchID, "Location "+suffix)
 	shopID := insertTestRow(t, "user_shop", `INSERT INTO user_shop (user_id, user_location_id, name) VALUES ($1, $2, $3) RETURNING id`, customer, locationID, "Shop "+suffix)
 	fixture.lineID = insertTestRow(t, "user_line", `INSERT INTO user_line (user_id, user_shop_id, name) VALUES ($1, $2, $3) RETURNING id`, customer, shopID, "Line "+suffix)
 	return fixture

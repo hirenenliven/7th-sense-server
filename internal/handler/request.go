@@ -64,9 +64,19 @@ func currentUserID(request *http.Request) (int64, error) {
 	return userID, nil
 }
 
+// currentUser returns the user making the request (set by middleware.Authenticate),
+// or Unauthorized when there is none.
+func currentUser(request *http.Request) (model.AuthUser, error) {
+	user, ok := middleware.CurrentUser(request.Context())
+	if !ok {
+		return model.AuthUser{}, response.Unauthorized
+	}
+	return user, nil
+}
+
 // targetUserID returns the user whose organization rows (/user-country … /user-supervisor)
-// the request reads or changes: the current user, or, for an admin, the user named by
-// ?userId=<id>. A non-admin naming any user but themself gets Forbidden.
+// the request reads or changes: the current user, or, for the superadmin, the user named
+// by ?userId=<id>. Anyone else naming any user but themself gets Forbidden.
 func targetUserID(request *http.Request) (int64, error) {
 	currentUser, ok := middleware.CurrentUser(request.Context())
 	if !ok {
@@ -79,7 +89,7 @@ func targetUserID(request *http.Request) (int64, error) {
 	if userID == nil || *userID == currentUser.ID {
 		return currentUser.ID, nil
 	}
-	if !model.IsAdmin(currentUser.Role) {
+	if currentUser.Role != model.RoleSuperAdmin {
 		return 0, response.Forbidden
 	}
 	return *userID, nil

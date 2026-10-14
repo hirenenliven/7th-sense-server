@@ -57,14 +57,16 @@ func NewMachineRepository(dbPool *pgxpool.Pool) *MachineRepository {
 	return &MachineRepository{dbPool: dbPool}
 }
 
-// FindAll returns the machines, newest first. A non-nil userID keeps only that
-// customer's machines.
-func (machineRepository *MachineRepository) FindAll(ctx context.Context, userID *int64) ([]model.Machine, error) {
+// FindAll returns the machines in scope, newest first.
+func (machineRepository *MachineRepository) FindAll(ctx context.Context, scope model.MachineScope) ([]model.Machine, error) {
 	query := machineSelect + `
-		WHERE m.is_deleted = false AND ($1::integer IS NULL OR m.user_id = $1)
+		WHERE m.is_deleted = false
+			AND ($1::integer IS NULL OR m.user_id = $1)
+			AND ($2::integer IS NULL OR EXISTS (
+				SELECT 1 FROM user_machine_access a WHERE a.machine_id = m.id AND a.user_id = $2))
 		ORDER BY m.id DESC`
 
-	rows, err := db.Execute(ctx, machineRepository.dbPool, query, userID)
+	rows, err := db.Execute(ctx, machineRepository.dbPool, query, scope.OwnerID, scope.AssignedUserID)
 	if err != nil {
 		return nil, fmt.Errorf("find all machines: %w", err)
 	}
@@ -75,17 +77,36 @@ func (machineRepository *MachineRepository) FindAll(ctx context.Context, userID 
 	return machines, nil
 }
 
-// FindByID returns the machine. A non-nil userID finds it only when that customer owns it.
-func (machineRepository *MachineRepository) FindByID(ctx context.Context, userID *int64, id int64) (model.Machine, error) {
+// FindByID returns the machine, or ErrNotFound when it is not in scope.
+func (machineRepository *MachineRepository) FindByID(ctx context.Context, scope model.MachineScope, id int64) (model.Machine, error) {
 	query := machineSelect + `
-		WHERE m.id = $1 AND m.is_deleted = false AND ($2::integer IS NULL OR m.user_id = $2)`
+		WHERE m.id = $1 AND m.is_deleted = false
+			AND ($2::integer IS NULL OR m.user_id = $2)
+			AND ($3::integer IS NULL OR EXISTS (
+				SELECT 1 FROM user_machine_access a WHERE a.machine_id = m.id AND a.user_id = $3))`
 
-	rows, err := db.Execute(ctx, machineRepository.dbPool, query, id, userID)
+	rows, err := db.Execute(ctx, machineRepository.dbPool, query, id, scope.OwnerID, scope.AssignedUserID)
 	if err != nil {
 		return model.Machine{}, fmt.Errorf("find machine: %w", err)
 	}
 	machine, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[model.Machine])
 	return machine, mapMachineError("find machine", err)
+}
+
+// CountOwnedBy returns how many of ids are machines of customer ownerID.
+func (machineRepository *MachineRepository) CountOwnedBy(ctx context.Context, ownerID int64, ids []int64) (int, error) {
+	query := `SELECT COUNT(*) FROM machines
+		WHERE user_id = $1 AND id = ANY($2::bigint[]) AND is_deleted = false`
+
+	rows, err := db.Execute(ctx, machineRepository.dbPool, query, ownerID, ids)
+	if err != nil {
+		return 0, fmt.Errorf("count customer machines: %w", err)
+	}
+	count, err := pgx.CollectOneRow(rows, pgx.RowTo[int])
+	if err != nil {
+		return 0, fmt.Errorf("count customer machines: %w", err)
+	}
+	return count, nil
 }
 
 // Create inserts the form fields of machine and returns the new id. Runtime columns

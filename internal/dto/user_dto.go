@@ -60,9 +60,11 @@ type CreateUserRequest struct {
 	Password  string `json:"password"`
 	FirstName string `json:"firstName"`
 	LastName  string `json:"lastName"`
-	RoleID    int64  `json:"roleId"` // 0 (left out) makes the customer an admin
-	CompanyID *int64 `json:"companyId"`
-	Theme     string `json:"theme"` // ThemeDark or ThemeLight; empty uses the default
+	RoleID    int64  `json:"roleId"`
+	CompanyID *int64 `json:"companyId"` // customer of a member; only the superadmin chooses it
+	// MachineIDs are the machines a supervisor, operator, qc or shop head may access.
+	MachineIDs []int64 `json:"machineIds"`
+	Theme      string  `json:"theme"` // ThemeDark or ThemeLight; empty uses the default
 	CustomerDetails
 }
 
@@ -80,9 +82,8 @@ func (request *CreateUserRequest) Validate() error {
 	if len(request.Password) < 8 || len(request.Password) > 72 {
 		return response.NewError(http.StatusBadRequest, "Please enter valid password")
 	}
-	// Role is optional: left out, the service makes the customer an admin.
-	if request.RoleID < 0 {
-		return response.NewError(http.StatusBadRequest, "Please enter valid role")
+	if err := validateAccess(request.RoleID, request.CompanyID, &request.MachineIDs); err != nil {
+		return err
 	}
 	theme, err := normalizeTheme(request.Theme)
 	if err != nil {
@@ -100,9 +101,11 @@ type UpdateUserRequest struct {
 	FirstName string `json:"firstName"`
 	LastName  string `json:"lastName"`
 	RoleID    int64  `json:"roleId"`
-	CompanyID *int64 `json:"companyId"`
+	CompanyID *int64 `json:"companyId"` // customer of a member; only the superadmin chooses it
 	Status    string `json:"status"`
-	Theme     string `json:"theme"` // ThemeDark or ThemeLight; empty keeps the current theme
+	// MachineIDs are the machines a supervisor, operator, qc or shop head may access.
+	MachineIDs []int64 `json:"machineIds"`
+	Theme      string  `json:"theme"` // ThemeDark or ThemeLight; empty keeps the current theme
 	CustomerDetails
 }
 
@@ -120,9 +123,8 @@ func (request *UpdateUserRequest) Validate() error {
 	if request.Status != "" && request.Status != UserStatusActive && request.Status != UserStatusInactive {
 		return response.NewError(http.StatusBadRequest, "Please enter valid status")
 	}
-	// Role is mandatory
-	if request.RoleID <= 0 {
-		return response.NewError(http.StatusBadRequest, "Please enter valid role")
+	if err := validateAccess(request.RoleID, request.CompanyID, &request.MachineIDs); err != nil {
+		return err
 	}
 	theme, err := normalizeTheme(request.Theme)
 	if err != nil {
@@ -327,6 +329,38 @@ func validateProfile(username, email, firstName, lastName string) error {
 	return nil
 }
 
+// maxMachineIDs caps the machines sent for one user.
+const maxMachineIDs = 1000
+
+// validateAccess checks the role, company and machines shared by create and
+// update: the role is mandatory, the ids must be positive, and duplicate machine
+// ids are dropped (keeping the order). Whether the actor may give them is checked
+// by the service.
+func validateAccess(roleID int64, companyID *int64, machineIDs *[]int64) error {
+	if roleID <= 0 {
+		return response.NewError(http.StatusBadRequest, "Please enter valid role")
+	}
+	if companyID != nil && *companyID <= 0 {
+		return response.NewError(http.StatusBadRequest, "Please select valid customer")
+	}
+	if len(*machineIDs) > maxMachineIDs {
+		return response.NewError(http.StatusBadRequest, "Please select valid machines")
+	}
+	unique := make([]int64, 0, len(*machineIDs))
+	seen := make(map[int64]bool, len(*machineIDs))
+	for _, machineID := range *machineIDs {
+		if machineID <= 0 {
+			return response.NewError(http.StatusBadRequest, "Please select valid machines")
+		}
+		if !seen[machineID] {
+			seen[machineID] = true
+			unique = append(unique, machineID)
+		}
+	}
+	*machineIDs = unique
+	return nil
+}
+
 // UpdateThemeRequest is the body for PUT /me/theme: the logged-in user's UI theme.
 type UpdateThemeRequest struct {
 	Theme string `json:"theme"` // ThemeDark or ThemeLight
@@ -357,4 +391,14 @@ type UserResponse struct {
 	Profile        *model.UserProfile    `json:"profile"`
 	CompanyProfile *model.CompanyProfile `json:"companyProfile"`
 	Address        *model.Address        `json:"address"`
+	// MachineIDs are the machines assigned to the user (user_machine_access); empty
+	// for customers and admins, who see all of their company's machines.
+	MachineIDs []int64 `json:"machineIds"`
+}
+
+// UserListFilter narrows GET /users: by role name (e.g. "customer") and by the
+// customer whose members to list. Empty / nil does not narrow.
+type UserListFilter struct {
+	Role      string
+	CompanyID *int64
 }

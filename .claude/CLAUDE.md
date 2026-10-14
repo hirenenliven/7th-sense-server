@@ -148,7 +148,8 @@ go mod tidy                    # Clean up go.mod
 
 Base path: `/api/v1`
 
-**Users**: GET/POST/PUT/DELETE `/users`
+**Users**: GET/POST/PUT/DELETE `/users` — company-scoped (`service.UserService`). A customer is a company; its members (admin, supervisor, operator, qc, shop_head) have `users.company_id` = the customer. The superadmin manages every user (`?filterRole=customer`, `?companyId=` filter the list; `filterRole` is the listed users' role, never the caller's) and names a member's `companyId`; a customer or its admins see and change only their company's members (`userManagersOnly` route guard, others get 403; other companies' users answer 404). Roles a user may give: `model.AssignableRoles` — superadmin: customer + member roles; customer: member roles; admin: member roles but admin; nobody gives superadmin. Body `machineIds`: machines (of the company) a supervisor/operator/qc/shop_head may access, stored in `user_machine_access` (migration 015; no soft delete — removing an assignment deletes the row); admins and customers see every company machine and store none. Responses include `role` (name) and `machineIds`.
+**Roles**: GET `/roles` — the roles the current user may give (role dropdown of the user form); empty for users who manage no users.
 **Items**: GET/POST/PUT/DELETE `/items`
 **Branches**: GET/POST/PUT/DELETE `/branches`
 **Brands**: GET/POST/PUT/DELETE `/brands` — every logged-in user reads; only the superadmin writes (`superAdminOnly`).
@@ -159,9 +160,9 @@ Base path: `/api/v1`
 **Addresses**: GET/POST/PUT/DELETE `/addresses`
 **Catalog**: GET/POST `/catalog`
 **Auth**: POST `/auth/login`, POST `/auth/logout` (public), GET `/auth/me` — HttpOnly `ts_session` cookie, hashed sessions in `auth_tokens` (see README › Authentication)
-**Machines**: GET/POST/PUT/DELETE `/machines` — each machine belongs to a customer (`user_id`) and has a brand, a controller of that brand and a model (`model_id`) of that controller; `product_id` is no longer used. Admins read all (`?userId=` narrows to one customer) and are the only ones who write; other users read only their own. The password is write-only (never returned; blank on PUT keeps it). Form-only writes: runtime columns (online status, mode, …) are not changed through the API. Accuracy / health options are fixed lists in the client (`constants/machines.js`).
+**Machines**: GET/POST/PUT/DELETE `/machines` — each machine belongs to a customer (`user_id`) and has a brand, a controller of that brand and a model (`model_id`) of that controller; `product_id` is no longer used. The superadmin reads all (`?userId=` narrows to one customer) and is the only one who writes (`superAdminOnly`); a customer and its admins read every machine of the company, other members only the machines assigned to them (`user_machine_access`, see `MachineService.machineScope`); anything else answers 404. The password is write-only (never returned; blank on PUT keeps it). Form-only writes: runtime columns (online status, mode, …) are not changed through the API. Accuracy / health options are fixed lists in the client (`constants/machines.js`).
 **Current user**: GET `/me`
-**Organization** (per user, `?user<Parent>Id=` on list): GET/POST/PUT/DELETE `/user-city|branch|location|shop|line|cell|supervisor`, GET/POST/DELETE `/user-country|state` — one set of files per table (`user_<level>_*.go`). The current user comes from the session (`middleware.Authenticate`); an admin may act for another user with `?userId=<id>` on any of these routes (`targetUserID` in `handler/request.go`), non-admins get 403 for any id but their own. Every `/api` route except login/logout needs a session; admin-only routes are wrapped with `adminOnly` in `internal/routes`.
+**Organization** (per user, `?user<Parent>Id=` on list): GET/POST/PUT/DELETE `/user-city|branch|location|shop|line|cell|supervisor`, GET/POST/DELETE `/user-country|state` — one set of files per table (`user_<level>_*.go`). The current user comes from the session (`middleware.Authenticate`); the superadmin may act for another user with `?userId=<id>` on any of these routes (`targetUserID` in `handler/request.go`), everyone else gets 403 for any id but their own. Every `/api` route except login/logout needs a session; role-gated routes are wrapped with `superAdminOnly` / `userManagersOnly` in `internal/routes` (categories, products, machines, brands, controllers and models are written by the superadmin only).
 
 ## Configuration
 
@@ -190,7 +191,7 @@ Default values in `internal/config/config.go` if missing.
 
 ## Current Entities (Models)
 
-- User, UserProfile, UserMachine
+- User, UserProfile, UserMachineAccess (`user_machine_access`; the older `user_machines` table is unused), Role
 - Item
 - Branch
 - Brand, Category, Product

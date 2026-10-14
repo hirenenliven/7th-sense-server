@@ -19,63 +19,91 @@ import (
 )
 
 // UserService holds the business rules for users. A user is saved together
-// with its customer details (company profile, user profile and address) in
-// one transaction, so a failure never leaves a half-created customer.
+// with its customer details (company profile, user profile and address) and
+// machine access in one transaction, so a failure never leaves a half-created user.
+//
+// Customers are companies; the users they and their admins create are members of
+// the company (users.company_id). Every method takes the logged-in user (actor):
+// the superadmin manages every user, a customer or admin only their company's
+// members, and only with the roles of model.AssignableRoles.
 type UserService struct {
-	dbPool        *pgxpool.Pool
-	branchService *BranchService
+	dbPool         *pgxpool.Pool
+	branchService  *BranchService
+	roleService    *RoleService
+	machineService *MachineService
 	// services runs on the pool; writes use services created on a transaction.
 	services userServices
 }
 
 // userServices are the services that store a user and its customer details.
 type userServices struct {
-	userRepository        *repository.UserRepository
-	userProfileService    *UserProfileService
-	companyProfileService *CompanyProfileService
-	addressService        *AddressService
+	userRepository              *repository.UserRepository
+	userProfileService          *UserProfileService
+	companyProfileService       *CompanyProfileService
+	addressService              *AddressService
+	userMachineAccessRepository *repository.UserMachineAccessRepository
 }
 
 // newUserServices creates the user services on database (a pool or a transaction).
 func newUserServices(database db.Querier) userServices {
 	return userServices{
-		userRepository:        repository.NewUserRepository(database),
-		userProfileService:    NewUserProfileService(repository.NewUserProfileRepository(database)),
-		companyProfileService: NewCompanyProfileService(repository.NewCompanyProfileRepository(database)),
-		addressService:        NewAddressService(repository.NewAddressRepository(database)),
+		userRepository:              repository.NewUserRepository(database),
+		userProfileService:          NewUserProfileService(repository.NewUserProfileRepository(database)),
+		companyProfileService:       NewCompanyProfileService(repository.NewCompanyProfileRepository(database)),
+		addressService:              NewAddressService(repository.NewAddressRepository(database)),
+		userMachineAccessRepository: repository.NewUserMachineAccessRepository(database),
 	}
 }
 
 // NewUserService creates a UserService that stores users in dbPool and checks
-// branches with branchService.
-func NewUserService(dbPool *pgxpool.Pool, branchService *BranchService) *UserService {
+// branches, roles and machines with the other services.
+func NewUserService(dbPool *pgxpool.Pool, branchService *BranchService, roleService *RoleService, machineService *MachineService) *UserService {
 	return &UserService{
-		dbPool:        dbPool,
-		branchService: branchService,
-		services:      newUserServices(dbPool),
+		dbPool:         dbPool,
+		branchService:  branchService,
+		roleService:    roleService,
+		machineService: machineService,
+		services:       newUserServices(dbPool),
 	}
 }
 
-func (userService *UserService) GetAll(ctx context.Context) ([]model.User, error) {
-	return userService.services.userRepository.FindAll(ctx)
-}
-
-func (userService *UserService) GetByID(ctx context.Context, id int64) (dto.UserResponse, error) {
-	return userService.services.details(ctx, id)
-}
-
-// Create adds a customer user with its customer details. A request without a
-// role makes the customer an admin, so they can manage their own users. actor
-// is the logged-in user; only the superadmin may give the superadmin role.
-func (userService *UserService) Create(ctx context.Context, actor model.AuthUser, userRequest dto.CreateUserRequest) (dto.UserResponse, error) {
-	if userRequest.RoleID == 0 {
-		adminRoleID, err := userService.roleID(ctx, model.RoleAdmin)
-		if err != nil {
-			return dto.UserResponse{}, err
+// GetAll returns the users actor may see, narrowed by filter: every user for
+// the superadmin, the company's members for a customer or admin. A customer or
+// admin asking for another company gets Forbidden.
+func (userService *UserService) GetAll(ctx context.Context, actor model.AuthUser, filter dto.UserListFilter) ([]model.User, error) {
+	if actor.Role != model.RoleSuperAdmin {
+		company := actor.Company()
+		if company == nil || (filter.CompanyID != nil && *filter.CompanyID != *company) {
+			return nil, response.Forbidden
 		}
-		userRequest.RoleID = adminRoleID
+		filter.CompanyID = company
 	}
-	if err := userService.checkRoleAllowed(ctx, actor, userRequest.RoleID); err != nil {
+	return userService.services.userRepository.FindAll(ctx, filter.Role, filter.CompanyID)
+}
+
+// GetByID returns user id with its details, or "User not found" when actor may
+// not see it.
+func (userService *UserService) GetByID(ctx context.Context, actor model.AuthUser, id int64) (dto.UserResponse, error) {
+	userResponse, err := userService.services.details(ctx, id)
+	if err != nil {
+		return dto.UserResponse{}, err
+	}
+	if !canSee(actor, userResponse.User) {
+		return dto.UserResponse{}, userNotFound
+	}
+	return userResponse, nil
+}
+
+// GetCurrent returns the logged-in user (userID) with its details.
+func (userService *UserService) GetCurrent(ctx context.Context, userID int64) (dto.UserResponse, error) {
+	return userService.services.details(ctx, userID)
+}
+
+// Create adds a user with its customer details and machine access. actor must
+// be allowed to give the role (see accessFor).
+func (userService *UserService) Create(ctx context.Context, actor model.AuthUser, userRequest dto.CreateUserRequest) (dto.UserResponse, error) {
+	access, err := userService.accessFor(ctx, actor, userRequest.RoleID, userRequest.CompanyID, userRequest.MachineIDs)
+	if err != nil {
 		return dto.UserResponse{}, err
 	}
 	if err := userService.checkBranch(ctx, *userRequest.BranchID); err != nil {
@@ -103,10 +131,13 @@ func (userService *UserService) Create(ctx context.Context, actor model.AuthUser
 			Mobile:    userRequest.PrimaryPhone,
 			RoleID:    userRequest.RoleID,
 			BranchID:  userRequest.BranchID,
-			CompanyID: userRequest.CompanyID,
+			CompanyID: access.companyID,
 		})
 		if err != nil {
 			return toUserResponseError(err)
+		}
+		if err := services.userMachineAccessRepository.Replace(ctx, user.ID, access.machineIDs); err != nil {
+			return err
 		}
 
 		if _, err := services.companyProfileService.Create(ctx, companyProfileFrom(user.ID, userRequest.CustomerDetails)); err != nil {
@@ -133,13 +164,14 @@ func (userService *UserService) Create(ctx context.Context, actor model.AuthUser
 // Update replaces the user and its customer details. Customer details the user
 // does not have yet are created. User profile fields that are not part of the
 // customer form (designation, birth date, ...) keep their values; an empty
-// theme keeps the current theme. Only the superadmin may change the superadmin
-// or give the superadmin role (actor is the logged-in user).
+// theme keeps the current theme. The machine access is replaced with the
+// request's. actor must be allowed to manage the user and give the new role.
 func (userService *UserService) Update(ctx context.Context, actor model.AuthUser, id int64, userRequest dto.UpdateUserRequest) (dto.UserResponse, error) {
 	if err := userService.checkCanManage(ctx, actor, id); err != nil {
 		return dto.UserResponse{}, err
 	}
-	if err := userService.checkRoleAllowed(ctx, actor, userRequest.RoleID); err != nil {
+	access, err := userService.accessFor(ctx, actor, userRequest.RoleID, userRequest.CompanyID, userRequest.MachineIDs)
+	if err != nil {
 		return dto.UserResponse{}, err
 	}
 	if err := userService.checkBranch(ctx, *userRequest.BranchID); err != nil {
@@ -163,10 +195,13 @@ func (userService *UserService) Update(ctx context.Context, actor model.AuthUser
 			Mobile:    userRequest.PrimaryPhone,
 			RoleID:    userRequest.RoleID,
 			BranchID:  userRequest.BranchID,
-			CompanyID: userRequest.CompanyID,
+			CompanyID: access.companyID,
 			Status:    userRequest.Status,
 		}); err != nil {
 			return toUserResponseError(err)
+		}
+		if err := services.userMachineAccessRepository.Replace(ctx, id, access.machineIDs); err != nil {
+			return err
 		}
 
 		// Company profile: every column comes from the form.
@@ -222,8 +257,8 @@ func (userService *UserService) Update(ctx context.Context, actor model.AuthUser
 	return updated, err
 }
 
-// Delete soft-deletes the user with its profiles and addresses. Only the
-// superadmin may delete the superadmin (actor is the logged-in user).
+// Delete soft-deletes the user with its profiles and addresses, and removes its
+// machine access. actor must be allowed to manage the user.
 func (userService *UserService) Delete(ctx context.Context, actor model.AuthUser, id int64) error {
 	if err := userService.checkCanManage(ctx, actor, id); err != nil {
 		return err
@@ -233,6 +268,9 @@ func (userService *UserService) Delete(ctx context.Context, actor model.AuthUser
 
 		if err := services.userRepository.Delete(ctx, id); err != nil {
 			return toUserResponseError(err)
+		}
+		if err := services.userMachineAccessRepository.Replace(ctx, id, nil); err != nil {
+			return err
 		}
 		if err := services.userProfileService.Delete(ctx, id); err != nil && err.Error() != "User profile not found" {
 			return err
@@ -305,53 +343,104 @@ func (services userServices) details(ctx context.Context, id int64) (dto.UserRes
 		return dto.UserResponse{}, err
 	}
 	userResponse.Address = primaryAddress(addresses)
+
+	machineIDs, err := services.userMachineAccessRepository.FindMachineIDs(ctx, id)
+	if err != nil {
+		return dto.UserResponse{}, err
+	}
+	userResponse.MachineIDs = append([]int64{}, machineIDs...) // [] rather than null in JSON
 	return userResponse, nil
 }
 
-// roleID returns the id of the role called name.
-func (userService *UserService) roleID(ctx context.Context, name string) (int64, error) {
-	roleID, err := userService.services.userRepository.RoleIDByName(ctx, name)
-	if errors.Is(err, repository.ErrNotFound) {
-		return 0, fmt.Errorf("role %q is missing from the roles table", name)
+// userNotFound is the answer for a missing user and for one the actor may not
+// see, so other companies' user ids are not revealed.
+var userNotFound = response.NewError(http.StatusNotFound, "User not found")
+
+// canSee reports whether actor may see user: the superadmin every user, anyone
+// else only the members of their company.
+func canSee(actor model.AuthUser, user model.User) bool {
+	if actor.Role == model.RoleSuperAdmin {
+		return true
 	}
-	return roleID, err
+	company := actor.Company()
+	return company != nil && user.CompanyID != nil && *user.CompanyID == *company
 }
 
-// checkRoleAllowed returns Forbidden when actor, who is not the superadmin,
-// gives roleID and it is the superadmin role. Admins may give every other role,
-// admin included.
-func (userService *UserService) checkRoleAllowed(ctx context.Context, actor model.AuthUser, roleID int64) error {
-	if actor.Role == model.RoleSuperAdmin {
-		return nil
-	}
-	superAdminRoleID, err := userService.services.userRepository.RoleIDByName(ctx, model.RoleSuperAdmin)
-	if errors.Is(err, repository.ErrNotFound) {
-		return nil // no superadmin role, so it cannot be given
-	}
+// checkCanManage returns "User not found" when actor may not see user id, and
+// Forbidden when actor may not give the user's current role (so an admin cannot
+// change another admin, and nobody changes the superadmin here).
+func (userService *UserService) checkCanManage(ctx context.Context, actor model.AuthUser, id int64) error {
+	user, err := userService.services.userRepository.FindByID(ctx, id)
 	if err != nil {
-		return err
+		return toUserResponseError(err)
 	}
-	if roleID == superAdminRoleID {
+	if !canSee(actor, user) {
+		return userNotFound
+	}
+	if !model.CanAssignRole(actor.Role, user.Role) {
 		return response.Forbidden
 	}
 	return nil
 }
 
-// checkCanManage returns Forbidden when actor, who is not the superadmin, would
-// change or delete user id and that user is the superadmin. A missing user is
-// left to the caller, which answers "User not found".
-func (userService *UserService) checkCanManage(ctx context.Context, actor model.AuthUser, id int64) error {
+// userAccess is the company and machines a user is saved with.
+type userAccess struct {
+	companyID  *int64
+	machineIDs []int64
+}
+
+// accessFor checks that actor may give roleID and returns the company and
+// machines to save the user with:
+//   - a customer is a company itself: no company, no machines;
+//   - a member belongs to the actor's company; the superadmin names the company
+//     (companyID), which must be a customer;
+//   - an admin sees all of the company's machines, so only other members keep
+//     machineIDs, which must all be machines of the company.
+func (userService *UserService) accessFor(ctx context.Context, actor model.AuthUser, roleID int64, companyID *int64, machineIDs []int64) (userAccess, error) {
+	role, err := userService.roleService.GetByID(ctx, roleID)
+	if err != nil {
+		return userAccess{}, asInvalidSelection(err, "Role not found", "Please enter valid role")
+	}
+	if !model.CanAssignRole(actor.Role, role.Name) {
+		return userAccess{}, response.Forbidden
+	}
+	if role.Name == model.RoleCustomer {
+		return userAccess{}, nil
+	}
+
+	company := actor.Company()
 	if actor.Role == model.RoleSuperAdmin {
-		return nil
+		if err := userService.checkCustomer(ctx, companyID); err != nil {
+			return userAccess{}, err
+		}
+		company = companyID
 	}
-	user, err := userService.services.userRepository.FindByID(ctx, id)
-	if errors.Is(err, repository.ErrNotFound) {
-		return nil
+	if company == nil {
+		return userAccess{}, response.Forbidden // an admin that belongs to no company
 	}
+	if model.SeesAllCompanyMachines(role.Name) {
+		return userAccess{companyID: company}, nil
+	}
+	if err := userService.machineService.CheckOwnedBy(ctx, *company, machineIDs); err != nil {
+		return userAccess{}, err
+	}
+	return userAccess{companyID: company, machineIDs: machineIDs}, nil
+}
+
+// checkCustomer returns "Please select valid customer" unless customerID is an
+// existing customer.
+func (userService *UserService) checkCustomer(ctx context.Context, customerID *int64) error {
+	if customerID == nil {
+		return response.NewError(http.StatusBadRequest, "Please select valid customer")
+	}
+	isCustomer, err := userService.services.userRepository.IsCustomer(ctx, *customerID)
 	if err != nil {
 		return err
 	}
-	return userService.checkRoleAllowed(ctx, actor, user.RoleID)
+	if !isCustomer {
+		return response.NewError(http.StatusBadRequest, "Please select valid customer")
+	}
+	return nil
 }
 
 // checkBranch returns ValidBranch when branchID is not an existing branch.

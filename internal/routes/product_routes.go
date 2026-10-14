@@ -10,7 +10,7 @@ import (
 func registerProductRoutes(router *http.ServeMux, prefix string, productHandler *handler.ProductHandler) {
 	router.HandleFunc("GET "+prefix+"/products", productHandler.GetAll)
 	router.HandleFunc("GET "+prefix+"/products/{id}", productHandler.GetByID)
-	router.Handle("POST "+prefix+"/products", adminOnly(productHandler.Create))
-	router.Handle("PUT "+prefix+"/products/{id}", adminOnly(productHandler.Update))
-	router.Handle("DELETE "+prefix+"/products/{id}", adminOnly(productHandler.Delete))
+	router.Handle("POST "+prefix+"/products", superAdminOnly(productHandler.Create))
+	router.Handle("PUT "+prefix+"/products/{id}", superAdminOnly(productHandler.Update))
+	router.Handle("DELETE "+prefix+"/products/{id}", superAdminOnly(productHandler.Delete))
 }
