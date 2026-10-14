@@ -6,6 +6,9 @@
 //   - one: only the flags you pass are changed, the rest is kept
 //   - more than one: nothing is changed, fix the data by hand first
 //
+// The superadmin also gets a user_profiles row (where the UI theme is saved); a
+// missing or soft-deleted one is (re)created on every run.
+//
 // Changing the password logs the superadmin out everywhere (their sessions are ended).
 // The password may be given with SUPERADMIN_PASSWORD instead of -password so it
 // does not end up in the shell history.
@@ -31,12 +34,16 @@ import (
 
 	"7th-sense-server/internal/config"
 	"7th-sense-server/internal/db"
+	"7th-sense-server/internal/dto"
 	"7th-sense-server/internal/model"
 )
 
 const (
 	defaultUsername  = "superadmin"
 	sessionTokenType = "session"
+	// Profile defaults, the same as a user created through the API (service.UserService).
+	defaultTheme    = dto.ThemeDark
+	defaultLanguage = "en"
 )
 
 // usernamePattern matches the rule of the user API (dto.CreateUserRequest).
@@ -220,6 +227,9 @@ func createSuperadmin(ctx context.Context, tx pgx.Tx, roleID int64, opts options
 	if err != nil {
 		return fmt.Errorf("create superadmin: %w", err)
 	}
+	if err := ensureProfile(ctx, tx, userID); err != nil {
+		return err
+	}
 
 	slog.Info("superadmin created", "id", userID, "username", opts.username, "email", opts.email)
 	return nil
@@ -255,6 +265,11 @@ func updateSuperadmin(ctx context.Context, tx pgx.Tx, id int64, opts options, ha
 		return fmt.Errorf("update superadmin: %w", err)
 	}
 
+	// A superadmin added before profiles existed has none, so give them one.
+	if err := ensureProfile(ctx, tx, id); err != nil {
+		return err
+	}
+
 	if hashedPassword != "" {
 		// A new password ends every session, so an old login cannot be reused.
 		err := execute(ctx, tx, `UPDATE auth_tokens
@@ -267,6 +282,21 @@ func updateSuperadmin(ctx context.Context, tx pgx.Tx, id int64, opts options, ha
 
 	slog.Info("superadmin updated", "id", id, "username", saved.Username, "email", saved.Email,
 		"passwordChanged", hashedPassword != "")
+	return nil
+}
+
+// ensureProfile gives userID an active user_profiles row: it is added with the
+// default theme and language, or restored if it was soft-deleted. An active
+// profile is left as it is, so saved preferences are kept.
+func ensureProfile(ctx context.Context, tx pgx.Tx, userID int64) error {
+	err := execute(ctx, tx, `INSERT INTO user_profiles (user_id, theme, language)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (user_id) DO UPDATE
+			SET is_deleted = false, deleted_at = NULL
+			WHERE user_profiles.is_deleted`, userID, defaultTheme, defaultLanguage)
+	if err != nil {
+		return fmt.Errorf("add superadmin profile: %w", err)
+	}
 	return nil
 }
 

@@ -60,7 +60,7 @@ type CreateUserRequest struct {
 	Password  string `json:"password"`
 	FirstName string `json:"firstName"`
 	LastName  string `json:"lastName"`
-	RoleID    int64  `json:"roleId"`
+	RoleID    int64  `json:"roleId"` // 0 (left out) makes the customer an admin
 	CompanyID *int64 `json:"companyId"`
 	Theme     string `json:"theme"` // ThemeDark or ThemeLight; empty uses the default
 	CustomerDetails
@@ -80,8 +80,8 @@ func (request *CreateUserRequest) Validate() error {
 	if len(request.Password) < 8 || len(request.Password) > 72 {
 		return response.NewError(http.StatusBadRequest, "Please enter valid password")
 	}
-	// Role is mandatory
-	if request.RoleID <= 0 {
+	// Role is optional: left out, the service makes the customer an admin.
+	if request.RoleID < 0 {
 		return response.NewError(http.StatusBadRequest, "Please enter valid role")
 	}
 	theme, err := normalizeTheme(request.Theme)
@@ -325,6 +325,29 @@ func validateProfile(username, email, firstName, lastName string) error {
 		return response.NewError(http.StatusBadRequest, "Please enter valid name")
 	}
 	return nil
+}
+
+// UpdateThemeRequest is the body for PUT /me/theme: the logged-in user's UI theme.
+type UpdateThemeRequest struct {
+	Theme string `json:"theme"` // ThemeDark or ThemeLight
+}
+
+// Validate lowercases the theme and checks it is a known theme.
+func (request *UpdateThemeRequest) Validate() error {
+	theme, err := normalizeTheme(request.Theme)
+	if err != nil {
+		return err
+	}
+	if theme == "" {
+		return response.NewError(http.StatusBadRequest, "Please enter valid theme")
+	}
+	request.Theme = theme
+	return nil
+}
+
+// ThemeResponse is the data of PUT /me/theme: the saved theme.
+type ThemeResponse struct {
+	Theme string `json:"theme"`
 }
 
 // UserResponse is a user with its customer details. A part the user does not

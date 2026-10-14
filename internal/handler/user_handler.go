@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"7th-sense-server/internal/dto"
+	"7th-sense-server/internal/middleware"
 	"7th-sense-server/internal/response"
 	"7th-sense-server/internal/service"
 )
@@ -44,6 +45,27 @@ func (userHandler *UserHandler) Me(writer http.ResponseWriter, request *http.Req
 	response.SendResponse(writer, request, response.Success, user)
 }
 
+// UpdateTheme handles PUT /api/v1/me/theme: saves the current user's UI theme.
+func (userHandler *UserHandler) UpdateTheme(writer http.ResponseWriter, request *http.Request) {
+	userID, err := currentUserID(request)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+
+	var themeRequest dto.UpdateThemeRequest
+	if err := decodeAndValidate(writer, request, &themeRequest); err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+
+	if err := userHandler.service.SaveTheme(request.Context(), userID, themeRequest.Theme); err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+	response.SendResponse(writer, request, response.Success, dto.ThemeResponse{Theme: themeRequest.Theme})
+}
+
 // GetByID handles GET /api/v1/users/{id}.
 func (userHandler *UserHandler) GetByID(writer http.ResponseWriter, request *http.Request) {
 	id, err := pathID(request)
@@ -68,7 +90,13 @@ func (userHandler *UserHandler) Create(writer http.ResponseWriter, request *http
 		return
 	}
 
-	user, err := userHandler.service.Create(request.Context(), userRequest)
+	actor, ok := middleware.CurrentUser(request.Context())
+	if !ok {
+		response.SendResponse(writer, request, response.Unauthorized, nil)
+		return
+	}
+
+	user, err := userHandler.service.Create(request.Context(), actor, userRequest)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -90,7 +118,13 @@ func (userHandler *UserHandler) Update(writer http.ResponseWriter, request *http
 		return
 	}
 
-	user, err := userHandler.service.Update(request.Context(), id, userRequest)
+	actor, ok := middleware.CurrentUser(request.Context())
+	if !ok {
+		response.SendResponse(writer, request, response.Unauthorized, nil)
+		return
+	}
+
+	user, err := userHandler.service.Update(request.Context(), actor, id, userRequest)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -106,7 +140,13 @@ func (userHandler *UserHandler) Delete(writer http.ResponseWriter, request *http
 		return
 	}
 
-	if err := userHandler.service.Delete(request.Context(), id); err != nil {
+	actor, ok := middleware.CurrentUser(request.Context())
+	if !ok {
+		response.SendResponse(writer, request, response.Unauthorized, nil)
+		return
+	}
+
+	if err := userHandler.service.Delete(request.Context(), actor, id); err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
 	}

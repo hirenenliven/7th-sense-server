@@ -178,3 +178,20 @@ func (userRepository *UserRepository) IsCustomer(ctx context.Context, id int64) 
 	}
 	return isCustomer, nil
 }
+
+// RoleIDByName returns the id of the role called name (roles.name), or
+// ErrNotFound. Role ids differ between databases, so roles are found by name.
+func (userRepository *UserRepository) RoleIDByName(ctx context.Context, name string) (int64, error) {
+	rows, err := db.Execute(ctx, userRepository.database, `SELECT id FROM roles WHERE name = $1`, name)
+	if err != nil {
+		return 0, fmt.Errorf("find role: %w", err)
+	}
+	roleID, err := pgx.CollectOneRow(rows, pgx.RowTo[int64])
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, ErrNotFound
+	}
+	if err != nil {
+		return 0, fmt.Errorf("find role: %w", err)
+	}
+	return roleID, nil
+}

@@ -55,7 +55,8 @@ func TestCreateUserRequestValidate(t *testing.T) {
 		{"password too short", func(r *CreateUserRequest) { r.Password = "short" }, response.NewError(http.StatusBadRequest, "Please enter valid password")},
 		{"password too long", func(r *CreateUserRequest) { r.Password = strings.Repeat("a", 73) }, response.NewError(http.StatusBadRequest, "Please enter valid password")},
 		{"first name too long", func(r *CreateUserRequest) { r.FirstName = strings.Repeat("a", 101) }, response.NewError(http.StatusBadRequest, "Please enter valid name")},
-		{"role missing", func(r *CreateUserRequest) { r.RoleID = 0 }, response.NewError(http.StatusBadRequest, "Please enter valid role")},
+		{"role missing defaults to admin", func(r *CreateUserRequest) { r.RoleID = 0 }, nil},
+		{"role negative", func(r *CreateUserRequest) { r.RoleID = -1 }, response.NewError(http.StatusBadRequest, "Please enter valid role")},
 		{"branch missing", func(r *CreateUserRequest) { r.BranchID = nil }, response.NewError(http.StatusBadRequest, "Please enter valid branch")},
 		{"company name missing", func(r *CreateUserRequest) { r.CompanyName = " " }, response.NewError(http.StatusBadRequest, "Please enter valid company name")},
 		{"finix id negative", func(r *CreateUserRequest) { finixID := int64(-1); r.FinixID = &finixID }, response.NewError(http.StatusBadRequest, "Please enter valid Finix ID")},
@@ -181,5 +182,28 @@ func TestCustomerFiltersValidate(t *testing.T) {
 	request.Filters = []string{"country", "machine"}
 	if err := request.Validate(); err == nil || err.Error() != "Please enter valid filter" {
 		t.Errorf("Validate() with unknown filter error = %v; want Please enter valid filter", err)
+	}
+}
+
+func TestUpdateThemeRequestValidate(t *testing.T) {
+	for _, testCase := range []struct {
+		theme     string
+		wantTheme string
+		wantErr   bool
+	}{
+		{ThemeDark, ThemeDark, false},
+		{" Light_Version ", ThemeLight, false},
+		{"", "", true},
+		{"blue_version", "", true},
+	} {
+		request := UpdateThemeRequest{Theme: testCase.theme}
+		err := request.Validate()
+		if (err != nil) != testCase.wantErr {
+			t.Errorf("Validate(%q) error = %v; want error %v", testCase.theme, err, testCase.wantErr)
+			continue
+		}
+		if err == nil && request.Theme != testCase.wantTheme {
+			t.Errorf("Validate(%q) theme = %q; want %q", testCase.theme, request.Theme, testCase.wantTheme)
+		}
 	}
 }

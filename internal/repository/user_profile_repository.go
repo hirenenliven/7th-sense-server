@@ -132,6 +132,25 @@ func (userProfileRepository *UserProfileRepository) Delete(ctx context.Context, 
 	return nil
 }
 
+// SaveTheme sets the theme of userID's profile. A user without a profile gets
+// one (with language); a soft-deleted profile is restored.
+func (userProfileRepository *UserProfileRepository) SaveTheme(ctx context.Context, userID int64, theme, language string) error {
+	query := `INSERT INTO user_profiles (user_id, theme, language)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (user_id) DO UPDATE
+			SET theme = EXCLUDED.theme, is_deleted = false, deleted_at = NULL`
+
+	rows, err := db.Execute(ctx, userProfileRepository.database, query, userID, theme, language)
+	if err != nil {
+		return fmt.Errorf("save theme: %w", err)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("save theme: %w", err)
+	}
+	return nil
+}
+
 // mapProfileError turns driver errors into repository errors. A nil err stays nil.
 func mapProfileError(operation string, err error) error {
 	if err == nil {

@@ -64,7 +64,20 @@ func (userService *UserService) GetByID(ctx context.Context, id int64) (dto.User
 	return userService.services.details(ctx, id)
 }
 
-func (userService *UserService) Create(ctx context.Context, userRequest dto.CreateUserRequest) (dto.UserResponse, error) {
+// Create adds a customer user with its customer details. A request without a
+// role makes the customer an admin, so they can manage their own users. actor
+// is the logged-in user; only the superadmin may give the superadmin role.
+func (userService *UserService) Create(ctx context.Context, actor model.AuthUser, userRequest dto.CreateUserRequest) (dto.UserResponse, error) {
+	if userRequest.RoleID == 0 {
+		adminRoleID, err := userService.roleID(ctx, model.RoleAdmin)
+		if err != nil {
+			return dto.UserResponse{}, err
+		}
+		userRequest.RoleID = adminRoleID
+	}
+	if err := userService.checkRoleAllowed(ctx, actor, userRequest.RoleID); err != nil {
+		return dto.UserResponse{}, err
+	}
 	if err := userService.checkBranch(ctx, *userRequest.BranchID); err != nil {
 		return dto.UserResponse{}, err
 	}
@@ -120,8 +133,15 @@ func (userService *UserService) Create(ctx context.Context, userRequest dto.Crea
 // Update replaces the user and its customer details. Customer details the user
 // does not have yet are created. User profile fields that are not part of the
 // customer form (designation, birth date, ...) keep their values; an empty
-// theme keeps the current theme.
-func (userService *UserService) Update(ctx context.Context, id int64, userRequest dto.UpdateUserRequest) (dto.UserResponse, error) {
+// theme keeps the current theme. Only the superadmin may change the superadmin
+// or give the superadmin role (actor is the logged-in user).
+func (userService *UserService) Update(ctx context.Context, actor model.AuthUser, id int64, userRequest dto.UpdateUserRequest) (dto.UserResponse, error) {
+	if err := userService.checkCanManage(ctx, actor, id); err != nil {
+		return dto.UserResponse{}, err
+	}
+	if err := userService.checkRoleAllowed(ctx, actor, userRequest.RoleID); err != nil {
+		return dto.UserResponse{}, err
+	}
 	if err := userService.checkBranch(ctx, *userRequest.BranchID); err != nil {
 		return dto.UserResponse{}, err
 	}
@@ -202,8 +222,12 @@ func (userService *UserService) Update(ctx context.Context, id int64, userReques
 	return updated, err
 }
 
-// Delete soft-deletes the user with its profiles and addresses.
-func (userService *UserService) Delete(ctx context.Context, id int64) error {
+// Delete soft-deletes the user with its profiles and addresses. Only the
+// superadmin may delete the superadmin (actor is the logged-in user).
+func (userService *UserService) Delete(ctx context.Context, actor model.AuthUser, id int64) error {
+	if err := userService.checkCanManage(ctx, actor, id); err != nil {
+		return err
+	}
 	return db.WithTransaction(ctx, userService.dbPool, func(tx pgx.Tx) error {
 		services := newUserServices(tx)
 
@@ -227,6 +251,11 @@ func (userService *UserService) Delete(ctx context.Context, id int64) error {
 		}
 		return nil
 	})
+}
+
+// SaveTheme sets the UI theme of userID (the logged-in user).
+func (userService *UserService) SaveTheme(ctx context.Context, userID int64, theme string) error {
+	return userService.services.userProfileService.SaveTheme(ctx, userID, theme)
 }
 
 // Schema defaults of user_profiles.theme and language. The repository writes
@@ -277,6 +306,52 @@ func (services userServices) details(ctx context.Context, id int64) (dto.UserRes
 	}
 	userResponse.Address = primaryAddress(addresses)
 	return userResponse, nil
+}
+
+// roleID returns the id of the role called name.
+func (userService *UserService) roleID(ctx context.Context, name string) (int64, error) {
+	roleID, err := userService.services.userRepository.RoleIDByName(ctx, name)
+	if errors.Is(err, repository.ErrNotFound) {
+		return 0, fmt.Errorf("role %q is missing from the roles table", name)
+	}
+	return roleID, err
+}
+
+// checkRoleAllowed returns Forbidden when actor, who is not the superadmin,
+// gives roleID and it is the superadmin role. Admins may give every other role,
+// admin included.
+func (userService *UserService) checkRoleAllowed(ctx context.Context, actor model.AuthUser, roleID int64) error {
+	if actor.Role == model.RoleSuperAdmin {
+		return nil
+	}
+	superAdminRoleID, err := userService.services.userRepository.RoleIDByName(ctx, model.RoleSuperAdmin)
+	if errors.Is(err, repository.ErrNotFound) {
+		return nil // no superadmin role, so it cannot be given
+	}
+	if err != nil {
+		return err
+	}
+	if roleID == superAdminRoleID {
+		return response.Forbidden
+	}
+	return nil
+}
+
+// checkCanManage returns Forbidden when actor, who is not the superadmin, would
+// change or delete user id and that user is the superadmin. A missing user is
+// left to the caller, which answers "User not found".
+func (userService *UserService) checkCanManage(ctx context.Context, actor model.AuthUser, id int64) error {
+	if actor.Role == model.RoleSuperAdmin {
+		return nil
+	}
+	user, err := userService.services.userRepository.FindByID(ctx, id)
+	if errors.Is(err, repository.ErrNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return userService.checkRoleAllowed(ctx, actor, user.RoleID)
 }
 
 // checkBranch returns ValidBranch when branchID is not an existing branch.

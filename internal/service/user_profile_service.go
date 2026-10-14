@@ -39,6 +39,11 @@ func (userProfileService *UserProfileService) Delete(ctx context.Context, userID
 	return toUserProfileResponseError(userProfileService.userProfileRepository.Delete(ctx, userID))
 }
 
+// SaveTheme sets userID's UI theme, adding their profile if they have none.
+func (userProfileService *UserProfileService) SaveTheme(ctx context.Context, userID int64, theme string) error {
+	return userProfileService.userProfileRepository.SaveTheme(ctx, userID, theme, defaultLanguage)
+}
+
 // toUserProfileResponseError maps repository errors to profile responses. Other errors
 // pass through and are sent as ServerError.
 func toUserProfileResponseError(err error) error {
