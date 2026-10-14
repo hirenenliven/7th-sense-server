@@ -5,6 +5,7 @@ bin/
 tmp/
 server.exe
 logs/
+uploads/
 *.log
 .vscode/
 7th_server_skills.md

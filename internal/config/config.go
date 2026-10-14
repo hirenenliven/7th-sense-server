@@ -14,6 +14,9 @@ type Config struct {
 	// CookieSecure sends the session cookie over HTTPS only. Set
 	// COOKIE_SECURE=true whenever the API is served over HTTPS.
 	CookieSecure bool
+	// UploadDir is the directory uploaded files are kept in (part drawings under
+	// UploadDir/part-drawings). It must survive restarts and deploys.
+	UploadDir string
 }
 
 // DBConfig holds the PostgreSQL connection settings.
@@ -44,6 +47,7 @@ func Load() Config {
 			SSLMode:  getEnv("DB_SSLMODE", "disable"),
 		},
 		CookieSecure: getEnv("COOKIE_SECURE", "false") == "true",
+		UploadDir:    getEnv("UPLOAD_DIR", "uploads"),
 	}
 }
 

@@ -9,8 +9,9 @@ import (
 )
 
 // MachineHandler handles HTTP requests for machines. The superadmin sees and
-// changes every customer's machines; other users only read the machines they may
-// access (service.MachineService decides which).
+// changes every customer's machines; a customer and its admins add and edit their
+// company's; other users only read the machines they may access
+// (service.MachineService decides which).
 type MachineHandler struct {
 	service *service.MachineService
 }
@@ -69,13 +70,19 @@ func (machineHandler *MachineHandler) GetByID(writer http.ResponseWriter, reques
 
 // Create handles POST /api/v1/machines.
 func (machineHandler *MachineHandler) Create(writer http.ResponseWriter, request *http.Request) {
+	actor, err := currentUser(request)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+
 	var machineRequest dto.CreateMachineRequest
 	if err := decodeAndValidate(writer, request, &machineRequest); err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
 	}
 
-	machine, err := machineHandler.service.Create(request.Context(), machineRequest)
+	machine, err := machineHandler.service.Create(request.Context(), actor, machineRequest)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -85,6 +92,11 @@ func (machineHandler *MachineHandler) Create(writer http.ResponseWriter, request
 
 // Update handles PUT /api/v1/machines/{id}.
 func (machineHandler *MachineHandler) Update(writer http.ResponseWriter, request *http.Request) {
+	actor, err := currentUser(request)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
 	id, err := pathID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
@@ -97,7 +109,7 @@ func (machineHandler *MachineHandler) Update(writer http.ResponseWriter, request
 		return
 	}
 
-	machine, err := machineHandler.service.Update(request.Context(), id, machineRequest)
+	machine, err := machineHandler.service.Update(request.Context(), actor, id, machineRequest)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return

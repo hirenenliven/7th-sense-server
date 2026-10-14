@@ -23,6 +23,7 @@ type Handlers struct {
 	// MachineModel serves /models (machine models of a controller)
 	MachineModel *handler.MachineModelHandler
 	Machine      *handler.MachineHandler
+	Part         *handler.PartHandler
 	// Organization (per user): country → state → city → … → supervisor
 	UserCountry    *handler.UserCountryHandler
 	UserState      *handler.UserStateHandler
@@ -58,11 +59,11 @@ func New(handlers Handlers, authenticate middleware.Middleware) http.Handler {
 	return middleware.Chain(router, middleware.Logger, middleware.Recoverer, middleware.CrossOrigin)
 }
 
-// userManagersOnly lets only the roles that manage users (superadmin, customer,
-// admin) call handlerFunc; other users get 403. The service limits each of them
-// to the users and roles they may manage.
-func userManagersOnly(handlerFunc http.HandlerFunc) http.Handler {
-	return middleware.RequireRole(model.UserManagerRoles...)(handlerFunc)
+// managersOnly lets only the roles that manage a company (superadmin, customer,
+// admin) call handlerFunc; other users get 403. The services limit each of them
+// to their own company's data.
+func managersOnly(handlerFunc http.HandlerFunc) http.Handler {
+	return middleware.RequireRole(model.ManagerRoles...)(handlerFunc)
 }
 
 // superAdminOnly lets only the superadmin call handlerFunc; everyone else (admins
@@ -98,6 +99,9 @@ func registerV1Routes(router *http.ServeMux, handlers Handlers) {
 	}
 	if handlers.Machine != nil {
 		registerMachineRoutes(router, v1Prefix, handlers.Machine)
+	}
+	if handlers.Part != nil {
+		registerPartRoutes(router, v1Prefix, handlers.Part)
 	}
 	if handlers.UserCountry != nil {
 		registerUserCountryRoutes(router, v1Prefix, handlers.UserCountry)

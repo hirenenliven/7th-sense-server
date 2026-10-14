@@ -20,9 +20,10 @@ const (
 // MemberRoles are the roles of a customer's own users.
 var MemberRoles = []string{RoleAdmin, RoleSupervisor, RoleOperator, RoleQC, RoleShopHead}
 
-// UserManagerRoles may use the user routes (/users). Which users and roles each
-// of them may manage is decided by AssignableRoles and the company (service.UserService).
-var UserManagerRoles = []string{RoleSuperAdmin, RoleCustomer, RoleAdmin}
+// ManagerRoles manage a company: its users, machines and organization. The
+// superadmin manages every company, a customer and its admins only their own;
+// the services decide which rows and roles (e.g. AssignableRoles).
+var ManagerRoles = []string{RoleSuperAdmin, RoleCustomer, RoleAdmin}
 
 // AssignableRoles returns the roles a user with role may give: the superadmin
 // customers and every member role, a customer every member role, an admin every

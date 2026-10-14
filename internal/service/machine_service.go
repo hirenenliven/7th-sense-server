@@ -86,6 +86,21 @@ func (machineService *MachineService) CheckOwnedBy(ctx context.Context, ownerID 
 	return nil
 }
 
+// ownCompanyMachine makes the machine of fields belong to actor's company when
+// actor is not the superadmin. Only managers reach here (managersOnly); one without
+// a company gets Forbidden.
+func ownCompanyMachine(actor model.AuthUser, fields *dto.MachineFields) error {
+	if actor.Role == model.RoleSuperAdmin {
+		return nil
+	}
+	company := actor.Company()
+	if company == nil {
+		return response.Forbidden
+	}
+	fields.UserID = *company
+	return nil
+}
+
 // machineScope returns the machines actor may read. The superadmin reads every
 // machine (customerID narrows to one customer). A customer and its admins read
 // every machine of their company; other users only the machines assigned to them
@@ -104,7 +119,12 @@ func machineScope(actor model.AuthUser, customerID *int64) (model.MachineScope, 
 	return model.MachineScope{OwnerID: company, AssignedUserID: &actor.ID}, nil
 }
 
-func (machineService *MachineService) Create(ctx context.Context, machineRequest dto.CreateMachineRequest) (model.Machine, error) {
+// Create adds a machine. A customer or admin (actor) adds it to their own company,
+// whatever customer the request names; the superadmin to the customer named.
+func (machineService *MachineService) Create(ctx context.Context, actor model.AuthUser, machineRequest dto.CreateMachineRequest) (model.Machine, error) {
+	if err := ownCompanyMachine(actor, &machineRequest.MachineFields); err != nil {
+		return model.Machine{}, err
+	}
 	if err := machineService.checkReferences(ctx, machineRequest.MachineFields); err != nil {
 		return model.Machine{}, err
 	}
@@ -120,7 +140,17 @@ func (machineService *MachineService) Create(ctx context.Context, machineRequest
 }
 
 // Update replaces the form fields. A blank password or status keeps the saved one.
-func (machineService *MachineService) Update(ctx context.Context, id int64, machineRequest dto.UpdateMachineRequest) (model.Machine, error) {
+// A customer or admin (actor) changes only their company's machines ("Machine not
+// found" for others) and cannot move one to another company.
+func (machineService *MachineService) Update(ctx context.Context, actor model.AuthUser, id int64, machineRequest dto.UpdateMachineRequest) (model.Machine, error) {
+	if err := ownCompanyMachine(actor, &machineRequest.MachineFields); err != nil {
+		return model.Machine{}, err
+	}
+	if actor.Role != model.RoleSuperAdmin {
+		if _, err := machineService.find(ctx, model.MachineScope{OwnerID: actor.Company()}, id); err != nil {
+			return model.Machine{}, err
+		}
+	}
 	if err := machineService.checkReferences(ctx, machineRequest.MachineFields); err != nil {
 		return model.Machine{}, err
 	}

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -69,6 +70,9 @@ func run() error {
 	machineService := service.NewMachineService(machineRepository, repository.NewUserRepository(dbPool),
 		machineModelService, brandService, controllerService, userLineService)
 	roleService := service.NewRoleService(repository.NewRoleRepository(dbPool))
+	// A part checks its customer and applicable machines; drawings are files under UPLOAD_DIR
+	partService := service.NewPartService(dbPool, repository.NewUserRepository(dbPool), machineService,
+		repository.NewPartDrawingStorage(filepath.Join(appConfig.UploadDir, "part-drawings")))
 	router := routes.New(routes.Handlers{
 		Auth:           handler.NewAuthHandler(authService, appConfig.CookieSecure),
 		User:           handler.NewUserHandler(service.NewUserService(dbPool, branchService, roleService, machineService)),
@@ -79,6 +83,7 @@ func run() error {
 		Controller:     handler.NewControllerHandler(controllerService),
 		MachineModel:   handler.NewMachineModelHandler(machineModelService),
 		Machine:        handler.NewMachineHandler(machineService),
+		Part:           handler.NewPartHandler(partService),
 		UserCountry:    handler.NewUserCountryHandler(userCountryService),
 		UserState:      handler.NewUserStateHandler(userStateService),
 		UserCity:       handler.NewUserCityHandler(userCityService),

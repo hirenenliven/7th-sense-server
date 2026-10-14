@@ -75,8 +75,11 @@ func currentUser(request *http.Request) (model.AuthUser, error) {
 }
 
 // targetUserID returns the user whose organization rows (/user-country … /user-supervisor)
-// the request reads or changes: the current user, or, for the superadmin, the user named
-// by ?userId=<id>. Anyone else naming any user but themself gets Forbidden.
+// the request reads or changes. The organization belongs to the company, so a customer
+// works on its own rows and its members (admins, operators, …) on the customer's rows;
+// a user of no company on their own. The superadmin may name any user with ?userId=<id>;
+// anyone else naming another user gets Forbidden. Who may change rows is decided by the
+// routes (managersOnly).
 func targetUserID(request *http.Request) (int64, error) {
 	currentUser, ok := middleware.CurrentUser(request.Context())
 	if !ok {
@@ -86,8 +89,12 @@ func targetUserID(request *http.Request) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	if userID == nil || *userID == currentUser.ID {
-		return currentUser.ID, nil
+	ownTarget := currentUser.ID
+	if company := currentUser.Company(); company != nil {
+		ownTarget = *company
+	}
+	if userID == nil || *userID == ownTarget {
+		return ownTarget, nil
 	}
 	if currentUser.Role != model.RoleSuperAdmin {
 		return 0, response.Forbidden
