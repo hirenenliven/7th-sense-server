@@ -20,7 +20,9 @@ type Handlers struct {
 	Brand      *handler.BrandHandler
 	Product    *handler.ProductHandler
 	Controller *handler.ControllerHandler
-	Machine    *handler.MachineHandler
+	// MachineModel serves /models (machine models of a controller)
+	MachineModel *handler.MachineModelHandler
+	Machine      *handler.MachineHandler
 	// Organization (per user): country → state → city → … → supervisor
 	UserCountry    *handler.UserCountryHandler
 	UserState      *handler.UserStateHandler
@@ -57,7 +59,13 @@ func New(handlers Handlers, authenticate middleware.Middleware) http.Handler {
 
 // adminOnly lets only admins call handlerFunc; other users get 403.
 func adminOnly(handlerFunc http.HandlerFunc) http.Handler {
-	return middleware.RequireRole(model.RoleAdmin)(handlerFunc)
+	return middleware.RequireRole(model.AdminRoles...)(handlerFunc)
+}
+
+// superAdminOnly lets only the superadmin call handlerFunc; everyone else (admins
+// included) gets 403.
+func superAdminOnly(handlerFunc http.HandlerFunc) http.Handler {
+	return middleware.RequireRole(model.RoleSuperAdmin)(handlerFunc)
 }
 
 // registerV1Routes registers all v1 API routes.
@@ -81,6 +89,9 @@ func registerV1Routes(router *http.ServeMux, handlers Handlers) {
 	}
 	if handlers.Controller != nil {
 		registerControllerRoutes(router, v1Prefix, handlers.Controller)
+	}
+	if handlers.MachineModel != nil {
+		registerMachineModelRoutes(router, v1Prefix, handlers.MachineModel)
 	}
 	if handlers.Machine != nil {
 		registerMachineRoutes(router, v1Prefix, handlers.Machine)

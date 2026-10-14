@@ -17,6 +17,10 @@ var (
 	ErrInvalidCategory = errors.New("invalid category")
 	// ErrInvalidBrand is returned when brand_id does not reference an existing brand.
 	ErrInvalidBrand = errors.New("invalid brand")
+	// ErrInvalidModel is returned when model_id does not reference an existing machine model.
+	ErrInvalidModel = errors.New("invalid model")
+	// ErrInvalidController is returned when controller_id does not reference an existing controller.
+	ErrInvalidController = errors.New("invalid controller")
 	// ErrInvalidRole is returned when role_id does not reference an existing role.
 	ErrInvalidRole = errors.New("invalid role")
 	// ErrInvalidCountry is returned when country_id does not reference an existing country.

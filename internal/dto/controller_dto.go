@@ -1,17 +1,15 @@
 package dto
 
 import (
-	"net/http"
 	"strings"
 
 	"7th-sense-server/internal/response"
 )
 
-// CreateControllerRequest is the body for POST /controllers.
+// CreateControllerRequest is the body for POST /controllers. The variant (828D, 0i-F, …)
+// is part of the name, so there is no separate code or variant.
 type CreateControllerRequest struct {
 	Name        string `json:"name"`
-	Code        string `json:"code"`
-	Variant     string `json:"variant"`
 	BrandID     *int64 `json:"brandId"`
 	Description string `json:"description"`
 }
@@ -19,18 +17,14 @@ type CreateControllerRequest struct {
 // Validate trims the fields and checks they are usable.
 func (request *CreateControllerRequest) Validate() error {
 	request.Name = strings.TrimSpace(request.Name)
-	request.Code = strings.ToUpper(strings.TrimSpace(request.Code))
-	request.Variant = strings.TrimSpace(request.Variant)
 	request.Description = strings.TrimSpace(request.Description)
 
-	return validateControllerFields(request.Name, request.Code, request.Variant, request.BrandID, request.Description)
+	return validateControllerFields(request.Name, request.BrandID, request.Description)
 }
 
 // UpdateControllerRequest is the body for PUT /controllers/{id}.
 type UpdateControllerRequest struct {
 	Name        string `json:"name"`
-	Code        string `json:"code"`
-	Variant     string `json:"variant"`
 	BrandID     *int64 `json:"brandId"`
 	Description string `json:"description"`
 }
@@ -38,23 +32,19 @@ type UpdateControllerRequest struct {
 // Validate trims the fields and checks they are usable.
 func (request *UpdateControllerRequest) Validate() error {
 	request.Name = strings.TrimSpace(request.Name)
-	request.Code = strings.ToUpper(strings.TrimSpace(request.Code))
-	request.Variant = strings.TrimSpace(request.Variant)
 	request.Description = strings.TrimSpace(request.Description)
 
-	return validateControllerFields(request.Name, request.Code, request.Variant, request.BrandID, request.Description)
+	return validateControllerFields(request.Name, request.BrandID, request.Description)
 }
 
-// validateControllerFields checks the fields shared by create and update.
-func validateControllerFields(name, code, variant string, brandID *int64, description string) error {
-	if err := validateCatalogFields(name, code, description); err != nil {
-		return err
+// validateControllerFields checks the fields shared by create and update. The brand
+// is required: the machine form lists the controllers of the selected brand.
+func validateControllerFields(name string, brandID *int64, description string) error {
+	if brandID == nil {
+		return response.SelectBrand
 	}
-	if len(variant) > 100 {
-		return response.NewError(http.StatusBadRequest, "Please enter valid variant")
+	if *brandID <= 0 {
+		return response.ValidBrand
 	}
-	if brandID != nil && *brandID <= 0 {
-		return response.NewError(http.StatusBadRequest, "Please enter valid brand")
-	}
-	return nil
+	return validateCatalogFields(name, "", description)
 }

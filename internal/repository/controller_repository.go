@@ -27,18 +27,23 @@ func NewControllerRepository(dbPool *pgxpool.Pool) *ControllerRepository {
 	return &ControllerRepository{dbPool: dbPool}
 }
 
-func (controllerRepository *ControllerRepository) FindAll(ctx context.Context) ([]model.Controller, error) {
-	query := `SELECT id, name,
-			COALESCE(code, '') AS code,
-			COALESCE(variant, '') AS variant,
-			brand_id,
-			COALESCE(description, '') AS description,
-			is_deleted, deleted_at, created_at, updated_at
-		FROM controllers
-		WHERE is_deleted = false
-		ORDER BY id`
+// controllerColumns reads a controllers row aliased c plus its brand name (brands b).
+const controllerColumns = `c.id, c.name,
+		c.brand_id,
+		COALESCE(c.description, '') AS description,
+		c.is_deleted, c.deleted_at, c.created_at, c.updated_at,
+		COALESCE(b.name, '') AS brand_name`
 
-	rows, err := db.Execute(ctx, controllerRepository.dbPool, query)
+// FindAll returns the controllers by brand and name. A non-nil brandID keeps only
+// that brand's controllers.
+func (controllerRepository *ControllerRepository) FindAll(ctx context.Context, brandID *int64) ([]model.Controller, error) {
+	query := `SELECT ` + controllerColumns + `
+		FROM controllers c
+		LEFT JOIN brands b ON b.id = c.brand_id
+		WHERE c.is_deleted = false AND ($1::int IS NULL OR c.brand_id = $1)
+		ORDER BY b.name, c.name`
+
+	rows, err := db.Execute(ctx, controllerRepository.dbPool, query, brandID)
 	if err != nil {
 		return nil, fmt.Errorf("find all controllers: %w", err)
 	}
@@ -50,14 +55,10 @@ func (controllerRepository *ControllerRepository) FindAll(ctx context.Context) (
 }
 
 func (controllerRepository *ControllerRepository) FindByID(ctx context.Context, id int64) (model.Controller, error) {
-	query := `SELECT id, name,
-			COALESCE(code, '') AS code,
-			COALESCE(variant, '') AS variant,
-			brand_id,
-			COALESCE(description, '') AS description,
-			is_deleted, deleted_at, created_at, updated_at
-		FROM controllers
-		WHERE id = $1 AND is_deleted = false`
+	query := `SELECT ` + controllerColumns + `
+		FROM controllers c
+		LEFT JOIN brands b ON b.id = c.brand_id
+		WHERE c.id = $1 AND c.is_deleted = false`
 
 	rows, err := db.Execute(ctx, controllerRepository.dbPool, query, id)
 	if err != nil {
@@ -68,17 +69,17 @@ func (controllerRepository *ControllerRepository) FindByID(ctx context.Context, 
 }
 
 func (controllerRepository *ControllerRepository) Create(ctx context.Context, controller model.Controller) (model.Controller, error) {
-	query := `INSERT INTO controllers (name, code, variant, brand_id, description)
-		VALUES ($1, NULLIF($2, ''), NULLIF($3, ''), $4, NULLIF($5, ''))
-		RETURNING id, name,
-			COALESCE(code, '') AS code,
-			COALESCE(variant, '') AS variant,
-			brand_id,
-			COALESCE(description, '') AS description,
-			is_deleted, deleted_at, created_at, updated_at`
+	query := `WITH c AS (
+			INSERT INTO controllers (name, brand_id, description)
+			VALUES ($1, $2, NULLIF($3, ''))
+			RETURNING *
+		)
+		SELECT ` + controllerColumns + `
+		FROM c
+		LEFT JOIN brands b ON b.id = c.brand_id`
 
 	rows, err := db.Execute(ctx, controllerRepository.dbPool, query,
-		controller.Name, controller.Code, controller.Variant, controller.BrandID, controller.Description,
+		controller.Name, controller.BrandID, controller.Description,
 	)
 	if err != nil {
 		return model.Controller{}, fmt.Errorf("create controller: %w", err)
@@ -89,19 +90,18 @@ func (controllerRepository *ControllerRepository) Create(ctx context.Context, co
 
 // Update replaces the fields of controller.ID.
 func (controllerRepository *ControllerRepository) Update(ctx context.Context, controller model.Controller) (model.Controller, error) {
-	query := `UPDATE controllers
-		SET name = $2, code = NULLIF($3, ''), variant = NULLIF($4, ''),
-			brand_id = $5, description = NULLIF($6, '')
-		WHERE id = $1 AND is_deleted = false
-		RETURNING id, name,
-			COALESCE(code, '') AS code,
-			COALESCE(variant, '') AS variant,
-			brand_id,
-			COALESCE(description, '') AS description,
-			is_deleted, deleted_at, created_at, updated_at`
+	query := `WITH c AS (
+			UPDATE controllers
+			SET name = $2, brand_id = $3, description = NULLIF($4, '')
+			WHERE id = $1 AND is_deleted = false
+			RETURNING *
+		)
+		SELECT ` + controllerColumns + `
+		FROM c
+		LEFT JOIN brands b ON b.id = c.brand_id`
 
 	rows, err := db.Execute(ctx, controllerRepository.dbPool, query,
-		controller.ID, controller.Name, controller.Code, controller.Variant, controller.BrandID, controller.Description,
+		controller.ID, controller.Name, controller.BrandID, controller.Description,
 	)
 	if err != nil {
 		return model.Controller{}, fmt.Errorf("update controller: %w", err)
@@ -130,6 +130,35 @@ func (controllerRepository *ControllerRepository) Delete(ctx context.Context, id
 	return nil
 }
 
+// HasModels reports whether the controller id has active models.
+func (controllerRepository *ControllerRepository) HasModels(ctx context.Context, id int64) (bool, error) {
+	query := `SELECT EXISTS (
+			SELECT 1 FROM models WHERE controller_id = $1 AND is_deleted = false
+		)`
+	return controllerRepository.exists(ctx, "check controller models", query, id)
+}
+
+// HasMachines reports whether active machines use the controller id.
+func (controllerRepository *ControllerRepository) HasMachines(ctx context.Context, id int64) (bool, error) {
+	query := `SELECT EXISTS (
+			SELECT 1 FROM machines WHERE controller_id = $1 AND is_deleted = false
+		)`
+	return controllerRepository.exists(ctx, "check controller machines", query, id)
+}
+
+// exists runs a SELECT EXISTS query with id.
+func (controllerRepository *ControllerRepository) exists(ctx context.Context, operation, query string, id int64) (bool, error) {
+	rows, err := db.Execute(ctx, controllerRepository.dbPool, query, id)
+	if err != nil {
+		return false, fmt.Errorf("%s: %w", operation, err)
+	}
+	found, err := pgx.CollectOneRow(rows, pgx.RowTo[bool])
+	if err != nil {
+		return false, fmt.Errorf("%s: %w", operation, err)
+	}
+	return found, nil
+}
+
 // mapControllerError turns driver errors into repository errors. A nil err stays nil.
 func mapControllerError(operation string, err error) error {
 	if err == nil {
@@ -144,8 +173,6 @@ func mapControllerError(operation string, err error) error {
 		switch {
 		case pgError.Code == "23505" && pgError.ConstraintName == "controllers_name_key": // unique_violation
 			return ErrDuplicateName
-		case pgError.Code == "23505" && pgError.ConstraintName == "controllers_code_key":
-			return ErrDuplicateCode
 		case pgError.Code == "23503" && pgError.ConstraintName == "controllers_brand_id_fkey": // foreign_key_violation
 			return ErrInvalidBrand
 		}

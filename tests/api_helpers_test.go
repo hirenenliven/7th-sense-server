@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -28,23 +29,32 @@ type apiResponse struct {
 }
 
 // asTestUser is the authenticate middleware of the test routers: every request
-// acts as testUserID with the admin role, so suites test their entity without
+// acts as testUserID with the superadmin role, so suites test their entity without
 // logging in. auth_test.go covers the real session middleware.
 func asTestUser(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		user := model.AuthUser{ID: testUserID, Role: model.RoleAdmin}
+		user := model.AuthUser{ID: testUserID, Role: model.RoleSuperAdmin}
 		next.ServeHTTP(writer, request.WithContext(middleware.WithAuthUser(request.Context(), user)))
 	})
 }
 
-// newCatalogRouter builds the real router with the catalog handlers wired to testDBPool.
+// newCatalogRouter builds the real router with the catalog handlers wired to testDBPool,
+// acting as the superadmin test user.
 func newCatalogRouter() http.Handler {
+	return newCatalogRouterAs(asTestUser)
+}
+
+// newCatalogRouterAs is newCatalogRouter with authenticate deciding who the requests act as.
+func newCatalogRouterAs(authenticate middleware.Middleware) http.Handler {
+	brandService := service.NewBrandService(repository.NewBrandRepository(testDBPool))
+	controllerService := service.NewControllerService(repository.NewControllerRepository(testDBPool), brandService)
 	return routes.New(routes.Handlers{
-		Category:   handler.NewCategoryHandler(service.NewCategoryService(repository.NewCategoryRepository(testDBPool))),
-		Brand:      handler.NewBrandHandler(service.NewBrandService(repository.NewBrandRepository(testDBPool))),
-		Product:    handler.NewProductHandler(service.NewProductService(repository.NewProductRepository(testDBPool))),
-		Controller: handler.NewControllerHandler(service.NewControllerService(repository.NewControllerRepository(testDBPool))),
-	}, asTestUser)
+		Category:     handler.NewCategoryHandler(service.NewCategoryService(repository.NewCategoryRepository(testDBPool))),
+		Brand:        handler.NewBrandHandler(brandService),
+		Product:      handler.NewProductHandler(service.NewProductService(repository.NewProductRepository(testDBPool))),
+		Controller:   handler.NewControllerHandler(controllerService),
+		MachineModel: handler.NewMachineModelHandler(service.NewMachineModelService(repository.NewMachineModelRepository(testDBPool), controllerService)),
+	}, authenticate)
 }
 
 // sendRequest sends method path with body encoded as JSON (nil sends no body)
@@ -90,9 +100,12 @@ func decodeData(t *testing.T, result apiResponse, target any) {
 
 // uniqueSuffix keeps names and codes unique across test runs, because the
 // rows the tests create are kept (soft-deleted) for inspection.
+// The counter keeps suffixes apart when the clock has not moved between two calls.
 func uniqueSuffix() string {
-	return fmt.Sprintf("%d", time.Now().UnixNano()%1_000_000_000)
+	return fmt.Sprintf("%d%02d", time.Now().UnixNano()/1000%10_000_000, suffixCounter.Add(1)%100)
 }
+
+var suffixCounter atomic.Int64
 
 // catalogRecord holds the fields shared by categories, brands, products and controllers.
 type catalogRecord struct {
@@ -108,7 +121,9 @@ type catalogCRUDCase struct {
 	path            string         // collection path, e.g. "/categories"
 	entityName      string         // "Category", used in the delete message
 	notFoundMessage string         // e.g. "Category not found"
+	duplicateName   string         // duplicate-name message; "" = "Name already exists"
 	extraFields     map[string]any // entity-specific fields sent on create and update
+	noCode          bool           // the entity has no code (controllers): code checks are skipped
 }
 
 // runCatalogCRUD runs the full create, read, update and delete flow shared by
@@ -118,6 +133,9 @@ func runCatalogCRUD(t *testing.T, testCase catalogCRUDCase) {
 	suffix := uniqueSuffix()
 	name := "Test " + testCase.entityName + " " + suffix
 	code := "TC" + suffix
+	if testCase.noCode {
+		code = ""
+	}
 
 	requestBody := func(name, code, description string) map[string]any {
 		body := map[string]any{"name": name, "code": code, "description": description}
@@ -143,12 +161,20 @@ func runCatalogCRUD(t *testing.T, testCase catalogCRUDCase) {
 
 	t.Run("create rejects invalid input", func(t *testing.T) {
 		expectStatus(t, sendRequest(t, router, http.MethodPost, apiV1+testCase.path, requestBody("   ", "", "")), http.StatusBadRequest, "Please enter valid name")
-		expectStatus(t, sendRequest(t, router, http.MethodPost, apiV1+testCase.path, requestBody("Other "+suffix, "bad code!", "")), http.StatusBadRequest, "Please enter valid code")
+		if !testCase.noCode {
+			expectStatus(t, sendRequest(t, router, http.MethodPost, apiV1+testCase.path, requestBody("Other "+suffix, "bad code!", "")), http.StatusBadRequest, "Please enter valid code")
+		}
 	})
 
 	t.Run("create rejects duplicate name and code", func(t *testing.T) {
-		expectStatus(t, sendRequest(t, router, http.MethodPost, apiV1+testCase.path, requestBody(name, "", "")), http.StatusBadRequest, "Name already exists")
-		expectStatus(t, sendRequest(t, router, http.MethodPost, apiV1+testCase.path, requestBody("Other "+suffix, code, "")), http.StatusBadRequest, "Code already exists")
+		duplicateName := testCase.duplicateName
+		if duplicateName == "" {
+			duplicateName = "Name already exists"
+		}
+		expectStatus(t, sendRequest(t, router, http.MethodPost, apiV1+testCase.path, requestBody(name, "", "")), http.StatusBadRequest, duplicateName)
+		if !testCase.noCode {
+			expectStatus(t, sendRequest(t, router, http.MethodPost, apiV1+testCase.path, requestBody("Other "+suffix, code, "")), http.StatusBadRequest, "Code already exists")
+		}
 	})
 
 	t.Run("get by id", func(t *testing.T) {

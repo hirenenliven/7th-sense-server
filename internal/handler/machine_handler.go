@@ -4,11 +4,14 @@ import (
 	"net/http"
 
 	"7th-sense-server/internal/dto"
+	"7th-sense-server/internal/middleware"
+	"7th-sense-server/internal/model"
 	"7th-sense-server/internal/response"
 	"7th-sense-server/internal/service"
 )
 
-// MachineHandler handles HTTP requests for machines.
+// MachineHandler handles HTTP requests for machines. Admins see and change every
+// customer's machines; other users only read their own (see machineCustomerFilter).
 type MachineHandler struct {
 	service *service.MachineService
 }
@@ -18,9 +21,15 @@ func NewMachineHandler(machineService *service.MachineService) *MachineHandler {
 	return &MachineHandler{service: machineService}
 }
 
-// GetAll handles GET /api/v1/machines.
+// GetAll handles GET /api/v1/machines[?userId=<customer id>].
 func (machineHandler *MachineHandler) GetAll(writer http.ResponseWriter, request *http.Request) {
-	machines, err := machineHandler.service.GetAll(request.Context())
+	customerID, err := machineCustomerFilter(request)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+
+	machines, err := machineHandler.service.GetAll(request.Context(), customerID)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -30,13 +39,18 @@ func (machineHandler *MachineHandler) GetAll(writer http.ResponseWriter, request
 
 // GetByID handles GET /api/v1/machines/{id}.
 func (machineHandler *MachineHandler) GetByID(writer http.ResponseWriter, request *http.Request) {
+	customerID, err := machineCustomerFilter(request)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
 	id, err := pathID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
 	}
 
-	machine, err := machineHandler.service.GetByID(request.Context(), id)
+	machine, err := machineHandler.service.GetByID(request.Context(), customerID, id)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -95,4 +109,25 @@ func (machineHandler *MachineHandler) Delete(writer http.ResponseWriter, request
 		return
 	}
 	response.SendResponse(writer, request, response.Success, "Machine deleted")
+}
+
+// machineCustomerFilter returns whose machines the request may read: for an admin the
+// customer named by ?userId=<id>, or nil for every customer; for any other user always
+// their own id. A non-admin naming another user gets Forbidden.
+func machineCustomerFilter(request *http.Request) (*int64, error) {
+	currentUser, ok := middleware.CurrentUser(request.Context())
+	if !ok {
+		return nil, response.Unauthorized
+	}
+	userID, err := queryID(request, "userId")
+	if err != nil {
+		return nil, err
+	}
+	if model.IsAdmin(currentUser.Role) {
+		return userID, nil
+	}
+	if userID != nil && *userID != currentUser.ID {
+		return nil, response.Forbidden
+	}
+	return &currentUser.ID, nil
 }

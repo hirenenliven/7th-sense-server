@@ -1,7 +1,10 @@
 package model
 
+import "slices"
+
 // Role names of the roles table. Authorization checks use these names.
 const (
+	RoleSuperAdmin = "superadmin"
 	RoleAdmin      = "admin"
 	RoleSupervisor = "supervisor"
 	RoleOperator   = "operator"
@@ -9,6 +12,14 @@ const (
 	RoleQC         = "qc"
 	RoleShopHead   = "shop_head"
 )
+
+// AdminRoles are the roles with full access (admin-only routes, acting for other users).
+var AdminRoles = []string{RoleSuperAdmin, RoleAdmin}
+
+// IsAdmin reports whether role is one of AdminRoles.
+func IsAdmin(role string) bool {
+	return slices.Contains(AdminRoles, role)
+}
 
 // AuthUser is a user as seen by login and sessions: the users row with its
 // role name (roles.name). Password holds the bcrypt hash and is never sent to

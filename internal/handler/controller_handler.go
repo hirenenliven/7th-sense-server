@@ -18,9 +18,15 @@ func NewControllerHandler(controllerService *service.ControllerService) *Control
 	return &ControllerHandler{service: controllerService}
 }
 
-// GetAll handles GET /api/v1/controllers.
+// GetAll handles GET /api/v1/controllers. ?brandId= keeps only that brand's controllers.
 func (controllerHandler *ControllerHandler) GetAll(writer http.ResponseWriter, request *http.Request) {
-	controllers, err := controllerHandler.service.GetAll(request.Context())
+	brandID, err := queryID(request, "brandId")
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+
+	controllers, err := controllerHandler.service.GetAll(request.Context(), brandID)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return

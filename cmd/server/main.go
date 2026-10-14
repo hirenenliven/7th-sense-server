@@ -60,15 +60,24 @@ func run() error {
 	userCellService := service.NewUserCellService(repository.NewUserCellRepository(dbPool), userLineService)
 	userSupervisorService := service.NewUserSupervisorService(repository.NewUserSupervisorRepository(dbPool), userCellService)
 	authService := service.NewAuthService(repository.NewAuthRepository(dbPool))
+	brandService := service.NewBrandService(brandRepository)
+	productService := service.NewProductService(productRepository)
+	// Machine catalog: Brand → Controller → Model
+	controllerService := service.NewControllerService(controllerRepository, brandService)
+	machineModelService := service.NewMachineModelService(repository.NewMachineModelRepository(dbPool), controllerService)
+	// A machine checks its customer, brand, controller, model and the customer's line
+	machineService := service.NewMachineService(machineRepository, repository.NewUserRepository(dbPool),
+		machineModelService, brandService, controllerService, userLineService)
 	router := routes.New(routes.Handlers{
 		Auth:           handler.NewAuthHandler(authService, appConfig.CookieSecure),
 		User:           handler.NewUserHandler(service.NewUserService(dbPool, branchService)),
 		Branch:         handler.NewBranchHandler(branchService),
 		Category:       handler.NewCategoryHandler(service.NewCategoryService(categoryRepository)),
-		Brand:          handler.NewBrandHandler(service.NewBrandService(brandRepository)),
-		Product:        handler.NewProductHandler(service.NewProductService(productRepository)),
-		Controller:     handler.NewControllerHandler(service.NewControllerService(controllerRepository)),
-		Machine:        handler.NewMachineHandler(service.NewMachineService(machineRepository)),
+		Brand:          handler.NewBrandHandler(brandService),
+		Product:        handler.NewProductHandler(productService),
+		Controller:     handler.NewControllerHandler(controllerService),
+		MachineModel:   handler.NewMachineModelHandler(machineModelService),
+		Machine:        handler.NewMachineHandler(machineService),
 		UserCountry:    handler.NewUserCountryHandler(userCountryService),
 		UserState:      handler.NewUserStateHandler(userStateService),
 		UserCity:       handler.NewUserCityHandler(userCityService),

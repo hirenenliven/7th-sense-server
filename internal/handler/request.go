@@ -79,7 +79,7 @@ func targetUserID(request *http.Request) (int64, error) {
 	if userID == nil || *userID == currentUser.ID {
 		return currentUser.ID, nil
 	}
-	if currentUser.Role != model.RoleAdmin {
+	if !model.IsAdmin(currentUser.Role) {
 		return 0, response.Forbidden
 	}
 	return *userID, nil

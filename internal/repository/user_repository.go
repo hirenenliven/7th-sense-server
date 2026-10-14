@@ -159,3 +159,22 @@ func mapUserError(operation string, err error) error {
 	}
 	return fmt.Errorf("%s: %w", operation, err)
 }
+
+// IsCustomer reports whether id is an existing user with the customer role.
+func (userRepository *UserRepository) IsCustomer(ctx context.Context, id int64) (bool, error) {
+	query := `SELECT EXISTS (
+			SELECT 1 FROM users u
+			JOIN roles r ON r.id = u.role_id
+			WHERE u.id = $1 AND u.is_deleted = false AND r.name = $2
+		)`
+
+	rows, err := db.Execute(ctx, userRepository.database, query, id, model.RoleCustomer)
+	if err != nil {
+		return false, fmt.Errorf("check customer: %w", err)
+	}
+	isCustomer, err := pgx.CollectOneRow(rows, pgx.RowTo[bool])
+	if err != nil {
+		return false, fmt.Errorf("check customer: %w", err)
+	}
+	return isCustomer, nil
+}

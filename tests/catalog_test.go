@@ -68,33 +68,56 @@ func TestControllerCRUD(t *testing.T) {
 		path:            "/controllers",
 		entityName:      "Controller",
 		notFoundMessage: "Controller not found",
-		extraFields:     map[string]any{"brandId": createTestRecord(t, "/brands", "Brand"), "variant": "828D"},
+		duplicateName:   "This brand already has a controller with this name",
+		extraFields:     map[string]any{"brandId": createTestRecord(t, "/brands", "Brand")},
+		noCode:          true,
 	})
 }
 
 func TestControllerBrand(t *testing.T) {
 	router := newCatalogRouter()
 
-	t.Run("unknown brand is rejected", func(t *testing.T) {
-		body := map[string]any{"name": "Test Controller " + uniqueSuffix(), "brandId": unknownID}
-		expectStatus(t, sendRequest(t, router, http.MethodPost, apiV1+"/controllers", body), http.StatusBadRequest, "Please enter valid brand")
+	t.Run("brand is required and must exist", func(t *testing.T) {
+		name := "Test Controller " + uniqueSuffix()
+		expectStatus(t, sendRequest(t, router, http.MethodPost, apiV1+"/controllers", map[string]any{"name": name}), http.StatusBadRequest, "Please select brand")
+		expectStatus(t, sendRequest(t, router, http.MethodPost, apiV1+"/controllers", map[string]any{"name": name, "brandId": unknownID}), http.StatusBadRequest, "Please enter valid brand")
 	})
 
-	t.Run("brand and variant are saved", func(t *testing.T) {
+	t.Run("name is unique per brand", func(t *testing.T) {
+		name := "Test Controller " + uniqueSuffix()
+		firstID := createController(t, router, name, createTestRecord(t, "/brands", "Brand"))
+		otherBrandID := createTestRecord(t, "/brands", "Brand")
+		secondID := createController(t, router, name, otherBrandID)
+		if firstID == secondID {
+			t.Fatalf("both brands got controller id %d", firstID)
+		}
+
+		result := sendRequest(t, router, http.MethodGet, fmt.Sprintf("%s/controllers?brandId=%d", apiV1, otherBrandID), nil)
+		expectStatus(t, result, http.StatusOK, "success")
+		var list []catalogRecord
+		decodeData(t, result, &list)
+		if len(list) != 1 || list[0].ID != secondID {
+			t.Errorf("brand filter = %+v; want only controller %d", list, secondID)
+		}
+	})
+
+	t.Run("brand is saved and code / variant are gone", func(t *testing.T) {
 		brandID := createTestRecord(t, "/brands", "Brand")
-		body := map[string]any{"name": "Test Controller " + uniqueSuffix(), "brandId": brandID, "variant": " 840D "}
+		name := "Test Controller " + uniqueSuffix() + " 840D"
+		body := map[string]any{"name": " " + name + " ", "brandId": brandID, "code": "IGNORED", "variant": "IGNORED"}
 		result := sendRequest(t, router, http.MethodPost, apiV1+"/controllers", body)
 		expectStatus(t, result, http.StatusCreated, "created")
-		var controller struct {
-			ID      int64  `json:"id"`
-			BrandID *int64 `json:"brandId"`
-			Variant string `json:"variant"`
-		}
+		var controller map[string]any
 		decodeData(t, result, &controller)
-		if controller.BrandID == nil || *controller.BrandID != brandID || controller.Variant != "840D" {
-			t.Errorf("controller = %+v; want brandId %d and trimmed variant", controller, brandID)
+		if controller["name"] != name || controller["brandId"] != float64(brandID) {
+			t.Errorf("controller = %+v; want trimmed name %q and brandId %d", controller, name, brandID)
 		}
-		sendRequest(t, router, http.MethodDelete, fmt.Sprintf("%s/controllers/%d", apiV1, controller.ID), nil)
+		for _, field := range []string{"code", "variant"} {
+			if _, found := controller[field]; found {
+				t.Errorf("controller has %q; controllers no longer have it", field)
+			}
+		}
+		sendRequest(t, router, http.MethodDelete, fmt.Sprintf("%s/controllers/%v", apiV1, controller["id"]), nil)
 	})
 }
 

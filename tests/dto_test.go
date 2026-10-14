@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"strings"
 	"testing"
 
 	"7th-sense-server/internal/dto"
@@ -677,22 +678,14 @@ func TestCreateControllerRequestValidate(t *testing.T) {
 		{
 			name: "valid request with all fields",
 			request: dto.CreateControllerRequest{
-				Name:        "  Test Controller  ",
-				Code:        "  tc123  ",
-				Variant:     "  828D  ",
+				Name:        "  Sinumerik 828D  ",
 				BrandID:     &validBrandID,
 				Description: "  A valid description  ",
 			},
 			wantErr: nil,
 			checkFields: func(t *testing.T, r dto.CreateControllerRequest) {
-				if r.Name != "Test Controller" {
+				if r.Name != "Sinumerik 828D" {
 					t.Errorf("Name not trimmed, got %q", r.Name)
-				}
-				if r.Code != "TC123" {
-					t.Errorf("Code not trimmed and uppercased, got %q", r.Code)
-				}
-				if r.Variant != "828D" {
-					t.Errorf("Variant not trimmed, got %q", r.Variant)
 				}
 				if r.Description != "A valid description" {
 					t.Errorf("Description not trimmed, got %q", r.Description)
@@ -700,35 +693,35 @@ func TestCreateControllerRequestValidate(t *testing.T) {
 			},
 		},
 		{
-			name: "valid request with only name",
+			name: "valid without description",
 			request: dto.CreateControllerRequest{
-				Name:        "Test Controller",
-				Code:        "",
-				Variant:     "",
-				BrandID:     nil,
-				Description: "",
+				Name:    "Test Controller",
+				BrandID: &validBrandID,
 			},
 			wantErr: nil,
 		},
 		{
-			name: "valid with empty variant",
+			name: "missing brand",
 			request: dto.CreateControllerRequest{
-				Name:        "Test Controller",
-				Code:        "TC123",
-				Variant:     "",
-				BrandID:     &validBrandID,
-				Description: "A valid description",
+				Name:    "Test Controller",
+				BrandID: nil,
 			},
-			wantErr: nil,
+			wantErr: response.SelectBrand,
 		},
 		{
 			name: "invalid empty name",
 			request: dto.CreateControllerRequest{
 				Name:        "  ",
-				Code:        "TC123",
-				Variant:     "828D",
 				BrandID:     &validBrandID,
 				Description: "A valid description",
+			},
+			wantErr: response.ValidName,
+		},
+		{
+			name: "invalid name too long",
+			request: dto.CreateControllerRequest{
+				Name:    strings.Repeat("a", 101),
+				BrandID: &validBrandID,
 			},
 			wantErr: response.ValidName,
 		},
@@ -736,8 +729,6 @@ func TestCreateControllerRequestValidate(t *testing.T) {
 			name: "invalid brand ID zero",
 			request: dto.CreateControllerRequest{
 				Name:        "Test Controller",
-				Code:        "TC123",
-				Variant:     "828D",
 				BrandID:     &invalidBrandID,
 				Description: "A valid description",
 			},
@@ -747,34 +738,19 @@ func TestCreateControllerRequestValidate(t *testing.T) {
 			name: "invalid brand ID negative",
 			request: dto.CreateControllerRequest{
 				Name:        "Test Controller",
-				Code:        "TC123",
-				Variant:     "828D",
 				BrandID:     func() *int64 { i := int64(-1); return &i }(),
 				Description: "A valid description",
 			},
 			wantErr: response.ValidBrand,
 		},
 		{
-			name: "invalid variant too long",
+			name: "invalid description too long",
 			request: dto.CreateControllerRequest{
 				Name:        "Test Controller",
-				Code:        "TC123",
-				Variant:     string(make([]byte, 101)),
 				BrandID:     &validBrandID,
-				Description: "A valid description",
+				Description: strings.Repeat("a", 1001),
 			},
-			wantErr: response.ValidVariant,
-		},
-		{
-			name: "invalid code format",
-			request: dto.CreateControllerRequest{
-				Name:        "Test Controller",
-				Code:        "tc@123",
-				Variant:     "828D",
-				BrandID:     &validBrandID,
-				Description: "A valid description",
-			},
-			wantErr: response.ValidCode,
+			wantErr: response.ValidDescription,
 		},
 	}
 
@@ -804,22 +780,14 @@ func TestUpdateControllerRequestValidate(t *testing.T) {
 		{
 			name: "valid request with all fields",
 			request: dto.UpdateControllerRequest{
-				Name:        "  Test Controller  ",
-				Code:        "  tc123  ",
-				Variant:     "  828D  ",
+				Name:        "  Sinumerik 828D  ",
 				BrandID:     &validBrandID,
 				Description: "  A valid description  ",
 			},
 			wantErr: nil,
 			checkFields: func(t *testing.T, r dto.UpdateControllerRequest) {
-				if r.Name != "Test Controller" {
+				if r.Name != "Sinumerik 828D" {
 					t.Errorf("Name not trimmed, got %q", r.Name)
-				}
-				if r.Code != "TC123" {
-					t.Errorf("Code not trimmed and uppercased, got %q", r.Code)
-				}
-				if r.Variant != "828D" {
-					t.Errorf("Variant not trimmed, got %q", r.Variant)
 				}
 				if r.Description != "A valid description" {
 					t.Errorf("Description not trimmed, got %q", r.Description)
@@ -827,35 +795,35 @@ func TestUpdateControllerRequestValidate(t *testing.T) {
 			},
 		},
 		{
-			name: "valid request with only name",
+			name: "valid without description",
 			request: dto.UpdateControllerRequest{
-				Name:        "Test Controller",
-				Code:        "",
-				Variant:     "",
-				BrandID:     nil,
-				Description: "",
+				Name:    "Test Controller",
+				BrandID: &validBrandID,
 			},
 			wantErr: nil,
 		},
 		{
-			name: "valid with empty variant",
+			name: "missing brand",
 			request: dto.UpdateControllerRequest{
-				Name:        "Test Controller",
-				Code:        "TC123",
-				Variant:     "",
-				BrandID:     &validBrandID,
-				Description: "A valid description",
+				Name:    "Test Controller",
+				BrandID: nil,
 			},
-			wantErr: nil,
+			wantErr: response.SelectBrand,
 		},
 		{
 			name: "invalid empty name",
 			request: dto.UpdateControllerRequest{
 				Name:        "  ",
-				Code:        "TC123",
-				Variant:     "828D",
 				BrandID:     &validBrandID,
 				Description: "A valid description",
+			},
+			wantErr: response.ValidName,
+		},
+		{
+			name: "invalid name too long",
+			request: dto.UpdateControllerRequest{
+				Name:    strings.Repeat("a", 101),
+				BrandID: &validBrandID,
 			},
 			wantErr: response.ValidName,
 		},
@@ -863,8 +831,6 @@ func TestUpdateControllerRequestValidate(t *testing.T) {
 			name: "invalid brand ID zero",
 			request: dto.UpdateControllerRequest{
 				Name:        "Test Controller",
-				Code:        "TC123",
-				Variant:     "828D",
 				BrandID:     &invalidBrandID,
 				Description: "A valid description",
 			},
@@ -874,34 +840,19 @@ func TestUpdateControllerRequestValidate(t *testing.T) {
 			name: "invalid brand ID negative",
 			request: dto.UpdateControllerRequest{
 				Name:        "Test Controller",
-				Code:        "TC123",
-				Variant:     "828D",
 				BrandID:     func() *int64 { i := int64(-1); return &i }(),
 				Description: "A valid description",
 			},
 			wantErr: response.ValidBrand,
 		},
 		{
-			name: "invalid variant too long",
+			name: "invalid description too long",
 			request: dto.UpdateControllerRequest{
 				Name:        "Test Controller",
-				Code:        "TC123",
-				Variant:     string(make([]byte, 101)),
 				BrandID:     &validBrandID,
-				Description: "A valid description",
+				Description: strings.Repeat("a", 1001),
 			},
-			wantErr: response.ValidVariant,
-		},
-		{
-			name: "invalid code format",
-			request: dto.UpdateControllerRequest{
-				Name:        "Test Controller",
-				Code:        "tc@123",
-				Variant:     "828D",
-				BrandID:     &validBrandID,
-				Description: "A valid description",
-			},
-			wantErr: response.ValidCode,
+			wantErr: response.ValidDescription,
 		},
 	}
 
