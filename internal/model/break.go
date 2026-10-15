@@ -21,5 +21,6 @@ type Break struct {
 
 	// Read-only (joins)
 	CustomerName string `db:"customer_name" json:"customerName"`
+	CompanyName  string `db:"company_name" json:"companyName"`
 	ShiftName    string `db:"shift_name" json:"shiftName"`
 }

@@ -17,7 +17,8 @@ import (
 const breakSelect = `SELECT b.id, b.user_id, b.shift_id, b.name,
 		to_char(b.start_time, 'HH24:MI') AS start_time, to_char(b.end_time, 'HH24:MI') AS end_time,
 		b.status, b.is_deleted, b.deleted_at, b.created_at, b.updated_at,
-		COALESCE(NULLIF(cp.company_name, ''), NULLIF(TRIM(CONCAT_WS(' ', u.first_name, u.last_name)), ''), u.username, '') AS customer_name,
+		COALESCE(NULLIF(TRIM(CONCAT_WS(' ', u.first_name, u.last_name)), ''), u.username, '') AS customer_name,
+		COALESCE(cp.company_name, '') AS company_name,
 		COALESCE(s.name, '') AS shift_name
 	FROM breaks b
 	LEFT JOIN users u ON u.id = b.user_id

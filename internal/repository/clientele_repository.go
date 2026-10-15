@@ -16,7 +16,8 @@ import (
 const clienteleSelect = `SELECT c.id, c.user_id, c.client_code, c.name, COALESCE(c.email, '') AS email,
 		c.contact_number, c.address, c.country_name, c.state_name, c.city, c.status,
 		c.is_deleted, c.deleted_at, c.created_at, c.updated_at,
-		COALESCE(NULLIF(cp.company_name, ''), NULLIF(TRIM(CONCAT_WS(' ', u.first_name, u.last_name)), ''), u.username, '') AS customer_name
+		COALESCE(NULLIF(TRIM(CONCAT_WS(' ', u.first_name, u.last_name)), ''), u.username, '') AS customer_name,
+		COALESCE(cp.company_name, '') AS company_name
 	FROM clienteles c
 	LEFT JOIN users u ON u.id = c.user_id
 	LEFT JOIN company_profiles cp ON cp.user_id = c.user_id AND cp.is_deleted = false`

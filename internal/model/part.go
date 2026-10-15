@@ -21,6 +21,7 @@ type Part struct {
 
 	// Read-only (joins)
 	CustomerName  string `db:"customer_name" json:"customerName"`
+	CompanyName   string `db:"company_name" json:"companyName"`
 	ProcessCount  int    `db:"process_count" json:"processCount"`
 	ClienteleName string `db:"clientele_name" json:"clienteleName"`
 

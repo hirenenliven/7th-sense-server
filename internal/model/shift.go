@@ -25,6 +25,7 @@ type Shift struct {
 
 	// Read-only (join)
 	CustomerName string `db:"customer_name" json:"customerName"`
+	CompanyName  string `db:"company_name" json:"companyName"`
 
 	Breaks          []ShiftBreak `db:"-" json:"breaks"`
 	DurationMinutes int          `db:"-" json:"durationMinutes"` // start to end

@@ -17,7 +17,8 @@ import (
 const shiftSelect = `SELECT s.id, s.user_id, s.name, s.shift_type,
 		to_char(s.start_time, 'HH24:MI') AS start_time, to_char(s.end_time, 'HH24:MI') AS end_time,
 		s.working_days, s.status, s.is_deleted, s.deleted_at, s.created_at, s.updated_at,
-		COALESCE(NULLIF(cp.company_name, ''), NULLIF(TRIM(CONCAT_WS(' ', u.first_name, u.last_name)), ''), u.username, '') AS customer_name
+		COALESCE(NULLIF(TRIM(CONCAT_WS(' ', u.first_name, u.last_name)), ''), u.username, '') AS customer_name,
+		COALESCE(cp.company_name, '') AS company_name
 	FROM shifts s
 	LEFT JOIN users u ON u.id = s.user_id
 	LEFT JOIN company_profiles cp ON cp.user_id = s.user_id AND cp.is_deleted = false`

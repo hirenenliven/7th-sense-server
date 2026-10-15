@@ -28,6 +28,7 @@ type Handlers struct {
 	Shift        *handler.ShiftHandler
 	Break        *handler.BreakHandler
 	Holiday      *handler.HolidayHandler
+	LicenceKey   *handler.LicenceKeyHandler
 	// Organization (per user): country → state → city → … → supervisor
 	UserCountry    *handler.UserCountryHandler
 	UserState      *handler.UserStateHandler
@@ -118,6 +119,9 @@ func registerV1Routes(router *http.ServeMux, handlers Handlers) {
 	}
 	if handlers.Holiday != nil {
 		registerHolidayRoutes(router, v1Prefix, handlers.Holiday)
+	}
+	if handlers.LicenceKey != nil {
+		registerLicenceKeyRoutes(router, v1Prefix, handlers.LicenceKey)
 	}
 	if handlers.UserCountry != nil {
 		registerUserCountryRoutes(router, v1Prefix, handlers.UserCountry)

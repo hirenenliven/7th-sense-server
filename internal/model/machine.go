@@ -53,6 +53,7 @@ type Machine struct {
 
 	// Display names (LEFT JOIN, read-only)
 	CustomerName   string `db:"customer_name" json:"customerName"`
+	CompanyName    string `db:"company_name" json:"companyName"`
 	ModelName      string `db:"model_name" json:"modelName"`
 	BrandName      string `db:"brand_name" json:"brandName"`
 	ControllerName string `db:"controller_name" json:"controllerName"`

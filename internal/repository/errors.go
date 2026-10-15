@@ -35,4 +35,6 @@ var (
 	ErrInvalidClientele = errors.New("invalid clientele")
 	// ErrDuplicateWeekOff is returned when the customer already has a week off on that weekday.
 	ErrDuplicateWeekOff = errors.New("duplicate week off")
+	// ErrDuplicateLicenceKey is returned when a licence key is already saved.
+	ErrDuplicateLicenceKey = errors.New("duplicate licence key")
 )

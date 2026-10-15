@@ -24,4 +24,5 @@ type Clientele struct {
 
 	// Read-only (join)
 	CustomerName string `db:"customer_name" json:"customerName"`
+	CompanyName  string `db:"company_name" json:"companyName"`
 }

@@ -90,6 +90,8 @@ func run() error {
 		Break:        handler.NewBreakHandler(service.NewBreakService(dbPool, repository.NewUserRepository(dbPool))),
 		Holiday: handler.NewHolidayHandler(service.NewHolidayService(repository.NewHolidayRepository(dbPool),
 			repository.NewUserRepository(dbPool))),
+		LicenceKey: handler.NewLicenceKeyHandler(service.NewLicenceKeyService(repository.NewLicenceKeyRepository(dbPool),
+			repository.NewUserRepository(dbPool))),
 		UserCountry:    handler.NewUserCountryHandler(userCountryService),
 		UserState:      handler.NewUserStateHandler(userStateService),
 		UserCity:       handler.NewUserCityHandler(userCityService),

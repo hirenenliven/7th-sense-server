@@ -16,7 +16,8 @@ import (
 // and clientele and the number of its processes.
 const partSelect = `SELECT p.id, p.user_id, p.clientele_id, p.part_no, p.part_name, p.part_count,
 		p.production_time, p.status, p.is_deleted, p.deleted_at, p.created_at, p.updated_at,
-		COALESCE(NULLIF(cp.company_name, ''), NULLIF(TRIM(CONCAT_WS(' ', u.first_name, u.last_name)), ''), u.username, '') AS customer_name,
+		COALESCE(NULLIF(TRIM(CONCAT_WS(' ', u.first_name, u.last_name)), ''), u.username, '') AS customer_name,
+		COALESCE(cp.company_name, '') AS company_name,
 		(SELECT COUNT(*) FROM part_processes pp WHERE pp.part_id = p.id AND pp.is_deleted = false)::integer AS process_count,
 		COALESCE(cl.name, '') AS clientele_name
 	FROM parts p

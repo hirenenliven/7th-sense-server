@@ -17,7 +17,8 @@ import (
 const holidaySelect = `SELECT h.id, h.user_id, h.holiday_type, COALESCE(h.name, '') AS name,
 		h.start_date::text AS start_date, h.end_date::text AS end_date, h.week_day,
 		h.status, h.is_deleted, h.deleted_at, h.created_at, h.updated_at,
-		COALESCE(NULLIF(cp.company_name, ''), NULLIF(TRIM(CONCAT_WS(' ', u.first_name, u.last_name)), ''), u.username, '') AS customer_name
+		COALESCE(NULLIF(TRIM(CONCAT_WS(' ', u.first_name, u.last_name)), ''), u.username, '') AS customer_name,
+		COALESCE(cp.company_name, '') AS company_name
 	FROM holidays h
 	LEFT JOIN users u ON u.id = h.user_id
 	LEFT JOIN company_profiles cp ON cp.user_id = h.user_id AND cp.is_deleted = false`
