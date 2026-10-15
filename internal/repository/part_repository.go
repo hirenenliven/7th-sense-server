@@ -12,14 +12,16 @@ import (
 	"7th-sense-server/internal/model"
 )
 
-// partSelect reads model.Part: the parts row (p) plus its customer's display name and
-// the number of its processes.
+// partSelect reads model.Part: the parts row (p) plus the display names of its customer
+// and clientele and the number of its processes.
 const partSelect = `SELECT p.id, p.user_id, p.clientele_id, p.part_no, p.part_name, p.part_count,
 		p.production_time, p.status, p.is_deleted, p.deleted_at, p.created_at, p.updated_at,
 		COALESCE(NULLIF(cp.company_name, ''), NULLIF(TRIM(CONCAT_WS(' ', u.first_name, u.last_name)), ''), u.username, '') AS customer_name,
-		(SELECT COUNT(*) FROM part_processes pp WHERE pp.part_id = p.id AND pp.is_deleted = false)::integer AS process_count
+		(SELECT COUNT(*) FROM part_processes pp WHERE pp.part_id = p.id AND pp.is_deleted = false)::integer AS process_count,
+		COALESCE(cl.name, '') AS clientele_name
 	FROM parts p
 	LEFT JOIN users u ON u.id = p.user_id
+	LEFT JOIN clienteles cl ON cl.id = p.clientele_id
 	LEFT JOIN company_profiles cp ON cp.user_id = p.user_id AND cp.is_deleted = false`
 
 // PartRepository runs the SQL queries for the parts, part_processes,
@@ -300,6 +302,8 @@ func mapPartError(operation string, err error) error {
 			return ErrDuplicateName
 		case pgError.Code == "23503" && pgError.ConstraintName == "parts_user_id_fkey": // foreign_key_violation
 			return ErrInvalidUser
+		case pgError.Code == "23503" && pgError.ConstraintName == "parts_clientele_id_fkey":
+			return ErrInvalidClientele
 		}
 	}
 	return fmt.Errorf("%s: %w", operation, err)

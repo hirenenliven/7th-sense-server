@@ -21,12 +21,16 @@ import (
 // testPDF is the smallest content the drawing upload accepts as a PDF.
 var testPDF = []byte("%PDF-1.4\n%test drawing\n%%EOF\n")
 
-// newPartRouter builds the real router with the part handler wired to testDBPool,
-// keeping drawings in uploadDir; authenticate decides who the requests act as.
+// newPartRouter builds the real router with the part and clientele handlers wired to
+// testDBPool, keeping drawings in uploadDir; authenticate decides who the requests act as.
 func newPartRouter(authenticate middleware.Middleware, uploadDir string) http.Handler {
+	clienteleService := service.NewClienteleService(repository.NewClienteleRepository(testDBPool), repository.NewUserRepository(testDBPool))
 	partService := service.NewPartService(testDBPool, repository.NewUserRepository(testDBPool),
-		newMachineService(), repository.NewPartDrawingStorage(uploadDir))
-	return routes.New(routes.Handlers{Part: handler.NewPartHandler(partService)}, authenticate)
+		newMachineService(), clienteleService, repository.NewPartDrawingStorage(uploadDir))
+	return routes.New(routes.Handlers{
+		Part:      handler.NewPartHandler(partService),
+		Clientele: handler.NewClienteleHandler(clienteleService),
+	}, authenticate)
 }
 
 // uploadDrawing sends content as the "file" field of POST /parts/drawings.

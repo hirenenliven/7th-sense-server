@@ -70,20 +70,26 @@ func run() error {
 	machineService := service.NewMachineService(machineRepository, repository.NewUserRepository(dbPool),
 		machineModelService, brandService, controllerService, userLineService)
 	roleService := service.NewRoleService(repository.NewRoleRepository(dbPool))
-	// A part checks its customer and applicable machines; drawings are files under UPLOAD_DIR
-	partService := service.NewPartService(dbPool, repository.NewUserRepository(dbPool), machineService,
+	clienteleService := service.NewClienteleService(repository.NewClienteleRepository(dbPool), repository.NewUserRepository(dbPool))
+	// A part checks its customer, clientele and applicable machines; drawings are files under UPLOAD_DIR
+	partService := service.NewPartService(dbPool, repository.NewUserRepository(dbPool), machineService, clienteleService,
 		repository.NewPartDrawingStorage(filepath.Join(appConfig.UploadDir, "part-drawings")))
 	router := routes.New(routes.Handlers{
-		Auth:           handler.NewAuthHandler(authService, appConfig.CookieSecure),
-		User:           handler.NewUserHandler(service.NewUserService(dbPool, branchService, roleService, machineService)),
-		Branch:         handler.NewBranchHandler(branchService),
-		Category:       handler.NewCategoryHandler(service.NewCategoryService(categoryRepository)),
-		Brand:          handler.NewBrandHandler(brandService),
-		Product:        handler.NewProductHandler(productService),
-		Controller:     handler.NewControllerHandler(controllerService),
-		MachineModel:   handler.NewMachineModelHandler(machineModelService),
-		Machine:        handler.NewMachineHandler(machineService),
-		Part:           handler.NewPartHandler(partService),
+		Auth:         handler.NewAuthHandler(authService, appConfig.CookieSecure),
+		User:         handler.NewUserHandler(service.NewUserService(dbPool, branchService, roleService, machineService)),
+		Branch:       handler.NewBranchHandler(branchService),
+		Category:     handler.NewCategoryHandler(service.NewCategoryService(categoryRepository)),
+		Brand:        handler.NewBrandHandler(brandService),
+		Product:      handler.NewProductHandler(productService),
+		Controller:   handler.NewControllerHandler(controllerService),
+		MachineModel: handler.NewMachineModelHandler(machineModelService),
+		Machine:      handler.NewMachineHandler(machineService),
+		Part:         handler.NewPartHandler(partService),
+		Clientele:    handler.NewClienteleHandler(clienteleService),
+		Shift:        handler.NewShiftHandler(service.NewShiftService(dbPool, repository.NewUserRepository(dbPool))),
+		Break:        handler.NewBreakHandler(service.NewBreakService(dbPool, repository.NewUserRepository(dbPool))),
+		Holiday: handler.NewHolidayHandler(service.NewHolidayService(repository.NewHolidayRepository(dbPool),
+			repository.NewUserRepository(dbPool))),
 		UserCountry:    handler.NewUserCountryHandler(userCountryService),
 		UserState:      handler.NewUserStateHandler(userStateService),
 		UserCity:       handler.NewUserCityHandler(userCityService),

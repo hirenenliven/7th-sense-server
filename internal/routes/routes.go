@@ -24,6 +24,10 @@ type Handlers struct {
 	MachineModel *handler.MachineModelHandler
 	Machine      *handler.MachineHandler
 	Part         *handler.PartHandler
+	Clientele    *handler.ClienteleHandler
+	Shift        *handler.ShiftHandler
+	Break        *handler.BreakHandler
+	Holiday      *handler.HolidayHandler
 	// Organization (per user): country → state → city → … → supervisor
 	UserCountry    *handler.UserCountryHandler
 	UserState      *handler.UserStateHandler
@@ -102,6 +106,18 @@ func registerV1Routes(router *http.ServeMux, handlers Handlers) {
 	}
 	if handlers.Part != nil {
 		registerPartRoutes(router, v1Prefix, handlers.Part)
+	}
+	if handlers.Clientele != nil {
+		registerClienteleRoutes(router, v1Prefix, handlers.Clientele)
+	}
+	if handlers.Shift != nil {
+		registerShiftRoutes(router, v1Prefix, handlers.Shift)
+	}
+	if handlers.Break != nil {
+		registerBreakRoutes(router, v1Prefix, handlers.Break)
+	}
+	if handlers.Holiday != nil {
+		registerHolidayRoutes(router, v1Prefix, handlers.Holiday)
 	}
 	if handlers.UserCountry != nil {
 		registerUserCountryRoutes(router, v1Prefix, handlers.UserCountry)

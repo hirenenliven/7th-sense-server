@@ -2,9 +2,9 @@ package model
 
 import "time"
 
-// Part is a row of the parts table, plus the display name of its customer and the
-// number of its processes (read with joins, never written back). Processes is filled
-// only when one part is read (GET /parts/{id}). Times are whole seconds.
+// Part is a row of the parts table, plus the display names of its customer and
+// clientele and the number of its processes (read with joins, never written back).
+// Processes is filled only when one part is read (GET /parts/{id}). Times are whole seconds.
 type Part struct {
 	ID             int64      `db:"id" json:"id"`
 	UserID         int64      `db:"user_id" json:"userId"`
@@ -20,8 +20,9 @@ type Part struct {
 	UpdatedAt      time.Time  `db:"updated_at" json:"updatedAt"`
 
 	// Read-only (joins)
-	CustomerName string `db:"customer_name" json:"customerName"`
-	ProcessCount int    `db:"process_count" json:"processCount"`
+	CustomerName  string `db:"customer_name" json:"customerName"`
+	ProcessCount  int    `db:"process_count" json:"processCount"`
+	ClienteleName string `db:"clientele_name" json:"clienteleName"`
 
 	Processes []PartProcess `db:"-" json:"processes,omitempty"`
 }

@@ -31,4 +31,8 @@ var (
 	ErrInvalidUser = errors.New("invalid user")
 	// ErrInvalidParent is returned when an organization row's parent id does not reference an existing row.
 	ErrInvalidParent = errors.New("invalid parent")
+	// ErrInvalidClientele is returned when clientele_id does not reference an existing clientele.
+	ErrInvalidClientele = errors.New("invalid clientele")
+	// ErrDuplicateWeekOff is returned when the customer already has a week off on that weekday.
+	ErrDuplicateWeekOff = errors.New("duplicate week off")
 )

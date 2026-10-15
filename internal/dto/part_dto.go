@@ -115,9 +115,9 @@ func (fields *PartFields) validate() error {
 		return response.NewError(http.StatusBadRequest, "Please select customer")
 	case fields.ClienteleID != nil && *fields.ClienteleID <= 0:
 		return response.NewError(http.StatusBadRequest, "Please select valid clientele")
-	case !validPartText(fields.PartNo, partNoMaxLength):
+	case !validText(fields.PartNo, partNoMaxLength):
 		return response.NewError(http.StatusBadRequest, "Please enter valid part no.")
-	case !validPartText(fields.PartName, partNameMaxLength):
+	case !validText(fields.PartName, partNameMaxLength):
 		return response.NewError(http.StatusBadRequest, "Please enter valid part name")
 	case fields.PartCount < 1 || fields.PartCount > partMaxCount:
 		return response.NewError(http.StatusBadRequest, "Please enter valid part count")
@@ -158,21 +158,21 @@ func (process *PartProcessFields) validate(position int) error {
 	switch {
 	case process.ID != nil && *process.ID <= 0:
 		return invalid("Please enter valid process")
-	case !validPartText(process.Process, partProcessTextMaxLength):
+	case !validText(process.Process, partProcessTextMaxLength):
 		return invalid("Please enter valid process")
-	case !validPartText(process.ProgramName, partProcessTextMaxLength):
+	case !validText(process.ProgramName, partProcessTextMaxLength):
 		return invalid("Please enter valid program name")
 	case len(process.MachineIDs) == 0:
 		return invalid("Please select applicable machine")
 	case len(process.MachineIDs) > partMaxMachines:
 		return invalid("Please select valid applicable machines")
-	case !validPartText(process.DrawingNo, partProcessTextMaxLength):
+	case !validText(process.DrawingNo, partProcessTextMaxLength):
 		return invalid("Please enter valid drawing no.")
-	case !validPartText(process.DrawingRevisionNo, partProcessTextMaxLength):
+	case !validText(process.DrawingRevisionNo, partProcessTextMaxLength):
 		return invalid("Please enter valid drawing revision no.")
 	case !partDrawingFilePattern.MatchString(process.DrawingFile):
 		return invalid("Please upload part drawing (PDF)")
-	case !validPartText(process.DrawingName, partDrawingNameMax):
+	case !validText(process.DrawingName, partDrawingNameMax):
 		return invalid("Please upload part drawing (PDF)")
 	case process.AccuracyID <= 0:
 		return invalid("Please select machine accuracy level")
@@ -203,7 +203,7 @@ func (process *PartProcessFields) validate(position int) error {
 	for index := range process.SubPrograms {
 		subProgram := &process.SubPrograms[index]
 		subProgram.Name = strings.TrimSpace(subProgram.Name)
-		if !validPartText(subProgram.Name, partSubProgramMaxLength) {
+		if !validText(subProgram.Name, partSubProgramMaxLength) {
 			return invalid("Please enter valid sub program name")
 		}
 		if subProgram.CycleTime < 0 || subProgram.CycleTime > partMaxSeconds {
@@ -230,7 +230,7 @@ func (request *UploadPartDrawingRequest) Validate() error {
 		return response.NewError(http.StatusBadRequest, "Part drawing must be 10 MB or smaller")
 	case !strings.EqualFold(filepath.Ext(request.Name), ".pdf") || !bytes.HasPrefix(request.Content, []byte("%PDF-")):
 		return response.NewError(http.StatusBadRequest, "Part drawing must be a PDF file")
-	case !validPartText(request.Name, partDrawingNameMax):
+	case !validText(request.Name, partDrawingNameMax):
 		return response.NewError(http.StatusBadRequest, "Please enter valid file name")
 	}
 	return nil
@@ -241,8 +241,8 @@ func ValidPartDrawingFile(file string) bool {
 	return partDrawingFilePattern.MatchString(file)
 }
 
-// validPartText reports whether value is 1 to maxLength characters without control characters.
-func validPartText(value string, maxLength int) bool {
+// validText reports whether value is 1 to maxLength characters without control characters.
+func validText(value string, maxLength int) bool {
 	if value == "" || utf8.RuneCountInString(value) > maxLength {
 		return false
 	}

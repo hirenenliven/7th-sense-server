@@ -18,7 +18,7 @@ import (
 
 // PartService holds the business rules for parts. A part belongs to a customer
 // (user_id) and is saved with its processes, their applicable machines and sub
-// programs in one transaction. Every applicable machine must be one of the customer's
+// programs in one transaction. The clientele and every applicable machine must be the customer's
 // and every drawing must have been uploaded (UploadDrawing).
 //
 // The superadmin reads and changes every customer's parts; everyone else reads their
@@ -27,34 +27,37 @@ import (
 // Production times are worked out here, never taken from the request:
 // process = setup + cycle + loading + its sub programs' cycle times; part = its processes.
 type PartService struct {
-	dbPool         *pgxpool.Pool
-	partRepository *repository.PartRepository
-	userRepository *repository.UserRepository
-	machineService *MachineService
-	drawingStorage *repository.PartDrawingStorage
+	dbPool           *pgxpool.Pool
+	partRepository   *repository.PartRepository
+	userRepository   *repository.UserRepository
+	machineService   *MachineService
+	clienteleService *ClienteleService
+	drawingStorage   *repository.PartDrawingStorage
 }
 
 // NewPartService creates a PartService that stores parts in dbPool, drawings in
-// drawingStorage, and checks customers and machines with the other arguments.
+// drawingStorage, and checks customers, machines and clienteles with the other arguments.
 func NewPartService(
 	dbPool *pgxpool.Pool,
 	userRepository *repository.UserRepository,
 	machineService *MachineService,
+	clienteleService *ClienteleService,
 	drawingStorage *repository.PartDrawingStorage,
 ) *PartService {
 	return &PartService{
-		dbPool:         dbPool,
-		partRepository: repository.NewPartRepository(dbPool),
-		userRepository: userRepository,
-		machineService: machineService,
-		drawingStorage: drawingStorage,
+		dbPool:           dbPool,
+		partRepository:   repository.NewPartRepository(dbPool),
+		userRepository:   userRepository,
+		machineService:   machineService,
+		clienteleService: clienteleService,
+		drawingStorage:   drawingStorage,
 	}
 }
 
-// GetAll returns the parts actor may read (see partOwner), without their processes.
+// GetAll returns the parts actor may read (see companyOwner), without their processes.
 // A non-nil customerID keeps only that customer's parts.
 func (partService *PartService) GetAll(ctx context.Context, actor model.AuthUser, customerID *int64) ([]model.Part, error) {
-	ownerID, err := partOwner(actor, customerID)
+	ownerID, err := companyOwner(actor, customerID)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +67,7 @@ func (partService *PartService) GetAll(ctx context.Context, actor model.AuthUser
 // GetByID returns the part with its processes when actor may read it, else
 // "Part not found".
 func (partService *PartService) GetByID(ctx context.Context, actor model.AuthUser, customerID *int64, id int64) (model.Part, error) {
-	ownerID, err := partOwner(actor, customerID)
+	ownerID, err := companyOwner(actor, customerID)
 	if err != nil {
 		return model.Part{}, err
 	}
@@ -103,7 +106,7 @@ func (partService *PartService) details(ctx context.Context, partRepository *rep
 // Create adds a part with its processes. A customer or admin (actor) adds it to their
 // own company, whatever customer the request names; the superadmin to the customer named.
 func (partService *PartService) Create(ctx context.Context, actor model.AuthUser, partRequest dto.CreatePartRequest) (model.Part, error) {
-	if err := ownCompanyPart(actor, &partRequest.PartFields); err != nil {
+	if err := ownCompanyCustomer(actor, &partRequest.UserID); err != nil {
 		return model.Part{}, err
 	}
 	if err := partService.checkReferences(ctx, partRequest.PartFields); err != nil {
@@ -140,10 +143,10 @@ func (partService *PartService) Create(ctx context.Context, actor model.AuthUser
 // admin (actor) changes only their company's parts ("Part not found" for others) and
 // cannot move one to another company.
 func (partService *PartService) Update(ctx context.Context, actor model.AuthUser, id int64, partRequest dto.UpdatePartRequest) (model.Part, error) {
-	if err := ownCompanyPart(actor, &partRequest.PartFields); err != nil {
+	if err := ownCompanyCustomer(actor, &partRequest.UserID); err != nil {
 		return model.Part{}, err
 	}
-	ownerID, err := partOwner(actor, nil)
+	ownerID, err := companyOwner(actor, nil)
 	if err != nil {
 		return model.Part{}, err
 	}
@@ -185,7 +188,7 @@ func (partService *PartService) Update(ctx context.Context, actor model.AuthUser
 // Delete soft-deletes the part. A customer or admin (actor) deletes only their
 // company's parts ("Part not found" for others).
 func (partService *PartService) Delete(ctx context.Context, actor model.AuthUser, id int64) error {
-	ownerID, err := partOwner(actor, nil)
+	ownerID, err := companyOwner(actor, nil)
 	if err != nil {
 		return err
 	}
@@ -229,37 +232,9 @@ func (partService *PartService) OpenDrawing(ctx context.Context, actor model.Aut
 
 var partDrawingNotFound = response.NewError(http.StatusNotFound, "Part drawing not found")
 
-// partOwner returns the customer whose parts actor may read: the superadmin any
-// (customerID narrows to one, nil = every customer), everyone else only their
-// company's. Asking for another customer's parts, or having no company, is Forbidden.
-func partOwner(actor model.AuthUser, customerID *int64) (*int64, error) {
-	if actor.Role == model.RoleSuperAdmin {
-		return customerID, nil
-	}
-	company := actor.Company()
-	if company == nil || (customerID != nil && *customerID != *company) {
-		return nil, response.Forbidden
-	}
-	return company, nil
-}
-
-// ownCompanyPart makes the part of fields belong to actor's company when actor is not
-// the superadmin. Only managers reach here (managersOnly); one without a company gets
-// Forbidden.
-func ownCompanyPart(actor model.AuthUser, fields *dto.PartFields) error {
-	if actor.Role == model.RoleSuperAdmin {
-		return nil
-	}
-	company := actor.Company()
-	if company == nil {
-		return response.Forbidden
-	}
-	fields.UserID = *company
-	return nil
-}
-
 // checkReferences returns a "Please select valid …" error unless the customer exists,
-// every applicable machine is one of the customer's and every drawing was uploaded.
+// the clientele (when given) and every applicable machine are the customer's and every
+// drawing was uploaded.
 func (partService *PartService) checkReferences(ctx context.Context, fields dto.PartFields) error {
 	isCustomer, err := partService.userRepository.IsCustomer(ctx, fields.UserID)
 	if err != nil {
@@ -267,6 +242,11 @@ func (partService *PartService) checkReferences(ctx context.Context, fields dto.
 	}
 	if !isCustomer {
 		return response.NewError(http.StatusBadRequest, "Please select valid customer")
+	}
+	if fields.ClienteleID != nil {
+		if err := partService.clienteleService.CheckOwnedBy(ctx, fields.UserID, *fields.ClienteleID); err != nil {
+			return err
+		}
 	}
 
 	var machineIDs []int64
@@ -380,6 +360,8 @@ func toPartResponseError(err error) error {
 		return response.NewError(http.StatusBadRequest, "This customer already has a part with this part no. and name")
 	case errors.Is(err, repository.ErrInvalidUser):
 		return response.NewError(http.StatusBadRequest, "Please select valid customer")
+	case errors.Is(err, repository.ErrInvalidClientele):
+		return response.NewError(http.StatusBadRequest, "Please select valid clientele")
 	default:
 		return err
 	}
