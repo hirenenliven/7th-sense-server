@@ -27,12 +27,12 @@ func NewUserStateRepository(database db.Querier) *UserStateRepository {
 
 // FindAll returns the user's states ordered by name. A non-nil userCountryID keeps
 // only the states of that country.
-func (userStateRepository *UserStateRepository) FindAll(ctx context.Context, userID int64, userCountryID *int64) ([]model.UserState, error) {
+func (userStateRepository *UserStateRepository) FindAll(ctx context.Context, userID *int64, userCountryID *int64) ([]model.UserState, error) {
 	query := `SELECT u.id, u.user_id, u.user_country_id, p.name AS country_name, u.name,
 			u.is_deleted, u.deleted_at, u.created_at, u.updated_at
 		FROM user_state u
 		JOIN user_country p ON p.id = u.user_country_id
-		WHERE u.user_id = $1 AND u.is_deleted = false
+		WHERE ($1::bigint IS NULL OR u.user_id = $1) AND u.is_deleted = false
 			AND ($2::bigint IS NULL OR u.user_country_id = $2)
 		ORDER BY lower(u.name), u.id`
 

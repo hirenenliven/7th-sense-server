@@ -22,7 +22,7 @@ func NewUserCityHandler(userCityService *service.UserCityService) *UserCityHandl
 
 // GetAll handles GET /api/v1/user-city[?userStateId=<id>][&userId=<id>].
 func (userCityHandler *UserCityHandler) GetAll(writer http.ResponseWriter, request *http.Request) {
-	userID, err := targetUserID(request)
+	userID, err := listUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return

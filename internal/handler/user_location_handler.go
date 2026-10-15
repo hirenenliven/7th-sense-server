@@ -22,7 +22,7 @@ func NewUserLocationHandler(userLocationService *service.UserLocationService) *U
 
 // GetAll handles GET /api/v1/user-location[?branchId=<id>][&userId=<id>].
 func (userLocationHandler *UserLocationHandler) GetAll(writer http.ResponseWriter, request *http.Request) {
-	userID, err := targetUserID(request)
+	userID, err := listUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return

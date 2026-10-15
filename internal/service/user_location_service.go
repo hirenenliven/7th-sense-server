@@ -25,7 +25,7 @@ func NewUserLocationService(userLocationRepository *repository.UserLocationRepos
 }
 
 // GetAll returns the user's locations. A non-nil branchID keeps only that branch's locations.
-func (userLocationService *UserLocationService) GetAll(ctx context.Context, userID int64, branchID *int64) ([]model.UserLocation, error) {
+func (userLocationService *UserLocationService) GetAll(ctx context.Context, userID *int64, branchID *int64) ([]model.UserLocation, error) {
 	return userLocationService.userLocationRepository.FindAll(ctx, userID, branchID)
 }
 

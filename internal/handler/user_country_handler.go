@@ -22,7 +22,7 @@ func NewUserCountryHandler(userCountryService *service.UserCountryService) *User
 
 // GetAll handles GET /api/v1/user-country[?userId=<id>].
 func (userCountryHandler *UserCountryHandler) GetAll(writer http.ResponseWriter, request *http.Request) {
-	userID, err := targetUserID(request)
+	userID, err := listUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return

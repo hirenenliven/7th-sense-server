@@ -25,7 +25,7 @@ func NewUserCityService(userCityRepository *repository.UserCityRepository, userS
 }
 
 // GetAll returns the user's cities. A non-nil userStateID keeps only that state's cities.
-func (userCityService *UserCityService) GetAll(ctx context.Context, userID int64, userStateID *int64) ([]model.UserCity, error) {
+func (userCityService *UserCityService) GetAll(ctx context.Context, userID *int64, userStateID *int64) ([]model.UserCity, error) {
 	return userCityService.userCityRepository.FindAll(ctx, userID, userStateID)
 }
 

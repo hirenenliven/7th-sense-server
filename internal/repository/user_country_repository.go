@@ -26,11 +26,11 @@ func NewUserCountryRepository(database db.Querier) *UserCountryRepository {
 }
 
 // FindAll returns the user's countries ordered by name.
-func (userCountryRepository *UserCountryRepository) FindAll(ctx context.Context, userID int64) ([]model.UserCountry, error) {
+func (userCountryRepository *UserCountryRepository) FindAll(ctx context.Context, userID *int64) ([]model.UserCountry, error) {
 	query := `SELECT u.id, u.user_id, u.name,
 			u.is_deleted, u.deleted_at, u.created_at, u.updated_at
 		FROM user_country u
-		WHERE u.user_id = $1 AND u.is_deleted = false
+		WHERE ($1::bigint IS NULL OR u.user_id = $1) AND u.is_deleted = false
 		ORDER BY lower(u.name), u.id`
 
 	rows, err := db.Execute(ctx, userCountryRepository.database, query, userID)

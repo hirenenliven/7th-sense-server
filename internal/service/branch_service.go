@@ -34,9 +34,9 @@ func (branchService *BranchService) GetByID(ctx context.Context, id int64) (mode
 	return branch, toBranchResponseError(err)
 }
 
-// Create adds a branch. A city, when given, must be one of userID's cities.
+// Create adds a branch. A city, when given, must be one of the branch customer's cities.
 func (branchService *BranchService) Create(ctx context.Context, userID int64, branchRequest dto.CreateBranchRequest) (model.Branch, error) {
-	if err := branchService.checkCity(ctx, userID, branchRequest.UserCityID); err != nil {
+	if err := branchService.checkCity(ctx, cityOwner(userID, branchRequest.CustomerID), branchRequest.UserCityID); err != nil {
 		return model.Branch{}, err
 	}
 	branch, err := branchService.branchRepository.Create(ctx, model.Branch{
@@ -44,8 +44,6 @@ func (branchService *BranchService) Create(ctx context.Context, userID int64, br
 		Name:       branchRequest.Name,
 		Email:      branchRequest.Email,
 		Address:    branchRequest.Address,
-		City:       branchRequest.City,
-		StateID:    branchRequest.StateID,
 		UserCityID: branchRequest.UserCityID,
 		CustomerID: branchRequest.CustomerID,
 		GSTNumber:  branchRequest.GSTNumber,
@@ -56,9 +54,9 @@ func (branchService *BranchService) Create(ctx context.Context, userID int64, br
 	return branch, toBranchResponseError(err)
 }
 
-// Update replaces the branch. A city, when given, must be one of userID's cities.
+// Update replaces the branch. A city, when given, must be one of the branch customer's cities.
 func (branchService *BranchService) Update(ctx context.Context, userID, id int64, branchRequest dto.UpdateBranchRequest) (model.Branch, error) {
-	if err := branchService.checkCity(ctx, userID, branchRequest.UserCityID); err != nil {
+	if err := branchService.checkCity(ctx, cityOwner(userID, branchRequest.CustomerID), branchRequest.UserCityID); err != nil {
 		return model.Branch{}, err
 	}
 	branch, err := branchService.branchRepository.Update(ctx, model.Branch{
@@ -67,8 +65,6 @@ func (branchService *BranchService) Update(ctx context.Context, userID, id int64
 		Name:       branchRequest.Name,
 		Email:      branchRequest.Email,
 		Address:    branchRequest.Address,
-		City:       branchRequest.City,
-		StateID:    branchRequest.StateID,
 		UserCityID: branchRequest.UserCityID,
 		CustomerID: branchRequest.CustomerID,
 		GSTNumber:  branchRequest.GSTNumber,
@@ -90,6 +86,15 @@ func (branchService *BranchService) Delete(ctx context.Context, id int64) error 
 		return response.NewError(http.StatusBadRequest, "This branch has locations. Delete its locations first")
 	}
 	return toBranchResponseError(branchService.branchRepository.Delete(ctx, id))
+}
+
+// cityOwner is whose cities a branch city must be: the branch's customer (the superadmin
+// saves branches for customers), else the current user.
+func cityOwner(userID int64, customerID *int64) int64 {
+	if customerID != nil {
+		return *customerID
+	}
+	return userID
 }
 
 // checkCity returns "Please enter valid city" unless userCityID is nil or one of

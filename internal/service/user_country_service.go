@@ -23,7 +23,7 @@ func NewUserCountryService(userCountryRepository *repository.UserCountryReposito
 }
 
 // GetAll returns the user's countries.
-func (userCountryService *UserCountryService) GetAll(ctx context.Context, userID int64) ([]model.UserCountry, error) {
+func (userCountryService *UserCountryService) GetAll(ctx context.Context, userID *int64) ([]model.UserCountry, error) {
 	return userCountryService.userCountryRepository.FindAll(ctx, userID)
 }
 

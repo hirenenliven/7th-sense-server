@@ -27,12 +27,12 @@ func NewUserShopRepository(database db.Querier) *UserShopRepository {
 
 // FindAll returns the user's shops ordered by name. A non-nil userLocationID keeps
 // only the shops of that location.
-func (userShopRepository *UserShopRepository) FindAll(ctx context.Context, userID int64, userLocationID *int64) ([]model.UserShop, error) {
+func (userShopRepository *UserShopRepository) FindAll(ctx context.Context, userID *int64, userLocationID *int64) ([]model.UserShop, error) {
 	query := `SELECT u.id, u.user_id, u.user_location_id, p.name AS location_name, u.name,
 			u.is_deleted, u.deleted_at, u.created_at, u.updated_at
 		FROM user_shop u
 		JOIN user_location p ON p.id = u.user_location_id
-		WHERE u.user_id = $1 AND u.is_deleted = false
+		WHERE ($1::bigint IS NULL OR u.user_id = $1) AND u.is_deleted = false
 			AND ($2::bigint IS NULL OR u.user_location_id = $2)
 		ORDER BY lower(u.name), u.id`
 

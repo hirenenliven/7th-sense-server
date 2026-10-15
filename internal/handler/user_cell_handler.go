@@ -22,7 +22,7 @@ func NewUserCellHandler(userCellService *service.UserCellService) *UserCellHandl
 
 // GetAll handles GET /api/v1/user-cell[?userLineId=<id>][&userId=<id>].
 func (userCellHandler *UserCellHandler) GetAll(writer http.ResponseWriter, request *http.Request) {
-	userID, err := targetUserID(request)
+	userID, err := listUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return

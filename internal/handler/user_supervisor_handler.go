@@ -22,7 +22,7 @@ func NewUserSupervisorHandler(userSupervisorService *service.UserSupervisorServi
 
 // GetAll handles GET /api/v1/user-supervisor[?userCellId=<id>][&userId=<id>].
 func (userSupervisorHandler *UserSupervisorHandler) GetAll(writer http.ResponseWriter, request *http.Request) {
-	userID, err := targetUserID(request)
+	userID, err := listUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return

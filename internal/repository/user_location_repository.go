@@ -27,12 +27,12 @@ func NewUserLocationRepository(database db.Querier) *UserLocationRepository {
 
 // FindAll returns the user's locations ordered by name. A non-nil branchID keeps
 // only the locations of that branch.
-func (userLocationRepository *UserLocationRepository) FindAll(ctx context.Context, userID int64, branchID *int64) ([]model.UserLocation, error) {
+func (userLocationRepository *UserLocationRepository) FindAll(ctx context.Context, userID *int64, branchID *int64) ([]model.UserLocation, error) {
 	query := `SELECT u.id, u.user_id, u.branch_id, p.name AS branch_name, u.name,
 			u.is_deleted, u.deleted_at, u.created_at, u.updated_at
 		FROM user_location u
 		JOIN branches p ON p.id = u.branch_id
-		WHERE u.user_id = $1 AND u.is_deleted = false
+		WHERE ($1::bigint IS NULL OR u.user_id = $1) AND u.is_deleted = false
 			AND ($2::bigint IS NULL OR u.branch_id = $2)
 		ORDER BY lower(u.name), u.id`
 

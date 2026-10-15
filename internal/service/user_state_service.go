@@ -25,7 +25,7 @@ func NewUserStateService(userStateRepository *repository.UserStateRepository, us
 }
 
 // GetAll returns the user's states. A non-nil userCountryID keeps only that country's states.
-func (userStateService *UserStateService) GetAll(ctx context.Context, userID int64, userCountryID *int64) ([]model.UserState, error) {
+func (userStateService *UserStateService) GetAll(ctx context.Context, userID *int64, userCountryID *int64) ([]model.UserState, error) {
 	return userStateService.userStateRepository.FindAll(ctx, userID, userCountryID)
 }
 

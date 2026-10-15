@@ -27,12 +27,12 @@ func NewUserSupervisorRepository(database db.Querier) *UserSupervisorRepository 
 
 // FindAll returns the user's supervisors ordered by name. A non-nil userCellID keeps
 // only the supervisors of that cell.
-func (userSupervisorRepository *UserSupervisorRepository) FindAll(ctx context.Context, userID int64, userCellID *int64) ([]model.UserSupervisor, error) {
+func (userSupervisorRepository *UserSupervisorRepository) FindAll(ctx context.Context, userID *int64, userCellID *int64) ([]model.UserSupervisor, error) {
 	query := `SELECT u.id, u.user_id, u.user_cell_id, p.name AS cell_name, u.name,
 			u.is_deleted, u.deleted_at, u.created_at, u.updated_at
 		FROM user_supervisor u
 		JOIN user_cell p ON p.id = u.user_cell_id
-		WHERE u.user_id = $1 AND u.is_deleted = false
+		WHERE ($1::bigint IS NULL OR u.user_id = $1) AND u.is_deleted = false
 			AND ($2::bigint IS NULL OR u.user_cell_id = $2)
 		ORDER BY lower(u.name), u.id`
 

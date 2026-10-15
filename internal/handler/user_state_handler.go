@@ -22,7 +22,7 @@ func NewUserStateHandler(userStateService *service.UserStateService) *UserStateH
 
 // GetAll handles GET /api/v1/user-state[?userCountryId=<id>][&userId=<id>].
 func (userStateHandler *UserStateHandler) GetAll(writer http.ResponseWriter, request *http.Request) {
-	userID, err := targetUserID(request)
+	userID, err := listUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return

@@ -25,7 +25,7 @@ func NewUserSupervisorService(userSupervisorRepository *repository.UserSuperviso
 }
 
 // GetAll returns the user's supervisors. A non-nil userCellID keeps only that cell's supervisors.
-func (userSupervisorService *UserSupervisorService) GetAll(ctx context.Context, userID int64, userCellID *int64) ([]model.UserSupervisor, error) {
+func (userSupervisorService *UserSupervisorService) GetAll(ctx context.Context, userID *int64, userCellID *int64) ([]model.UserSupervisor, error) {
 	return userSupervisorService.userSupervisorRepository.FindAll(ctx, userID, userCellID)
 }
 

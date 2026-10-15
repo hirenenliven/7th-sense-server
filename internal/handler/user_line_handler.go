@@ -22,7 +22,7 @@ func NewUserLineHandler(userLineService *service.UserLineService) *UserLineHandl
 
 // GetAll handles GET /api/v1/user-line[?userShopId=<id>][&userId=<id>].
 func (userLineHandler *UserLineHandler) GetAll(writer http.ResponseWriter, request *http.Request) {
-	userID, err := targetUserID(request)
+	userID, err := listUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return

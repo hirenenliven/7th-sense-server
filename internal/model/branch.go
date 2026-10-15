@@ -10,8 +10,6 @@ type Branch struct {
 	Name       string     `db:"name" json:"name"`
 	Email      string     `db:"email" json:"email"`
 	Address    string     `db:"address" json:"address"`
-	City       string     `db:"city" json:"city"`
-	StateID    *int64     `db:"state_id" json:"stateId"`
 	UserCityID *int64     `db:"user_city_id" json:"userCityId"`
 	CityName   string     `db:"city_name" json:"cityName"` // read from user_city
 	CustomerID *int64     `db:"customer_id" json:"customerId"`

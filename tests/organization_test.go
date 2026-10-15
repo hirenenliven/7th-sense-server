@@ -198,12 +198,17 @@ func TestOrganizationForAnotherUser(t *testing.T) {
 		t.Fatalf("country = %+v; want user %d", country, otherUserID)
 	}
 
-	t.Run("admin lists the named user's rows only", func(t *testing.T) {
-		var others, own []orgRecord
+	t.Run("admin lists the named user's rows, or every user's without userId", func(t *testing.T) {
+		var others, all []orgRecord
 		decodeData(t, sendRequest(t, adminRouter, http.MethodGet, otherPath("/user-country"), nil), &others)
-		decodeData(t, sendRequest(t, adminRouter, http.MethodGet, apiV1+"/user-country", nil), &own)
-		if !containsOrgID(others, country.ID) || containsOrgID(own, country.ID) {
-			t.Fatalf("country %d: in other user's list = %v, in admin's list = %v; want true, false", country.ID, containsOrgID(others, country.ID), containsOrgID(own, country.ID))
+		decodeData(t, sendRequest(t, adminRouter, http.MethodGet, apiV1+"/user-country", nil), &all)
+		if !containsOrgID(others, country.ID) || !containsOrgID(all, country.ID) {
+			t.Fatalf("country %d: in other user's list = %v, in unfiltered list = %v; want true, true", country.ID, containsOrgID(others, country.ID), containsOrgID(all, country.ID))
+		}
+		for _, record := range others {
+			if record.UserID != otherUserID {
+				t.Fatalf("named user's list has %+v; want only user %d", record, otherUserID)
+			}
 		}
 	})
 

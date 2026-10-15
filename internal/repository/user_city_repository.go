@@ -27,12 +27,12 @@ func NewUserCityRepository(database db.Querier) *UserCityRepository {
 
 // FindAll returns the user's cities ordered by name. A non-nil userStateID keeps
 // only the cities of that state.
-func (userCityRepository *UserCityRepository) FindAll(ctx context.Context, userID int64, userStateID *int64) ([]model.UserCity, error) {
+func (userCityRepository *UserCityRepository) FindAll(ctx context.Context, userID *int64, userStateID *int64) ([]model.UserCity, error) {
 	query := `SELECT u.id, u.user_id, u.user_state_id, p.name AS state_name, u.name,
 			u.is_deleted, u.deleted_at, u.created_at, u.updated_at
 		FROM user_city u
 		JOIN user_state p ON p.id = u.user_state_id
-		WHERE u.user_id = $1 AND u.is_deleted = false
+		WHERE ($1::bigint IS NULL OR u.user_id = $1) AND u.is_deleted = false
 			AND ($2::bigint IS NULL OR u.user_state_id = $2)
 		ORDER BY lower(u.name), u.id`
 

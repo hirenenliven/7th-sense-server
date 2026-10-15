@@ -27,12 +27,12 @@ func NewUserCellRepository(database db.Querier) *UserCellRepository {
 
 // FindAll returns the user's cells ordered by name. A non-nil userLineID keeps
 // only the cells of that line.
-func (userCellRepository *UserCellRepository) FindAll(ctx context.Context, userID int64, userLineID *int64) ([]model.UserCell, error) {
+func (userCellRepository *UserCellRepository) FindAll(ctx context.Context, userID *int64, userLineID *int64) ([]model.UserCell, error) {
 	query := `SELECT u.id, u.user_id, u.user_line_id, p.name AS line_name, u.name,
 			u.is_deleted, u.deleted_at, u.created_at, u.updated_at
 		FROM user_cell u
 		JOIN user_line p ON p.id = u.user_line_id
-		WHERE u.user_id = $1 AND u.is_deleted = false
+		WHERE ($1::bigint IS NULL OR u.user_id = $1) AND u.is_deleted = false
 			AND ($2::bigint IS NULL OR u.user_line_id = $2)
 		ORDER BY lower(u.name), u.id`
 

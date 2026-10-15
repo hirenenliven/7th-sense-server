@@ -25,7 +25,7 @@ func NewUserCellService(userCellRepository *repository.UserCellRepository, userL
 }
 
 // GetAll returns the user's cells. A non-nil userLineID keeps only that line's cells.
-func (userCellService *UserCellService) GetAll(ctx context.Context, userID int64, userLineID *int64) ([]model.UserCell, error) {
+func (userCellService *UserCellService) GetAll(ctx context.Context, userID *int64, userLineID *int64) ([]model.UserCell, error) {
 	return userCellService.userCellRepository.FindAll(ctx, userID, userLineID)
 }
 

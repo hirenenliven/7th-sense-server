@@ -25,7 +25,7 @@ func NewUserLineService(userLineRepository *repository.UserLineRepository, userS
 }
 
 // GetAll returns the user's lines. A non-nil userShopID keeps only that shop's lines.
-func (userLineService *UserLineService) GetAll(ctx context.Context, userID int64, userShopID *int64) ([]model.UserLine, error) {
+func (userLineService *UserLineService) GetAll(ctx context.Context, userID *int64, userShopID *int64) ([]model.UserLine, error) {
 	return userLineService.userLineRepository.FindAll(ctx, userID, userShopID)
 }
 

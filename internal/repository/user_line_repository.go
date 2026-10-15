@@ -27,12 +27,12 @@ func NewUserLineRepository(database db.Querier) *UserLineRepository {
 
 // FindAll returns the user's lines ordered by name. A non-nil userShopID keeps
 // only the lines of that shop.
-func (userLineRepository *UserLineRepository) FindAll(ctx context.Context, userID int64, userShopID *int64) ([]model.UserLine, error) {
+func (userLineRepository *UserLineRepository) FindAll(ctx context.Context, userID *int64, userShopID *int64) ([]model.UserLine, error) {
 	query := `SELECT u.id, u.user_id, u.user_shop_id, p.name AS shop_name, u.name,
 			u.is_deleted, u.deleted_at, u.created_at, u.updated_at
 		FROM user_line u
 		JOIN user_shop p ON p.id = u.user_shop_id
-		WHERE u.user_id = $1 AND u.is_deleted = false
+		WHERE ($1::bigint IS NULL OR u.user_id = $1) AND u.is_deleted = false
 			AND ($2::bigint IS NULL OR u.user_shop_id = $2)
 		ORDER BY lower(u.name), u.id`
 

@@ -25,7 +25,7 @@ func NewUserShopService(userShopRepository *repository.UserShopRepository, userL
 }
 
 // GetAll returns the user's shops. A non-nil userLocationID keeps only that location's shops.
-func (userShopService *UserShopService) GetAll(ctx context.Context, userID int64, userLocationID *int64) ([]model.UserShop, error) {
+func (userShopService *UserShopService) GetAll(ctx context.Context, userID *int64, userLocationID *int64) ([]model.UserShop, error) {
 	return userShopService.userShopRepository.FindAll(ctx, userID, userLocationID)
 }
 

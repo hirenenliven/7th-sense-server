@@ -101,3 +101,21 @@ func targetUserID(request *http.Request) (int64, error) {
 	}
 	return *userID, nil
 }
+
+// listUserID returns whose organization rows a list (GET /user-country … /user-supervisor)
+// shows: nil = every user's, for the superadmin without ?userId= (the tables have a Customer
+// column and the forms pick the customer); otherwise the user targetUserID picks.
+func listUserID(request *http.Request) (*int64, error) {
+	currentUser, ok := middleware.CurrentUser(request.Context())
+	if !ok {
+		return nil, response.Unauthorized
+	}
+	if currentUser.Role == model.RoleSuperAdmin && request.URL.Query().Get("userId") == "" {
+		return nil, nil
+	}
+	userID, err := targetUserID(request)
+	if err != nil {
+		return nil, err
+	}
+	return &userID, nil
+}

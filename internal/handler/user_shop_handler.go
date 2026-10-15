@@ -22,7 +22,7 @@ func NewUserShopHandler(userShopService *service.UserShopService) *UserShopHandl
 
 // GetAll handles GET /api/v1/user-shop[?userLocationId=<id>][&userId=<id>].
 func (userShopHandler *UserShopHandler) GetAll(writer http.ResponseWriter, request *http.Request) {
-	userID, err := targetUserID(request)
+	userID, err := listUserID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
