@@ -1,0 +1,84 @@
+# .graphifyignore — gitignore syntax. Keeps the graph focused on source code + docs.
+
+# ---------- graphify's own output ----------
+graphify-out/
+
+# ---------- Large data / dumps ----------
+*.sql
+*.sql.gz
+*.dump
+*.csv
+
+# ---------- Reference screenshots (vision-processed = slow/costly) ----------
+# Remove this line if you want UI mockups included in the graph.
+reference_image/
+
+# ---------- Secrets / env ----------
+.env
+.env.*
+*.pem
+*.key
+
+# ---------- Editor / OS ----------
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*.sw?
+
+# ---------- Logs / temp ----------
+logs/
+*.log
+tmp/
+temp/
+
+# =========================================================
+# React (Vite) — 7th-sense-client
+# =========================================================
+node_modules/
+dist/
+dist-ssr/
+dist-theme/
+build/
+coverage/
+.vite/
+.cache/
+*.local
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+*.min.js
+*.min.css
+*.map
+7th-sense-client/7thsense-ui-review.html
+
+# Static binary assets
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.ico
+*.webp
+*.woff
+*.woff2
+*.ttf
+*.eot
+*.otf
+*.mp4
+
+# =========================================================
+# Go — 7th-sense-server
+# =========================================================
+bin/
+vendor/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+__debug_bin*
+go.sum
+uploads/

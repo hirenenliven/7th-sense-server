@@ -92,6 +92,8 @@ func run() error {
 			repository.NewUserRepository(dbPool))),
 		LicenceKey: handler.NewLicenceKeyHandler(service.NewLicenceKeyService(repository.NewLicenceKeyRepository(dbPool),
 			repository.NewUserRepository(dbPool))),
+		ProductionSchedule: handler.NewProductionScheduleHandler(service.NewProductionScheduleService(dbPool,
+			repository.NewUserRepository(dbPool), machineService)),
 		UserCountry:    handler.NewUserCountryHandler(userCountryService),
 		UserState:      handler.NewUserStateHandler(userStateService),
 		UserCity:       handler.NewUserCityHandler(userCityService),

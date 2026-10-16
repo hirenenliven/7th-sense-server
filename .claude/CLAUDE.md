@@ -167,6 +167,7 @@ Base path: `/api/v1`
 **Breaks**: GET/POST/PUT/DELETE `/breaks` (migrations 020–021, `service.BreakService`) — a customer's breaks `{userId, shiftId?, name, startTime, endTime}` (+ `status`), name unique per customer. `shiftId` (optional, one of the customer's shifts) is the shift that takes it; responses add `shiftName`. A break on a shift must fit it beside the shift's other breaks. Deleting a break takes it off its shift.
 **Holidays**: GET/POST/PUT/DELETE `/holidays` (migration 020, `service.HolidayService`) — a customer's holidays `{holidayType: "holiday", name, startDate, endDate}` and week offs `{holidayType: "week_off", weekDay: 1..7, name?}` (+ `status`); the fields the kind does not use are cleared. A weekday is a customer's week off once; the same holiday name and start date once. Shifts, breaks and holidays have the same access as parts and clienteles (`companyOwner`).
 **Licence keys**: GET/POST/PUT/DELETE `/licence-keys` (migration 024, `service.LicenceKeyService`) — keys the superadmin generates for a customer, format `K7M2Q-XR9TB-4HWZP-N8CDF` (4 groups of 5 from `dto.LicenceKeyAlphabet`, no I/O/0/1, `crypto/rand`). POST `/licence-keys/generate {count: 1..100}` returns `{licenceKeys}` without saving (the "Generate Key" button); POST `/licence-keys {userId, licenceKeys: [{licenceKey, duration}]}` saves them in one statement, all or none (a key already saved refuses the batch). `duration` is a subscription plan code (`dto.LicenceKeyDurations`, migration 025: M1…M12, Y1…Y3, LIFETIME, TRIAL = `LicenceKeyTrialDays` 30 days, TRIAL_1Y); the server stores `expires_on` (last valid day, counted from the day the key is saved; NULL = lifetime) and responses add `expiresOn`, `isExpired` (computed). PUT `{userId, duration, status}` changes the customer / plan / status (the end date is recounted from `created_at`; the key never changes). Generate, save, edit and delete are `superAdminOnly`; managers read their company's (`companyOwner`, `?userId=` narrows for the superadmin). Key unique among keys not deleted.
+**Production schedules**: GET/POST/PUT/DELETE `/production-schedules` (migration 026: `production_schedules`, `production_schedule_items`; replaces the old `production_schedule` / `schedule_items`, `service.ProductionScheduleService`) — a customer's machine planned for one day (`scheduleType: single`, `endDate` = `startDate`) or a range (`multiple`), saved with its jobs in one transaction. Body `{userId, machineId, scheduleType, startDate, endDate, items: [{id?, scheduleDate, jobId, supervisorId, operatorId, shiftId, partId, processId, quantity, startTime, endTime}]}` (+ `status` on PUT), dates `YYYY-MM-DD`, times `"HH:MM"`; single day sets every `scheduleDate` to `startDate`. Items are kept / added / soft-deleted like part processes; `totalMinutes` is computed. Rules: machine, shift, part are the customer's; supervisor / operator are company members with that role; the process is the part's and lists the machine among its applicable machines; each job lies inside its shift (`scheduleDate` = the day the shift starts, so 02:00 in a 22:00–06:00 shift is next morning); jobs do not overlap; a machine has one schedule per day. Same access as parts. Responses add `customerName`, `machineName`, `itemCount`, `totalQuantity`; items add `supervisorName`, `operatorName`, `shiftName`, `partName`, `processName`.
 **Current user**: GET `/me`
 **Organization** (per user, `?user<Parent>Id=` on list): GET/POST/PUT/DELETE `/user-city|branch|location|shop|line|cell|supervisor`, GET/POST/DELETE `/user-country|state` — one set of files per table (`user_<level>_*.go`). Countries and states are assigned customer-wise by the superadmin only (POST/DELETE `/user-country|state` are `superAdminOnly`); everyone reads their company's. Names come from the client's country library (`country-region-data`, picked several at once and posted one row each); the server keeps no country list, and POST `/user-state` checks the country is the user's. The current user comes from the session (`middleware.Authenticate`); the organization belongs to the company: a customer works on its own rows and its members on the customer's rows (`targetUserID` in `handler/request.go`); only managers (superadmin, customer, admin) change them (`managersOnly`), other members read. The superadmin may act for another user with `?userId=<id>`; everyone else gets 403 for any other id. Lists (`listUserID`): the superadmin without `?userId=` gets every user's rows (each row has `userId`; the client shows a Customer column and picks the customer on the form). Every `/api` route except login/logout needs a session; role-gated routes are wrapped with `superAdminOnly` / `managersOnly` in `internal/routes`. The role and company always come from the session (`middleware.Authenticate` reads them from the database), never from the request. Shared master data — branches, categories, products, brands, controllers, models — is read by everyone and written by the superadmin only.
 
@@ -210,6 +211,7 @@ Default values in `internal/config/config.go` if missing.
 - Shift, ShiftBreak (a break the shift takes), Break (`shift_id`), Holiday (holidays and week offs)
 - Part, PartProcess, PartSubProgram (applicable machines in `part_process_machines`, no soft delete)
 - LicenceKey
+- ProductionSchedule, ProductionScheduleItem
 
 ## Important Notes
 
@@ -219,7 +221,7 @@ Default values in `internal/config/config.go` if missing.
 4. **Logging**: Use structured logging in service layer, never log sensitive data
 5. **Transactions**: Service layer only, keep short, rollback on error
 6. **Idempotency**: PUT and DELETE must be idempotent
-7. **Customer display names**: rows owned by a customer (machines, parts, clienteles, shifts, breaks, holidays, licence keys) return `customerName` = the customer's first + last name (falls back to username; the client always shows this) and `companyName` = `company_profiles.company_name` (`''` when none, readability only). The company name comes from `company_profiles.user_id`, not `users.company_id` (that is only set on members).
+7. **Customer display names**: rows owned by a customer (machines, parts, clienteles, shifts, breaks, holidays, licence keys, production schedules) return `customerName` = the customer's first + last name (falls back to username; the client always shows this) and `companyName` = `company_profiles.company_name` (`''` when none, readability only). The company name comes from `company_profiles.user_id`, not `users.company_id` (that is only set on members).
 
 ## Testing
 
@@ -251,3 +253,13 @@ From `7th_server_skills.md.md`:
 - Documentation at implementation time
 
 **Discipline in the small things creates freedom in the big things.**
+
+## graphify
+
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+
+Rules:
+- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
+- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
+- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
+- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).

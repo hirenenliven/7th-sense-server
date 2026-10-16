@@ -29,6 +29,8 @@ type Handlers struct {
 	Break        *handler.BreakHandler
 	Holiday      *handler.HolidayHandler
 	LicenceKey   *handler.LicenceKeyHandler
+	// ProductionSchedule serves /production-schedules
+	ProductionSchedule *handler.ProductionScheduleHandler
 	// Organization (per user): country → state → city → … → supervisor
 	UserCountry    *handler.UserCountryHandler
 	UserState      *handler.UserStateHandler
@@ -119,6 +121,9 @@ func registerV1Routes(router *http.ServeMux, handlers Handlers) {
 	}
 	if handlers.Holiday != nil {
 		registerHolidayRoutes(router, v1Prefix, handlers.Holiday)
+	}
+	if handlers.ProductionSchedule != nil {
+		registerProductionScheduleRoutes(router, v1Prefix, handlers.ProductionSchedule)
 	}
 	if handlers.LicenceKey != nil {
 		registerLicenceKeyRoutes(router, v1Prefix, handlers.LicenceKey)
