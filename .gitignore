@@ -17,3 +17,6 @@ graphify-out/.graphify_labels.pending.json
 graphify-out/.graphify_python
 graphify-out/.graphify_root
 graphify-out/cost.json
+# Add these patterns to .gitignore
+graphify-out/*.stale
+graphify-out/.rebuild.lock
