@@ -1252,5 +1252,23 @@
     "seen": 1792496167.7790656,
     "ast_hash": "18e202ea12c8a7d885a7db4b6b821e5c",
     "semantic_hash": "18e202ea12c8a7d885a7db4b6b821e5c"
+  },
+  "docs/dll-usecase/G0_V0.0.4_DLL/go.mod": {
+    "mtime": 1792038442.0,
+    "seen": 1792496479.1650412,
+    "ast_hash": "7e5cc3321bcb42a2ac343f28459ffad7",
+    "semantic_hash": ""
+  },
+  "docs/dll-usecase/G0_V0.0.4_DLL/sinumerik_client.go": {
+    "mtime": 1792135700.0,
+    "seen": 1792496479.165044,
+    "ast_hash": "1f26c2178735260ebc1e98599500044b",
+    "semantic_hash": ""
+  },
+  "docs/dll-usecase/G0_V0.0.4_DLL/tools/gencert/gencert.go": {
+    "mtime": 1792127568.0,
+    "seen": 1792496479.165046,
+    "ast_hash": "ad479555d88bc947b129f77dce9df446",
+    "semantic_hash": ""
   }
 }
