@@ -1218,16 +1218,16 @@
     "semantic_hash": "83e782660b9df6e3978298333b4f35a6"
   },
   ".claude/CLAUDE.md": {
-    "mtime": 1792055856.4902384,
-    "seen": 1792149991.0138583,
-    "ast_hash": "87afb548f0a1e88dbd787c2c96a21e7f",
-    "semantic_hash": "87afb548f0a1e88dbd787c2c96a21e7f"
+    "mtime": 1792150185.9189098,
+    "seen": 1792495749.8697147,
+    "ast_hash": "dd585bd4ea98fd4078563885b67e8a64",
+    "semantic_hash": "dd585bd4ea98fd4078563885b67e8a64"
   },
   "7th_server_skills.md.md": {
-    "mtime": 1791799548.5292642,
-    "seen": 1792149991.0138583,
-    "ast_hash": "582c6f64888590e2dd7723c53cf3a574",
-    "semantic_hash": "582c6f64888590e2dd7723c53cf3a574"
+    "mtime": 1792150240.1192653,
+    "seen": 1792495749.8697147,
+    "ast_hash": "c812c3ac169d453849afa23d1d7f4d02",
+    "semantic_hash": "c812c3ac169d453849afa23d1d7f4d02"
   },
   "README.md": {
     "mtime": 1791885151.1982987,
@@ -1240,5 +1240,17 @@
     "seen": 1792149991.0138583,
     "ast_hash": "2a49a6957ee3502b513d513afff17a11",
     "semantic_hash": "2a49a6957ee3502b513d513afff17a11"
+  },
+  "docs/CncCommunication.dll \u2014 API & Integration Guide (Go Client).pdf": {
+    "mtime": 1792492448.5493226,
+    "seen": 1792495749.8697147,
+    "ast_hash": "a6d994b9af151ef75b3e42b12ce303b5",
+    "semantic_hash": "a6d994b9af151ef75b3e42b12ce303b5"
+  },
+  "docs/cnc-communication.md": {
+    "mtime": 1792495972.236997,
+    "seen": 1792496167.7790656,
+    "ast_hash": "18e202ea12c8a7d885a7db4b6b821e5c",
+    "semantic_hash": "18e202ea12c8a7d885a7db4b6b821e5c"
   }
 }
