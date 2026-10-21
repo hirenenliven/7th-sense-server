@@ -25,10 +25,13 @@ type Handlers struct {
 	Machine      *handler.MachineHandler
 	Part         *handler.PartHandler
 	Clientele    *handler.ClienteleHandler
-	Shift        *handler.ShiftHandler
-	Break        *handler.BreakHandler
-	Holiday      *handler.HolidayHandler
-	LicenceKey   *handler.LicenceKeyHandler
+	// DowntimeReason / IdleReason serve /downtime-reasons and /idle-reasons
+	DowntimeReason *handler.DowntimeReasonHandler
+	IdleReason     *handler.IdleReasonHandler
+	Shift          *handler.ShiftHandler
+	Break          *handler.BreakHandler
+	Holiday        *handler.HolidayHandler
+	LicenceKey     *handler.LicenceKeyHandler
 	// ProductionSchedule serves /production-schedules
 	ProductionSchedule *handler.ProductionScheduleHandler
 	// Organization (per user): country → state → city → … → supervisor
@@ -112,6 +115,12 @@ func registerV1Routes(router *http.ServeMux, handlers Handlers) {
 	}
 	if handlers.Clientele != nil {
 		registerClienteleRoutes(router, v1Prefix, handlers.Clientele)
+	}
+	if handlers.DowntimeReason != nil {
+		registerDowntimeReasonRoutes(router, v1Prefix, handlers.DowntimeReason)
+	}
+	if handlers.IdleReason != nil {
+		registerIdleReasonRoutes(router, v1Prefix, handlers.IdleReason)
 	}
 	if handlers.Shift != nil {
 		registerShiftRoutes(router, v1Prefix, handlers.Shift)

@@ -86,8 +86,12 @@ func run() error {
 		Machine:      handler.NewMachineHandler(machineService),
 		Part:         handler.NewPartHandler(partService),
 		Clientele:    handler.NewClienteleHandler(clienteleService),
-		Shift:        handler.NewShiftHandler(service.NewShiftService(dbPool, repository.NewUserRepository(dbPool))),
-		Break:        handler.NewBreakHandler(service.NewBreakService(dbPool, repository.NewUserRepository(dbPool))),
+		DowntimeReason: handler.NewDowntimeReasonHandler(service.NewDowntimeReasonService(
+			repository.NewDowntimeReasonRepository(dbPool), repository.NewUserRepository(dbPool))),
+		IdleReason: handler.NewIdleReasonHandler(service.NewIdleReasonService(
+			repository.NewIdleReasonRepository(dbPool), repository.NewUserRepository(dbPool))),
+		Shift: handler.NewShiftHandler(service.NewShiftService(dbPool, repository.NewUserRepository(dbPool))),
+		Break: handler.NewBreakHandler(service.NewBreakService(dbPool, repository.NewUserRepository(dbPool))),
 		Holiday: handler.NewHolidayHandler(service.NewHolidayService(repository.NewHolidayRepository(dbPool),
 			repository.NewUserRepository(dbPool))),
 		LicenceKey: handler.NewLicenceKeyHandler(service.NewLicenceKeyService(repository.NewLicenceKeyRepository(dbPool),
