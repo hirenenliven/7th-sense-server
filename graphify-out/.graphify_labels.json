@@ -1,6 +1,5 @@
 {
   "0": "HTTP Handlers Layer",
-  "3": "Org Location/Shop DTOs",
   "4": "Route Registration & Guards",
   "5": "Machine DTOs",
   "7": "CNC Snapshot Struct Fields",

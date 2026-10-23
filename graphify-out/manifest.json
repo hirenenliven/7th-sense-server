@@ -1218,9 +1218,9 @@
     "semantic_hash": "83e782660b9df6e3978298333b4f35a6"
   },
   ".claude/CLAUDE.md": {
-    "mtime": 1792752765.8233633,
-    "seen": 1792752773.2280624,
-    "ast_hash": "f0730f27c7b4ec272460bb5bded7b987",
+    "mtime": 1792754105.1181858,
+    "seen": 1792754786.777332,
+    "ast_hash": "73f2a1bfc546aa57c58895be84f64ff2",
     "semantic_hash": ""
   },
   "7th_server_skills.md.md": {
@@ -1373,16 +1373,10 @@
     "ast_hash": "a9f06aab47aca3b6ba860ae2dc2f576c",
     "semantic_hash": ""
   },
-  "internal/model/machine_telementry.go": {
-    "mtime": 1792752705.158146,
-    "seen": 1792752773.2277951,
-    "ast_hash": "cebebfe8ed17baf76d3711ffc5bc3f59",
-    "semantic_hash": ""
-  },
   "internal/monitor/collector.go": {
-    "mtime": 1792752705.156047,
-    "seen": 1792752773.2278278,
-    "ast_hash": "8fdc3f8416c2136a5e8b85409ea1bdbb",
+    "mtime": 1792753109.5346417,
+    "seen": 1792754786.7771184,
+    "ast_hash": "38ef05860febec4e2f503819d164a336",
     "semantic_hash": ""
   },
   "internal/monitor/rules.go": {
@@ -1398,21 +1392,9 @@
     "semantic_hash": ""
   },
   "internal/monitor/worker.go": {
-    "mtime": 1792752705.1544669,
-    "seen": 1792752773.2278328,
-    "ast_hash": "82db4a8af75901cc15dd724c03ae2df7",
-    "semantic_hash": ""
-  },
-  "internal/repository/machine_telementry_repository.go": {
-    "mtime": 1792752170.2910092,
-    "seen": 1792752214.228779,
-    "ast_hash": "fb731d19eeeb65830e13921387f22ec6",
-    "semantic_hash": ""
-  },
-  "internal/service/machine_telementry_service.go": {
-    "mtime": 1792752716.8081381,
-    "seen": 1792752773.2279928,
-    "ast_hash": "68151e67338c05c14eddfc5aa49c267d",
+    "mtime": 1792754076.290066,
+    "seen": 1792754786.7771237,
+    "ast_hash": "aaa6e45a1eeb10e952be3abc27315c6a",
     "semantic_hash": ""
   },
   "build.ps1": {
@@ -1421,16 +1403,28 @@
     "ast_hash": "afb4a97166047767a701d489a434c993",
     "semantic_hash": ""
   },
-  "run.ps1": {
+  "7th-sense-start.ps1": {
     "mtime": 1792750419.7166796,
-    "seen": 1792750499.3224165,
+    "seen": 1792754786.776892,
     "ast_hash": "bfbe04d6006e9063b6bbc24985603f3c",
     "semantic_hash": ""
   },
-  "docs/cnc-startup-flow.md": {
-    "mtime": 1792752765.8223472,
-    "seen": 1792752773.2280705,
-    "ast_hash": "395d17ef20780b78fe6d34fc816a32e0",
+  "internal/model/machine_telemetry.go": {
+    "mtime": 1792754042.8913264,
+    "seen": 1792754786.777086,
+    "ast_hash": "a7af1d0c0d479a6cdb5d4befae31fe82",
+    "semantic_hash": ""
+  },
+  "internal/repository/machine_telemetry_repository.go": {
+    "mtime": 1792754048.1077425,
+    "seen": 1792754786.7771566,
+    "ast_hash": "b9545b1bfba2761af8a6c9a3468da910",
+    "semantic_hash": ""
+  },
+  "internal/service/machine_telemetry_service.go": {
+    "mtime": 1792753646.9302907,
+    "seen": 1792754786.7772715,
+    "ast_hash": "4d07454308a36d71709de1c54f0ecde7",
     "semantic_hash": ""
   }
 }
