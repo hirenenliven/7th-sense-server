@@ -5,6 +5,7 @@ import (
 	"net/mail"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 	_ "time/tzdata" // time zone database for time.LoadLocation, so Windows hosts can validate time zones
@@ -382,6 +383,29 @@ func (request *UpdateThemeRequest) Validate() error {
 // ThemeResponse is the data of PUT /me/theme: the saved theme.
 type ThemeResponse struct {
 	Theme string `json:"theme"`
+}
+
+// Languages are the UI languages a user can choose (user_profiles.language): the
+// codes of the client's header language picker (src/i18n/locales/<code>.json).
+var Languages = []string{"en", "fr", "de", "it"}
+
+// UpdateLanguageRequest is the body for PUT /me/language: the logged-in user's UI language.
+type UpdateLanguageRequest struct {
+	Language string `json:"language"` // one of Languages
+}
+
+// Validate lowercases the language and checks it is one of Languages.
+func (request *UpdateLanguageRequest) Validate() error {
+	request.Language = strings.ToLower(strings.TrimSpace(request.Language))
+	if !slices.Contains(Languages, request.Language) {
+		return response.NewError(http.StatusBadRequest, "Please enter valid language")
+	}
+	return nil
+}
+
+// LanguageResponse is the data of PUT /me/language: the saved language.
+type LanguageResponse struct {
+	Language string `json:"language"`
 }
 
 // UserResponse is a user with its customer details. A part the user does not

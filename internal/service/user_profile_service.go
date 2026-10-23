@@ -44,6 +44,11 @@ func (userProfileService *UserProfileService) SaveTheme(ctx context.Context, use
 	return userProfileService.userProfileRepository.SaveTheme(ctx, userID, theme, defaultLanguage)
 }
 
+// SaveLanguage sets userID's UI language, adding their profile if they have none.
+func (userProfileService *UserProfileService) SaveLanguage(ctx context.Context, userID int64, language string) error {
+	return userProfileService.userProfileRepository.SaveLanguage(ctx, userID, language, defaultTheme)
+}
+
 // toUserProfileResponseError maps repository errors to profile responses. Other errors
 // pass through and are sent as ServerError.
 func toUserProfileResponseError(err error) error {

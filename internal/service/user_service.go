@@ -296,6 +296,11 @@ func (userService *UserService) SaveTheme(ctx context.Context, userID int64, the
 	return userService.services.userProfileService.SaveTheme(ctx, userID, theme)
 }
 
+// SaveLanguage sets the UI language of userID (the logged-in user).
+func (userService *UserService) SaveLanguage(ctx context.Context, userID int64, language string) error {
+	return userService.services.userProfileService.SaveLanguage(ctx, userID, language)
+}
+
 // Schema defaults of user_profiles.theme and language. The repository writes
 // an empty value as NULL, so new profiles set them explicitly.
 const (

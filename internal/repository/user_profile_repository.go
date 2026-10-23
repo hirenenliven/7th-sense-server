@@ -151,6 +151,25 @@ func (userProfileRepository *UserProfileRepository) SaveTheme(ctx context.Contex
 	return nil
 }
 
+// SaveLanguage sets the language of userID's profile. A user without a profile gets
+// one (with theme); a soft-deleted profile is restored.
+func (userProfileRepository *UserProfileRepository) SaveLanguage(ctx context.Context, userID int64, language, theme string) error {
+	query := `INSERT INTO user_profiles (user_id, language, theme)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (user_id) DO UPDATE
+			SET language = EXCLUDED.language, is_deleted = false, deleted_at = NULL`
+
+	rows, err := db.Execute(ctx, userProfileRepository.database, query, userID, language, theme)
+	if err != nil {
+		return fmt.Errorf("save language: %w", err)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("save language: %w", err)
+	}
+	return nil
+}
+
 // mapProfileError turns driver errors into repository errors. A nil err stays nil.
 func mapProfileError(operation string, err error) error {
 	if err == nil {

@@ -80,6 +80,27 @@ func (userHandler *UserHandler) UpdateTheme(writer http.ResponseWriter, request 
 	response.SendResponse(writer, request, response.Success, dto.ThemeResponse{Theme: themeRequest.Theme})
 }
 
+// UpdateLanguage handles PUT /api/v1/me/language: saves the current user's UI language.
+func (userHandler *UserHandler) UpdateLanguage(writer http.ResponseWriter, request *http.Request) {
+	userID, err := currentUserID(request)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+
+	var languageRequest dto.UpdateLanguageRequest
+	if err := decodeAndValidate(writer, request, &languageRequest); err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+
+	if err := userHandler.service.SaveLanguage(request.Context(), userID, languageRequest.Language); err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+	response.SendResponse(writer, request, response.Success, dto.LanguageResponse{Language: languageRequest.Language})
+}
+
 // GetByID handles GET /api/v1/users/{id}.
 func (userHandler *UserHandler) GetByID(writer http.ResponseWriter, request *http.Request) {
 	actor, err := currentUser(request)

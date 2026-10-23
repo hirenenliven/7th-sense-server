@@ -3,6 +3,8 @@ package config
 import (
 	"log/slog"
 	"os"
+	"strconv"
+	"time"
 
 	"github.com/joho/godotenv"
 )
@@ -17,6 +19,26 @@ type Config struct {
 	// UploadDir is the directory uploaded files are kept in (part drawings under
 	// UploadDir/part-drawings). It must survive restarts and deploys.
 	UploadDir string
+	// CNC holds the settings of the CNC data collectors (docs/cnc-telemetry-collector-plan.md).
+	CNC CNCConfig
+}
+
+// CNCConfig holds the CNC_* settings of the data collection the API server runs in-process.
+type CNCConfig struct {
+	// Enabled makes the API server connect the machines and collect their data. false = API only.
+	Enabled bool
+	// Slots is the number of DLL callback pairs: the most machines the server can hold (max 990).
+	Slots int
+	// LibDir and DLLName locate the CNC DLL (LibDir is relative to the server binary or the
+	// working directory unless absolute).
+	LibDir  string
+	DLLName string
+	// Stale: no usable reading for this long means the connection is lost.
+	Stale time.Duration
+	// MaxConnecting limits concurrent CNCConnect calls per collector.
+	MaxConnecting int
+	// StopTimeout bounds the collection's graceful stop.
+	StopTimeout time.Duration
 }
 
 // DBConfig holds the PostgreSQL connection settings.
@@ -48,6 +70,15 @@ func Load() Config {
 		},
 		CookieSecure: getEnv("COOKIE_SECURE", "false") == "true",
 		UploadDir:    getEnv("UPLOAD_DIR", "uploads"),
+		CNC: CNCConfig{
+			Enabled:       getEnv("CNC_ENABLED", "true") == "true",
+			Slots:         getEnvInt("CNC_SLOTS", 300),
+			LibDir:        getEnv("CNC_LIB_DIR", "Lib"),
+			DLLName:       getEnv("CNC_DLL_NAME", "FanucCncCommunication.dll"),
+			Stale:         time.Duration(getEnvInt("CNC_STALE_SEC", 30)) * time.Second,
+			MaxConnecting: getEnvInt("CNC_MAX_CONNECTING", 20),
+			StopTimeout:   time.Duration(getEnvInt("CNC_STOP_TIMEOUT_SEC", 15)) * time.Second,
+		},
 	}
 }
 
@@ -56,4 +87,13 @@ func getEnv(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+// getEnvInt reads a positive whole number; a missing or invalid value falls back.
+func getEnvInt(key string, fallback int) int {
+	value, err := strconv.Atoi(getEnv(key, ""))
+	if err != nil || value <= 0 {
+		return fallback
+	}
+	return value
 }

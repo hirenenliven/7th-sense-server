@@ -2,7 +2,8 @@ root = "."
 tmp_dir = "tmp"
 
 [build]
-  cmd = "go build -o ./tmp/server.exe ./cmd/server"
+  # 32-bit build: the CNC DLL is x86, and the server loads it to collect machine data
+  cmd = "set GOARCH=386&& go build -o ./tmp/server.exe ./cmd/server"
   entrypoint = ["./tmp/server.exe"]
   include_ext = ["go"]
   exclude_dir = ["tmp", "bin", ".git", "logs"]

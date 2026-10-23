@@ -11,8 +11,14 @@ import (
 // Init makes slog the default logger, writing JSON to the terminal and to
 // logs/app.log (rotated). After Init, log with slog.Info, slog.Error, etc.
 func Init() {
+	InitFile("logs/app.log")
+}
+
+// InitFile is Init with another log file. Every process needs its own file:
+// lumberjack rotation cannot be shared between processes.
+func InitFile(path string) {
 	logFile := &lumberjack.Logger{
-		Filename:   "logs/app.log",
+		Filename:   path,
 		MaxSize:    10, // MB before rotating
 		MaxBackups: 5,  // old files to keep
 		MaxAge:     30, // days to keep

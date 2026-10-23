@@ -38,6 +38,8 @@ var (
 	Unavailable       = newResponse(http.StatusServiceUnavailable, "service unavailable")
 	InvalidJSON       = newResponse(http.StatusBadRequest, "Invalid JSON body")
 	TryAgain          = newResponse(http.StatusBadRequest, "Something went wrong, Please try again later")
+	// MachineNotFound: the machine does not exist, is deleted or is not active.
+	MachineNotFound = newResponse(http.StatusNotFound, "Machine not found")
 
 	// Authentication and authorization responses
 	InvalidCredentials   = newResponse(http.StatusUnauthorized, "Invalid username or password")
