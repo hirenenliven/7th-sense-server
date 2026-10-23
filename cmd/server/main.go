@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"7th-sense-server/internal/collector"
 	"7th-sense-server/internal/config"
 	"7th-sense-server/internal/db"
 	"7th-sense-server/internal/handler"
@@ -116,6 +117,14 @@ func run() error {
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
+
+	// CNC data collection runs inside this process: starting the server connects the machines
+	// (CNC_ENABLED, needs a GOARCH=386 build for the 32-bit DLL; docs/cnc-telemetry-collector-plan.md)
+	collectors := collector.NewSupervisor(appConfig.CNC, dbPool)
+	if err := collectors.Start(); err != nil {
+		return err
+	}
+	defer collectors.Stop()
 
 	serverErrors := make(chan error, 1)
 	go func() {

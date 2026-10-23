@@ -122,9 +122,9 @@ All responses use `response.SendResponse(w, r, statusCode, data)`:
 
 ### Development
 ```bash
-go tool air                    # Hot reload (air config in .air.toml)
-go run ./cmd/server            # Run without hot reload
-PORT=3000 go run ./cmd/server  # Custom port
+go tool air                    # Hot reload (air config in .air.toml, GOARCH=386)
+.\run.ps1                      # Run without hot reload (GOARCH=386, for the 32-bit CNC DLL)
+.\build.ps1                    # Build bin\server.exe (GOARCH=386)
 ```
 
 ### Testing
@@ -169,7 +169,15 @@ Base path: `/api/v1`
 **Downtime / idle reasons**: GET/POST/PUT/DELETE `/downtime-reasons`, `/idle-reasons` (migration 027: `downtime_reasons`, `idle_reasons`; replace the old `mst_downtime_reason` / `mst_idle_reason`; one set of files per table, `service.DowntimeReasonService` / `IdleReasonService`) — a customer's reasons `{userId, reasonCode, reason}` (+ `status` on PUT, blank keeps). `reasonCode` is optional (≤ 10, NULL when blank) and unique per customer when given; `reason` (≤ 50) unique per customer (both case-insensitive). Same access as clienteles (`companyOwner`).
 **Licence keys**: GET/POST/PUT/DELETE `/licence-keys` (migration 024, `service.LicenceKeyService`) — keys the superadmin generates for a customer, format `K7M2Q-XR9TB-4HWZP-N8CDF` (4 groups of 5 from `dto.LicenceKeyAlphabet`, no I/O/0/1, `crypto/rand`). POST `/licence-keys/generate {count: 1..100}` returns `{licenceKeys}` without saving (the "Generate Key" button); POST `/licence-keys {userId, licenceKeys: [{licenceKey, duration}]}` saves them in one statement, all or none (a key already saved refuses the batch). `duration` is a subscription plan code (`dto.LicenceKeyDurations`, migration 025: M1…M12, Y1…Y3, LIFETIME, TRIAL = `LicenceKeyTrialDays` 30 days, TRIAL_1Y); the server stores `expires_on` (last valid day, counted from the day the key is saved; NULL = lifetime) and responses add `expiresOn`, `isExpired` (computed). PUT `{userId, duration, status}` changes the customer / plan / status (the end date is recounted from `created_at`; the key never changes). Generate, save, edit and delete are `superAdminOnly`; managers read their company's (`companyOwner`, `?userId=` narrows for the superadmin). Key unique among keys not deleted.
 **Production schedules**: GET/POST/PUT/DELETE `/production-schedules` (migration 026: `production_schedules`, `production_schedule_items`; replaces the old `production_schedule` / `schedule_items`, `service.ProductionScheduleService`) — a customer's machine planned for one day (`scheduleType: single`, `endDate` = `startDate`) or a range (`multiple`), saved with its jobs in one transaction. Body `{userId, machineId, scheduleType, startDate, endDate, items: [{id?, scheduleDate, jobId, supervisorId, operatorId, shiftId, partId, processId, quantity, startTime, endTime}]}` (+ `status` on PUT), dates `YYYY-MM-DD`, times `"HH:MM"`; single day sets every `scheduleDate` to `startDate`. Items are kept / added / soft-deleted like part processes; `totalMinutes` is computed. Rules: machine, shift, part are the customer's; supervisor / operator are company members with that role; the process is the part's and lists the machine among its applicable machines; each job lies inside its shift (`scheduleDate` = the day the shift starts, so 02:00 in a 22:00–06:00 shift is next morning); jobs do not overlap; a machine has one schedule per day. Same access as parts. Responses add `customerName`, `machineName`, `itemCount`, `totalQuantity`; items add `supervisorName`, `operatorName`, `shiftName`, `partName`, `processName`.
-**Current user**: GET `/me`
+**CNC data collection** (no API yet; `docs/cnc-telemetry-collector-plan.md`, migration `028_cnc_machine_telementry.sql`):
+- **What starts it:** the API server itself, in-process (`internal/collector.Supervisor` runs `monitor.Collector` in a goroutine; no separate process or service). `CNC_ENABLED` defaults to `true`; `false` = API only. The DLL is 32-bit, so the server must be built `GOARCH=386`: `.\run.ps1`, `.\build.ps1` (→ `bin\server.exe`) and `go tool air` do. A 64-bit build refuses to start while `CNC_ENABLED=true` (`collector.ErrWrongBuild`); with `CNC_ENABLED=false` it serves the API only.
+- **Machines:** the server connects every machine (shard 0 of 1, at most `CNC_SLOTS` ≤ 990) with `status = 'active'`, not deleted, through `FanucCncCommunication.dll` in `Lib\` (`internal/cnc`: `CNCConnect`, one callback slot per machine, Siemens login via `SIEMENS_USER`/`SIEMENS_PASS` under a lock). The engine comes from `controllers.cnc_engine` (NULL = `config_error` event, not connected).
+- **Variables:** `cnc_variables` (old `mm_variables` ids), `cnc_variable_addresses` (source `snapshot` = a DLL snapshot field, the only one readable today; `plc`/`nc` wait for a DLL read function), `machine_variables` (per machine, `id` = variable id, key `(machine_id, id)`, hard delete).
+- **Flow:** `internal/monitor`: one worker per machine loads live values from `machine_variable_values` (numeric only), upserts every reading to detect changes, and inserts **only changed numeric values** into time-series (`MachineTelemetryService.UpsertLiveValues` → `InsertTelemetry`; no batching, but change detection is used: `store_mode` / deadband / `min_interval_ms` are not used). Text variables are not stored at all. Works out the `machine_modes` id (old `machines_modes` ids). Mode changes, events and statuses are written directly too.
+- **Tables written:** `machine_variable_values` (one row per machine-variable: latest numeric value only, upserted every reading to detect changes; text variables not stored), `machine_telementry` (hypertable; only changed numeric values, `value`; the latest value is the newest row), `machine_live_status`, `machine_mode_log`, `machine_events`, plus `machines.mode_id`/`online_status`.
+- **Change notifications:** `machines_changed` / `cnc_config_changed` NOTIFY make collectors follow edits without polling.
+- **Builds and logs:** a non-386 build cannot load the DLL. Collection logs go to `logs/app.log` with the API's. A native crash inside the DLL ends the whole server.
+**Current user**: GET `/me` (with `profile.theme` / `profile.language`); PUT `/me/theme {theme}` and PUT `/me/language {language}` save the logged-in user's own choice in `user_profiles` (any role; a missing profile is created). Languages: `dto.Languages` (en, fr, de, it — the client's `LANGUAGES`).
 **Organization** (per user, `?user<Parent>Id=` on list): GET/POST/PUT/DELETE `/user-city|branch|location|shop|line|cell|supervisor`, GET/POST/DELETE `/user-country|state` — one set of files per table (`user_<level>_*.go`). Countries and states are assigned customer-wise by the superadmin only (POST/DELETE `/user-country|state` are `superAdminOnly`); everyone reads their company's. Names come from the client's country library (`country-region-data`, picked several at once and posted one row each); the server keeps no country list, and POST `/user-state` checks the country is the user's. The current user comes from the session (`middleware.Authenticate`); the organization belongs to the company: a customer works on its own rows and its members on the customer's rows (`targetUserID` in `handler/request.go`); only managers (superadmin, customer, admin) change them (`managersOnly`), other members read. The superadmin may act for another user with `?userId=<id>`; everyone else gets 403 for any other id. Lists (`listUserID`): the superadmin without `?userId=` gets every user's rows (each row has `userId`; the client shows a Customer column and picks the customer on the form). Every `/api` route except login/logout needs a session; role-gated routes are wrapped with `superAdminOnly` / `managersOnly` in `internal/routes`. The role and company always come from the session (`middleware.Authenticate` reads them from the database), never from the request. Shared master data — branches, categories, products, brands, controllers, models — is read by everyone and written by the superadmin only.
 
 ## Configuration
@@ -185,6 +193,10 @@ DB_DATABASE=7th_sense
 DB_SSLMODE=disable
 COOKIE_SECURE=false   # true when served over HTTPS
 UPLOAD_DIR=uploads    # uploaded files (part drawings); keep outside the deploy dir
+CNC_ENABLED=true      # the server connects the machines itself (GOARCH=386 build + Lib\); false = API only
+CNC_SLOTS=300         # most machines the server holds (max 990)
+CNC_LIB_DIR=Lib       # CNC_DLL_NAME=FanucCncCommunication.dll
+# CNC_STALE_SEC=30 CNC_MAX_CONNECTING=20 CNC_STOP_TIMEOUT_SEC=15
 ```
 
 Default values in `internal/config/config.go` if missing.
@@ -214,6 +226,7 @@ Default values in `internal/config/config.go` if missing.
 - LicenceKey
 - DowntimeReason, IdleReason
 - ProductionSchedule, ProductionScheduleItem
+- CNC telemetry (`model/machine_telementry.go`): MonitoredMachine, VariableConfig, TelemetryValue, ModeChange, MachineEvent, MachineLiveStatus
 
 ## Important Notes
 
