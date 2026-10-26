@@ -46,7 +46,8 @@ func (telemetryService *MachineTelemetryService) GetActiveMachine(ctx context.Co
 	return machine, toMachineTelemetryResponseError(err)
 }
 
-// GetVariableConfig returns the variables machine reads from the given sources.
+// GetVariableConfig returns the active variables enabled for machine; one the given sources
+// cannot read has an empty Address.
 func (telemetryService *MachineTelemetryService) GetVariableConfig(ctx context.Context, machine model.MonitoredMachine, sources []string) ([]model.VariableConfig, error) {
 	if machine.CNCEngine == nil {
 		return nil, nil
@@ -70,19 +71,19 @@ func (telemetryService *MachineTelemetryService) GetLiveValues(ctx context.Conte
 	return telemetryService.telemetryRepository.GetLiveValues(ctx, machineID, variableIDs)
 }
 
-// StartShard prepares shard for a collector run: periods left open by a previous run end at
-// the machine's last_seen_at (the time the collector was down counts as offline) and every
-// machine of the shard starts offline until it connects.
-func (telemetryService *MachineTelemetryService) StartShard(ctx context.Context, shard, shards int, at time.Time) error {
-	return telemetryService.markShardOffline(ctx, shard, shards, at, true)
+// InitializeShardForCollection prepares shard for data collection: closes mode periods from
+// previous runs (using last_seen_at so downtime counts as offline), marks all machines as
+// offline, and resets counters.
+func (telemetryService *MachineTelemetryService) InitializeShardForCollection(ctx context.Context, shard, shards int, at time.Time) error {
+	return telemetryService.markShardMachinesOffline(ctx, shard, shards, at, true)
 }
 
-// StopShard ends a collector run: every machine of shard goes offline at at.
-func (telemetryService *MachineTelemetryService) StopShard(ctx context.Context, shard, shards int, at time.Time) error {
-	return telemetryService.markShardOffline(ctx, shard, shards, at, false)
+// FinalizeShardCollection ends a collector run: marks all machines of shard as offline at at.
+func (telemetryService *MachineTelemetryService) FinalizeShardCollection(ctx context.Context, shard, shards int, at time.Time) error {
+	return telemetryService.markShardMachinesOffline(ctx, shard, shards, at, false)
 }
 
-func (telemetryService *MachineTelemetryService) markShardOffline(ctx context.Context, shard, shards int, at time.Time, starting bool) error {
+func (telemetryService *MachineTelemetryService) markShardMachinesOffline(ctx context.Context, shard, shards int, at time.Time, starting bool) error {
 	return db.WithTransaction(ctx, telemetryService.dbPool, func(tx pgx.Tx) error {
 		return repository.NewMachineTelemetryRepository(tx).MarkShardOffline(ctx, shard, shards, at, starting)
 	})
@@ -121,10 +122,11 @@ func (telemetryService *MachineTelemetryService) AddEvent(ctx context.Context, e
 	return telemetryService.telemetryRepository.InsertEvents(ctx, []model.MachineEvent{event})
 }
 
-// Listen calls notify for every machines_changed / cnc_config_changed notification until ctx
-// ends or the connection fails (then it returns the error; the caller reconnects and reloads).
+// ListenForConfigurationChanges establishes database LISTEN for machine and configuration changes.
+// Calls notify for every machines_changed / cnc_config_changed notification until ctx ends
+// or the connection fails (then it returns the error; the caller reconnects and reloads).
 // ready is called once listening has started.
-func (telemetryService *MachineTelemetryService) Listen(ctx context.Context, ready func(), notify func(channel, payload string)) error {
-	return db.Listen(ctx, telemetryService.dbPool,
+func (telemetryService *MachineTelemetryService) ListenForConfigurationChanges(ctx context.Context, ready func(), notify func(channel, payload string)) error {
+	return db.ListenForDatabaseNotifications(ctx, telemetryService.dbPool,
 		[]string{MachinesChangedChannel, CNCConfigChangedChannel}, ready, notify)
 }

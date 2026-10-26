@@ -34,10 +34,10 @@ type cncMasterSnapshot struct {
 	AxisNames   [5][4]byte
 	_           [6]byte
 
-	MachPos  [5]float64
-	AbsPos   [5]float64
-	RelPos   [5]float64
-	DistToGo [5]float64
+	MachPos  [AxisCount]float64 // machine position (MCS)
+	AbsPos   [AxisCount]float64 // work position (WCS)
+	RelPos   [AxisCount]float64
+	DistToGo [AxisCount]float64
 
 	MachDec      [5]int16
 	AbsDec       [5]int16
@@ -127,7 +127,9 @@ type dllDriver struct {
 	siemensMu sync.Mutex // the DLL reads the Siemens login from the process environment
 }
 
-func openDLL(cncConfig config.CNCConfig) (*dllDriver, error) {
+// loadDLL checks the snapshot layout, loads the DLL from libDir, resolves CNCConnect /
+// CNCdisconnect and creates the callback slots.
+func loadDLL(cncConfig config.CNCConfig) (*dllDriver, error) {
 	if size := unsafe.Sizeof(cncMasterSnapshot{}); size != snapshotSize {
 		return nil, fmt.Errorf("cnc: snapshot struct is %d bytes, the DLL sends %d", size, snapshotSize)
 	}
@@ -146,6 +148,8 @@ func openDLL(cncConfig config.CNCConfig) (*dllDriver, error) {
 		return nil, fmt.Errorf("cnc: %w", err)
 	}
 
+	// Callbacks are created once for the whole process (Go cannot free them), so a fixed set
+	// of slots is made here and reused by every connection.
 	slotCount := min(cncConfig.Slots, maxSlots)
 	for range slotCount {
 		callbackSlot := &slot{}
@@ -163,7 +167,9 @@ func openDLL(cncConfig config.CNCConfig) (*dllDriver, error) {
 	return driver, nil
 }
 
-func (driver *dllDriver) connect(machine model.MonitoredMachine) (*Connection, int, error) {
+// connectMachine takes a free callback slot, binds a new Connection to it and calls
+// CNCConnect. On failure the slot is freed at once; on success it is freed by Disconnect.
+func (driver *dllDriver) connectMachine(machine model.MonitoredMachine) (*Connection, int, error) {
 	driver.mu.Lock()
 	if len(driver.freeSlots) == 0 {
 		driver.mu.Unlock()
@@ -173,26 +179,28 @@ func (driver *dllDriver) connect(machine model.MonitoredMachine) (*Connection, i
 	driver.freeSlots = driver.freeSlots[1:]
 	driver.mu.Unlock()
 
+	// Bound before CNCConnect: the DLL thread may call back before CNCConnect returns.
 	connection := newConnection()
 	callbackSlot.connection.Store(connection)
 
-	id, err := driver.callConnect(machine, callbackSlot)
+	id, err := driver.callCNCConnect(machine, callbackSlot)
 	if err != nil {
 		callbackSlot.connection.Store(nil)
-		driver.release(callbackSlot)
+		driver.releaseSlot(callbackSlot)
 		return nil, id, err
 	}
 	connection.disconnect = func() {
 		callbackSlot.connection.Store(nil) // late callbacks are ignored from here on
 		driver.disconnectProc.Call(uintptr(id))
-		driver.release(callbackSlot)
+		driver.releaseSlot(callbackSlot)
 	}
 	return connection, id, nil
 }
 
-// callConnect calls CNCConnect. Siemens connects run one at a time: the DLL reads the login
+// callCNCConnect calls CNCConnect, which starts the DLL's polling thread for the machine; a
+// negative result is a failed connect. Siemens connects run one at a time: the DLL reads the login
 // from SIEMENS_USER / SIEMENS_PASS in the process environment.
-func (driver *dllDriver) callConnect(machine model.MonitoredMachine, callbackSlot *slot) (int, error) {
+func (driver *dllDriver) callCNCConnect(machine model.MonitoredMachine, callbackSlot *slot) (int, error) {
 	engine := *machine.CNCEngine
 	if engine == model.EngineSiemens {
 		driver.siemensMu.Lock()
@@ -216,15 +224,18 @@ func (driver *dllDriver) callConnect(machine model.MonitoredMachine, callbackSlo
 	return id, nil
 }
 
-func (driver *dllDriver) release(callbackSlot *slot) {
+// releaseSlot puts callbackSlot back at the end of the free list.
+func (driver *dllDriver) releaseSlot(callbackSlot *slot) {
 	driver.mu.Lock()
 	driver.freeSlots = append(driver.freeSlots, callbackSlot)
 	driver.mu.Unlock()
 }
 
 // onData runs on the DLL thread for every poll. It reads only the fields the collector uses
-// straight from the DLL's buffer (never the 32 KB ProgList) and must not block.
+// straight from the DLL's buffer (never the 32 KB ProgList) and must not block. A panic is
+// swallowed: it would otherwise unwind through the DLL and end the process.
 func (callbackSlot *slot) onData(pointer uintptr) {
+	// DATA_COLLECTION_STEP_13: Receive a snapshot from the DLL thread and publish it to the worker.
 	defer func() { _ = recover() }()
 	connection := callbackSlot.connection.Load()
 	if connection == nil || pointer == 0 {
@@ -262,11 +273,17 @@ func (callbackSlot *slot) onData(pointer uintptr) {
 	for field, number := range numbers {
 		reading.Values[field].Number = number
 	}
+	for axis := range AxisCount {
+		reading.Values[FieldMachPos+axis].Number = snapshot.MachPos[axis]
+		reading.Values[FieldAbsPos+axis].Number = snapshot.AbsPos[axis]
+		reading.Values[FieldRelPos+axis].Number = snapshot.RelPos[axis]
+		reading.Values[FieldDistToGo+axis].Number = snapshot.DistToGo[axis]
+	}
 	reading.Values[FieldProgName].Text = cstr(snapshot.ProgName[:])
 	reading.Values[FieldActiveProgPath].Text = cstr(snapshot.ActiveProgPath[:])
 	reading.Values[FieldAlarmMsg].Text = cstr(snapshot.AlarmMsg[:])
 
-	connection.publish(reading)
+	connection.publishReading(reading)
 }
 
 // onError runs on the DLL thread: void OnErr(int32_t code, const char* msg).

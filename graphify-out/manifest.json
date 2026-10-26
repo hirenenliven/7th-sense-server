@@ -6,9 +6,9 @@
     "semantic_hash": "8c58146bf0c47700bfef5615ac617dd5"
   },
   "cmd/server/main.go": {
-    "mtime": 1792750409.1019442,
-    "seen": 1792750499.322033,
-    "ast_hash": "6681f9a4e53d05657ab4e1dd13dc825d",
+    "mtime": 1792994817.6651318,
+    "seen": 1792999340.536242,
+    "ast_hash": "6993876118f0298de9e3468bcec57777",
     "semantic_hash": ""
   },
   "go.mod": {
@@ -18,15 +18,15 @@
     "semantic_hash": "c881b9deed424c8932c328d2c51b50af"
   },
   "internal/config/config.go": {
-    "mtime": 1792752705.158146,
-    "seen": 1792752773.2276208,
-    "ast_hash": "f0f2fb3389abcab633c60231fac783af",
+    "mtime": 1792999089.9146962,
+    "seen": 1792999340.5362682,
+    "ast_hash": "ed3de256778b1d859e7d216712d7162e",
     "semantic_hash": ""
   },
   "internal/db/postgres.go": {
-    "mtime": 1792746330.797061,
-    "seen": 1792747692.0548675,
-    "ast_hash": "72c8f92944c3e8295c75f9c48ed53f53",
+    "mtime": 1792993755.6479971,
+    "seen": 1792999340.5362701,
+    "ast_hash": "a8954cd32d73bb4c03e88656254f01ea",
     "semantic_hash": ""
   },
   "internal/dto/address_dto.go": {
@@ -1218,9 +1218,9 @@
     "semantic_hash": "83e782660b9df6e3978298333b4f35a6"
   },
   ".claude/CLAUDE.md": {
-    "mtime": 1792754105.1181858,
-    "seen": 1792754786.777332,
-    "ast_hash": "73f2a1bfc546aa57c58895be84f64ff2",
+    "mtime": 1793005811.7796123,
+    "seen": 1793005827.5198517,
+    "ast_hash": "bc860a9d4e3d361b2bc2566dbadcfbea",
     "semantic_hash": ""
   },
   "7th_server_skills.md.md": {
@@ -1254,9 +1254,9 @@
     "semantic_hash": ""
   },
   "docs/dll-usecase/G0_V0.0.4_DLL/sinumerik_client.go": {
-    "mtime": 1792135700.0,
-    "seen": 1792496479.165044,
-    "ast_hash": "1f26c2178735260ebc1e98599500044b",
+    "mtime": 1792998334.9248672,
+    "seen": 1792999340.5362475,
+    "ast_hash": "531f9b6b5d9bb6601b59a73fa1b86876",
     "semantic_hash": ""
   },
   "docs/dll-usecase/G0_V0.0.4_DLL/tools/gencert/gencert.go": {
@@ -1338,21 +1338,21 @@
     "semantic_hash": ""
   },
   "internal/cnc/cnc.go": {
-    "mtime": 1792747966.2643027,
-    "seen": 1792748031.2130218,
-    "ast_hash": "c2fc42b5c45bb43d29bd677f17244dde",
+    "mtime": 1792993755.6427774,
+    "seen": 1792999340.5362542,
+    "ast_hash": "285caaebdb219c3ff2d1fd3d9057175b",
     "semantic_hash": ""
   },
   "internal/cnc/dll_other.go": {
-    "mtime": 1792746149.8376672,
-    "seen": 1792747692.0548573,
-    "ast_hash": "dcb1e3210c3e315eff84bdbf4080c091",
+    "mtime": 1792993755.6448555,
+    "seen": 1792999340.536256,
+    "ast_hash": "0e276e68a5e07a80e9008eadaaef3949",
     "semantic_hash": ""
   },
   "internal/cnc/dll_windows_386.go": {
-    "mtime": 1792746188.9049158,
-    "seen": 1792747692.0548587,
-    "ast_hash": "bd57ef95628ab22c62a7b5a83d44ab22",
+    "mtime": 1792999144.6953838,
+    "seen": 1792999340.536258,
+    "ast_hash": "bfdcffd5ba18ce28e9dc4c06e9adcc2c",
     "semantic_hash": ""
   },
   "internal/cnc/dll_windows_386_test.go": {
@@ -1362,27 +1362,27 @@
     "semantic_hash": ""
   },
   "internal/cnc/fields.go": {
-    "mtime": 1792746149.6697745,
-    "seen": 1792747692.0548625,
-    "ast_hash": "343e3831b7329d51b1010917c70637b8",
+    "mtime": 1792999102.8544278,
+    "seen": 1792999340.5362625,
+    "ast_hash": "995bbfa8213c163f07d9b5af041bd58a",
     "semantic_hash": ""
   },
   "internal/collector/supervisor.go": {
-    "mtime": 1792750419.6711018,
-    "seen": 1792750499.3220563,
-    "ast_hash": "a9f06aab47aca3b6ba860ae2dc2f576c",
+    "mtime": 1792997161.184152,
+    "seen": 1792999340.5362668,
+    "ast_hash": "3ef032eaf5aaaae825793ed16bc9ee91",
     "semantic_hash": ""
   },
   "internal/monitor/collector.go": {
-    "mtime": 1792753109.5346417,
-    "seen": 1792754786.7771184,
-    "ast_hash": "38ef05860febec4e2f503819d164a336",
+    "mtime": 1793005752.2771542,
+    "seen": 1793005827.5196462,
+    "ast_hash": "f5df36a805c6d8afebef075dbc909997",
     "semantic_hash": ""
   },
   "internal/monitor/rules.go": {
-    "mtime": 1792752705.2833242,
-    "seen": 1792752773.2278297,
-    "ast_hash": "690b860a148fc1572fdddf9f46738f59",
+    "mtime": 1793005738.7826264,
+    "seen": 1793005827.519648,
+    "ast_hash": "1f88ccc7e9d08048a1a3472d80cc52a7",
     "semantic_hash": ""
   },
   "internal/monitor/rules_test.go": {
@@ -1392,9 +1392,9 @@
     "semantic_hash": ""
   },
   "internal/monitor/worker.go": {
-    "mtime": 1792754076.290066,
-    "seen": 1792754786.7771237,
-    "ast_hash": "aaa6e45a1eeb10e952be3abc27315c6a",
+    "mtime": 1793005776.3846843,
+    "seen": 1793005827.5196514,
+    "ast_hash": "c4b57ec5dc727eb415c8c31e8f3dd87b",
     "semantic_hash": ""
   },
   "build.ps1": {
@@ -1416,15 +1416,33 @@
     "semantic_hash": ""
   },
   "internal/repository/machine_telemetry_repository.go": {
-    "mtime": 1792754048.1077425,
-    "seen": 1792754786.7771566,
-    "ast_hash": "b9545b1bfba2761af8a6c9a3468da910",
+    "mtime": 1793005720.0425887,
+    "seen": 1793005827.5196826,
+    "ast_hash": "a2761362605e0ffd08e2f62b00ab105a",
     "semantic_hash": ""
   },
   "internal/service/machine_telemetry_service.go": {
-    "mtime": 1792753646.9302907,
-    "seen": 1792754786.7772715,
-    "ast_hash": "4d07454308a36d71709de1c54f0ecde7",
+    "mtime": 1793005720.1281912,
+    "seen": 1793005827.5197935,
+    "ast_hash": "8eaad455ada74cb3929a2f422aff2695",
+    "semantic_hash": ""
+  },
+  "docs/cnc-data-collection-flow.md": {
+    "mtime": 1793005811.6813,
+    "seen": 1793005827.5198584,
+    "ast_hash": "81016f6bbddf8b8afc365ba52b7f6abf",
+    "semantic_hash": ""
+  },
+  "internal/cnc/fields_test.go": {
+    "mtime": 1792999262.6045918,
+    "seen": 1792999340.5362642,
+    "ast_hash": "561dde8417980e478b2a723094a8bff1",
+    "semantic_hash": ""
+  },
+  "docs/dll-usecase/G0_V0.0.4_DLL/demo_monitor/main.go": {
+    "mtime": 1793004400.9849021,
+    "seen": 1793005827.5194466,
+    "ast_hash": "f92a669f5573addb1eb9a7cce37c2fc2",
     "semantic_hash": ""
   }
 }

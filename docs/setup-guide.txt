@@ -1,0 +1,347 @@
+=====================================================================
+ 7TH SENSE SERVER - INSTALL AND SETUP GUIDE (WINDOWS)
+=====================================================================
+
+What this backend uses
+----------------------
+  Language ........ Go 1.27.1 (module "7th-sense-server")
+  Database ........ PostgreSQL 18 (the schema dump was made with 18.6)
+  Time series ..... TimescaleDB extension (for the CNC table machine_telementry)
+  DB driver ....... pgx/v5
+  Other Go libs ... godotenv (.env file), x/crypto (bcrypt), lumberjack (log files)
+  Hot reload ...... Air (installed as a Go tool through go.mod, nothing extra)
+  CNC machines .... Lib\FanucCncCommunication.dll (32-bit Windows DLL)
+
+System: Windows 10 / 11 or Windows Server, 64-bit.
+All commands are for Windows PowerShell, run from the project folder.
+
+
+---------------------------------------------------------------------
+ STEP 1 ----- Install Git and get the code
+---------------------------------------------------------------------
+  1. Install Git for Windows: https://git-scm.com/download/win
+  2. Open PowerShell, clone the repository and open the folder:
+
+       git clone <repository-url> 7th-sense-server
+       cd 7th-sense-server
+
+  Check: the folder has go.mod, cmd\, internal\, migrations\, Lib\.
+
+
+---------------------------------------------------------------------
+ STEP 2 ----- Install Go
+---------------------------------------------------------------------
+  1. Download the Windows .msi installer of Go 1.27.1 or newer:
+     https://go.dev/dl/
+  2. Run it with the default options. It adds Go to PATH.
+  3. Close PowerShell, open a NEW one and check:
+
+       go version
+
+     It must say go1.27.1 or newer. (With an older Go, Go downloads
+     the right version itself the first time you build.)
+
+
+---------------------------------------------------------------------
+ STEP 3 ----- Install PostgreSQL 18
+---------------------------------------------------------------------
+  1. Download the Windows installer of PostgreSQL 18:
+     https://www.postgresql.org/download/windows/
+  2. Run it. Remember the password you give the "postgres" user.
+     Keep port 5432. Stack Builder at the end is not needed.
+  3. Add PostgreSQL's bin folder to PATH so psql works:
+       Start -> "Edit the system environment variables"
+       -> Environment Variables -> Path -> Edit -> New:
+          C:\Program Files\PostgreSQL\18\bin
+  4. Open a NEW PowerShell and check:
+
+       psql --version
+       psql -U postgres -c "SELECT version();"
+
+     The first must say 18.x. The second asks for the postgres password.
+
+  Tip: to stop psql asking for the password in this PowerShell window:
+
+       $env:PGPASSWORD = "your_postgres_password"
+
+  Why 18: migrations\schema.sql is a pg_dump from PostgreSQL 18.6. It
+  uses the \restrict command, which older psql versions do not know.
+
+
+---------------------------------------------------------------------
+ STEP 4 ----- Install TimescaleDB
+---------------------------------------------------------------------
+  TimescaleDB makes machine_telementry a hypertable (fast time-series
+  storage, compressed after 1 day, kept 1 year). Without it, migration
+  028 still works, but the table is a plain table (slower when large).
+
+  1. Download the TimescaleDB Windows zip built for PostgreSQL 18:
+     https://docs.timescale.com/self-hosted/latest/install/installation-windows/
+  2. Unzip it. Right-click setup.exe -> Run as administrator.
+     It copies the files into the PostgreSQL folder and can update
+     postgresql.conf for you (answer "y").
+  3. Check postgresql.conf. Find where it is with:
+
+       psql -U postgres -c "SHOW config_file;"
+
+     (usually C:\Program Files\PostgreSQL\18\data\postgresql.conf)
+     Open it in Notepad as administrator and make sure this line is
+     there, without a # in front:
+
+       shared_preload_libraries = 'timescaledb'
+
+  4. Restart PostgreSQL:
+       Start -> Services -> "postgresql-x64-18" -> Restart
+     or in PowerShell as administrator:
+
+       Restart-Service postgresql-x64-18
+
+  Check:
+
+       psql -U postgres -c "SHOW shared_preload_libraries;"
+
+     It must list timescaledb.
+
+
+---------------------------------------------------------------------
+ STEP 5 ----- Create the database
+---------------------------------------------------------------------
+       createdb -U postgres -E UTF8 7th_sense
+
+  Check:
+
+       psql -U postgres -l
+
+     The list must show 7th_sense.
+
+  Do NOT use migrations\001_create_database.sql: it drops the database
+  first and its unquoted name 7th_sense is not valid SQL.
+
+
+---------------------------------------------------------------------
+ STEP 6 ----- Load the schema (tables + base data)
+---------------------------------------------------------------------
+  migrations\schema.sql creates every table up to migration 023 and
+  loads the base data (roles, countries, states, sample users ...).
+
+       psql -U postgres -d 7th_sense -f migrations\schema.sql
+
+  It must finish without "ERROR" lines. (Warnings / NOTICE are fine.)
+
+
+---------------------------------------------------------------------
+ STEP 7 ----- Run the newer migrations (024 to 029), in this order
+---------------------------------------------------------------------
+       psql -U postgres -d 7th_sense -f migrations\024_add_licence_keys.sql
+       psql -U postgres -d 7th_sense -f migrations\025_licence_key_duration.sql
+       psql -U postgres -d 7th_sense -f migrations\026_add_production_schedules.sql
+       psql -U postgres -d 7th_sense -f migrations\027_add_downtime_idle_reasons.sql
+       psql -U postgres -d 7th_sense -f migrations\028_cnc_machine_telemetry.sql
+       psql -U postgres -d 7th_sense -f migrations\029_add_cnc_axis_position_variables.sql
+
+  What they add:
+    024, 025  licence keys and their plan codes
+    026       production schedules
+    027       downtime and idle reasons
+    028       CNC data collection: machine modes, cnc_variables, addresses,
+              live values, machine_telementry (hypertable), events, status,
+              change-notification triggers. Enables TimescaleDB if Step 4 is done.
+    029       X, Y, Z axis position variables (ids 208-219)
+
+  Warning: 028 deletes all existing CNC telemetry data if run again.
+  Run it once on a new database.
+
+  Check TimescaleDB is used:
+
+       psql -U postgres -d 7th_sense -c "SELECT hypertable_name FROM timescaledb_information.hypertables;"
+
+     It must list machine_telementry.
+
+  If 028 printed "timescaledb not available: machine_telementry will be a
+  plain table", go back to Step 4, fix it, then run 028 again.
+
+
+---------------------------------------------------------------------
+ STEP 8 ----- Create the .env file
+---------------------------------------------------------------------
+  Copy the example, then open it in Notepad:
+
+       Copy-Item .env.example .env
+       notepad .env
+
+  Full .env (change DB_PASSWORD to your postgres password):
+
+       PORT=8080
+
+       DB_HOST=localhost
+       DB_PORT=5432
+       DB_USER=postgres
+       DB_PASSWORD=your_postgres_password_here
+       DB_DATABASE=7th_sense
+       DB_SSLMODE=disable
+
+       COOKIE_SECURE=false          # true when the site is served over HTTPS
+       UPLOAD_DIR=uploads           # part drawings; keep outside the deploy folder in production
+
+       CNC_ENABLED=true             # true = collect machine data; false = API only
+       CNC_SLOTS=300                # most machines the server holds (max 990)
+       CNC_LIB_DIR=Lib
+       CNC_DLL_NAME=FanucCncCommunication.dll
+       CNC_LOG_VALUES=false         # true logs every changed value (analysis only, many lines)
+       # CNC_STALE_SEC=30
+       # CNC_MAX_CONNECTING=20
+       # CNC_STOP_TIMEOUT_SEC=15
+
+  Any setting left out uses the default in internal\config\config.go.
+  Siemens login is not set here: it comes from each machine's username
+  and password (machine form).
+  .env is in .gitignore: never commit it.
+
+
+---------------------------------------------------------------------
+ STEP 9 ----- Download the Go packages
+---------------------------------------------------------------------
+       go mod download
+
+  This also gets Air (hot reload); it is listed as a tool in go.mod.
+
+
+---------------------------------------------------------------------
+ STEP 10 ----- Create the superadmin login
+---------------------------------------------------------------------
+       go run ./cmd/seed-superadmin
+
+  Creates (only if it does not exist yet):
+       username : superadmin
+       password : password123
+
+  Change this password after the first login.
+
+
+---------------------------------------------------------------------
+ STEP 11 ----- Start the server
+---------------------------------------------------------------------
+  IMPORTANT: the CNC DLL is 32-bit, so the server must be built as
+  32-bit (GOARCH=386). The scripts below do this for you. A normal
+  64-bit build (plain "go run ./cmd/server") refuses to start while
+  CNC_ENABLED=true.
+
+  Choose one:
+
+       .\7th-sense-start.ps1        run the server (32-bit)
+       go tool air                  run with hot reload (32-bit, see .air.toml)
+       .\build.ps1                  build bin\server.exe (32-bit) for deployment
+
+  If PowerShell says running scripts is disabled:
+
+       Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+
+  If Windows Firewall asks, allow access (needed for other computers
+  and for the CNC machines on the network).
+
+  Check (in a second PowerShell window; use curl.exe, not curl):
+
+       curl.exe http://localhost:8080/health
+
+  Then log in:
+
+       Invoke-RestMethod -Method Post -Uri http://localhost:8080/api/v1/auth/login `
+           -ContentType "application/json" `
+           -Body '{"username":"superadmin","password":"password123"}'
+
+  The answer has success = True (and the server sets the ts_session cookie).
+
+
+---------------------------------------------------------------------
+ STEP 12 ----- Check CNC data collection
+---------------------------------------------------------------------
+  1. Lib\ must hold: FanucCncCommunication.dll, Fwlib32.dll, fwlibe1.dll,
+     libcrypto-3.dll, libssl-3.dll, open62541.dll
+  2. client_cert.pem / client_key.pem (Siemens OPC UA) must be in the
+     folder the server runs from.
+  3. A machine is collected when: status = 'active', not deleted, and its
+     controller has a cnc_engine (0 Simulator, 1 Fanuc, 2 Siemens,
+     3 Syntec, 4 Mitsubishi).
+  4. Look in logs\app.log for:
+        cnc collector: machines loaded
+        cnc collector: worker started
+        cnc: machine subscribed
+        cnc: reading rate          (every 10 s per machine)
+
+     To watch the log live:
+
+       Get-Content logs\app.log -Wait -Tail 20
+
+  5. Check data arrives:
+
+       psql -U postgres -d 7th_sense -c "SELECT machine_id, variable_id, value, recorded_at FROM machine_telementry ORDER BY recorded_at DESC LIMIT 10;"
+
+  If the DLL does not load, install the Microsoft Visual C++
+  Redistributable (x86) and check the server was built 32-bit.
+  Full flow: docs\cnc-data-collection-flow.md
+
+
+---------------------------------------------------------------------
+ STEP 13 ----- Run the tests (optional)
+---------------------------------------------------------------------
+       go test ./...                 all tests
+       go test ./tests/...           integration tests only (need the database)
+
+  Before a commit:
+
+       gofmt -l .
+       go build ./...
+       go vet ./...
+
+
+---------------------------------------------------------------------
+ STEP 14 ----- Deploy to another Windows machine (production)
+---------------------------------------------------------------------
+  1. Do Steps 3 to 8 on the target machine (PostgreSQL, TimescaleDB,
+     database, migrations, .env). Set COOKIE_SECURE=true behind HTTPS.
+     Go and Git are not needed there.
+  2. On the build machine:  .\build.ps1
+  3. Copy to one folder on the target:
+        bin\server.exe
+        Lib\              (the whole folder)
+        client_cert.pem, client_key.pem
+        .env
+  4. Run server.exe from that folder. Logs go to logs\app.log
+     (10 MB per file, 5 old files kept).
+
+
+---------------------------------------------------------------------
+ TROUBLESHOOTING
+---------------------------------------------------------------------
+  "psql is not recognized"
+      PostgreSQL's bin folder is not in PATH (Step 3), or PowerShell
+      was not reopened.
+
+  "password authentication failed"
+      DB_PASSWORD in .env is wrong.
+
+  "database "7th_sense" does not exist"
+      Step 5 not done, or DB_DATABASE has another name.
+
+  psql: "invalid command \restrict"
+      psql is older than 18. Use psql 18 (Step 3).
+
+  machine_telementry is not a hypertable
+      shared_preload_libraries is missing timescaledb or PostgreSQL was
+      not restarted (Step 4); run migration 028 again on a new database.
+
+  "wrong build" / the server stops at start with CNC_ENABLED=true
+      It was built 64-bit. Use .\7th-sense-start.ps1, go tool air or
+      .\build.ps1 (all 32-bit), or set CNC_ENABLED=false.
+
+  "running scripts is disabled on this system"
+      Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+
+  Port 8080 already in use
+      Change PORT in .env, or find the program using it:
+        Get-NetTCPConnection -LocalPort 8080 | Select-Object OwningProcess
+
+  Build error about "package main" inside internal\...
+      A demo file (like demo_monitor.go) was copied into internal\.
+      Remove it; demos live under docs\dll-usecase\.
+=====================================================================

@@ -118,12 +118,19 @@ func run() error {
 		IdleTimeout:  60 * time.Second,
 	}
 
+	// collectors manages CNC data collection from machines: loads the 32-bit CNC DLL, runs the collector
+	// in a background goroutine, handles restarts on failure, and gracefully stops on shutdown.
+	// Needed because collection runs inside this API server process (no separate service).
+	collectors := collector.NewSupervisor(appConfig.CNC, dbPool)
+
 	// CNC data collection runs inside this process: starting the server connects the machines
 	// (CNC_ENABLED, needs a GOARCH=386 build for the 32-bit DLL; docs/cnc-telemetry-collector-plan.md)
-	collectors := collector.NewSupervisor(appConfig.CNC, dbPool)
-	if err := collectors.Start(); err != nil {
+	// DATA_COLLECTION_STEP_1: Start CNC data collection before the HTTP server listens.
+	if err := collectors.StartCNCDataCollection(); err != nil {
 		return err
 	}
+	// DATA_COLLECTION_STEP_19: Stop collection on shutdown: this defer runs after server.Shutdown
+	// and before dbPool.Close, so the collector can still mark the machines offline.
 	defer collectors.Stop()
 
 	serverErrors := make(chan error, 1)

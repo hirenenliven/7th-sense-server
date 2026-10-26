@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"math/rand/v2"
 	"sync"
 	"time"
@@ -17,14 +18,15 @@ const (
 	tickInterval   = time.Second      // the stale check and the status refresh
 	statusInterval = 10 * time.Second // machine_live_status refresh while nothing else changes
 	writeTimeout   = 5 * time.Second  // one database write
+	rateInterval   = 10 * time.Second // how often the reading rate is logged
 )
 
 // stopReason says why a connection ended.
 type stopReason int
 
 const (
-	stopStopped stopReason = iota // the worker was stopped (collector stop, machine changed)
-	stopStale                     // no usable reading for CNC_STALE_SEC
+	stopRequested       stopReason = iota // the worker was stopped (collector stop, machine changed)
+	stopConnectionStale                   // no usable reading for CNC_STALE_SEC
 )
 
 // boundVariable is a configured variable and the snapshot field it is read from.
@@ -36,74 +38,88 @@ type boundVariable struct {
 // worker collects one machine: it connects, stores every reading in machine_telementry right
 // away (no batching), writes mode periods and events, and reconnects with backoff when the connection is lost.
 type worker struct {
-	collector     *Collector
-	machine       model.MonitoredMachine // owned by the worker goroutine
-	applied       model.MonitoredMachine // owned by the collector's listener goroutine
-	configChanged chan struct{}
-	cancel        context.CancelFunc
-	done          chan struct{}
+	collector               *Collector
+	machine                 model.MonitoredMachine // owned by the worker goroutine
+	appliedMachine          model.MonitoredMachine // owned by the collector's sync loop goroutine
+	variableReloadRequested chan struct{}          // holds one request; more requests collapse into it
+	cancel                  context.CancelFunc
+	done                    chan struct{}
 
 	pendingMu      sync.Mutex
 	pendingMachine *model.MonitoredMachine // a new controller version / name, taken on reload
 
 	variables []boundVariable
 
-	mode           int
-	program        string
-	alarm          float64
-	emergency      float64
-	alarmsKnown    bool
-	connectedSince *time.Time
-	lastSeenAt     *time.Time
-	lastGoodAt     time.Time
-	lastChangeAt   *time.Time
-	sampleAt       *time.Time
-	missingNodes   string
-	storedCount    int64
-	droppedCount   int64 // telemetry rows a failed insert lost
-	reportedError  string
-	statusDirty    bool
-	statusAt       time.Time
-	connection     *cnc.Connection
+	mode                   int
+	program                string
+	alarm                  float64
+	emergency              float64
+	alarmsKnown            bool
+	connectedSince         *time.Time
+	lastSeenAt             *time.Time
+	lastConnectedReadingAt time.Time // the stale check measures CNC_STALE_SEC from here
+	lastChangeAt           *time.Time
+	sampleAt               *time.Time
+	missingNodes           string
+	storedCount            int64
+	droppedCount           int64 // telemetry rows a failed insert lost
+	processedCount         int64 // readings processReading handled
+	reportedError          string
+	statusDirty            bool
+	statusSavedAt          time.Time // when machine_live_status was last written
+	connection             *cnc.Connection
 
 	liveValues map[int]model.LiveValue // cache of current live values by variable_id
+
+	// The counters at the last reading rate log; logReadingRate reports the change since then.
+	rateLoggedAt  time.Time
+	rateCallbacks int64
+	rateProcessed int64
+	rateStored    int64
 }
 
-func newWorker(collector *Collector, machine model.MonitoredMachine, cancel context.CancelFunc) *worker {
+// newMachineWorker creates the worker of machine; cancel stops it.
+func newMachineWorker(collector *Collector, machine model.MonitoredMachine, cancel context.CancelFunc) *worker {
 	return &worker{
-		collector:     collector,
-		machine:       machine,
-		applied:       machine,
-		configChanged: make(chan struct{}, 1),
-		cancel:        cancel,
-		done:          make(chan struct{}),
-		mode:          model.ModeOffline, // the collector starts every machine offline
+		collector:               collector,
+		machine:                 machine,
+		appliedMachine:          machine,
+		variableReloadRequested: make(chan struct{}, 1),
+		cancel:                  cancel,
+		done:                    make(chan struct{}),
+		mode:                    model.ModeOffline, // the collector starts every machine offline
 	}
 }
 
-// updateMachine hands the worker machine details that need no reconnect (controller version,
-// name) and reloads its variables. Called from the collector's listener goroutine.
-func (machineWorker *worker) updateMachine(machine model.MonitoredMachine) {
-	machineWorker.applied = machine
+// queueMachineUpdate hands the worker machine details that need no reconnect (controller version,
+// name) and asks it to reload its variables. Called from the collector's sync loop goroutine;
+// the worker takes the details on its own goroutine (applyPendingMachineUpdate).
+func (machineWorker *worker) queueMachineUpdate(machine model.MonitoredMachine) {
+	machineWorker.appliedMachine = machine
 	machineWorker.pendingMu.Lock()
 	machineWorker.pendingMachine = &machine
 	machineWorker.pendingMu.Unlock()
-	machineWorker.reloadConfig()
+	machineWorker.requestVariableReload()
 }
 
-// reloadConfig asks the worker to read its variable configuration again (no reconnect).
-func (machineWorker *worker) reloadConfig() {
+// requestVariableReload asks the worker to read its variable configuration again (no reconnect).
+func (machineWorker *worker) requestVariableReload() {
 	select {
-	case machineWorker.configChanged <- struct{}{}:
+	case machineWorker.variableReloadRequested <- struct{}{}:
 	default:
 	}
 }
 
-func (machineWorker *worker) run(ctx context.Context) {
+// runConnectionLoop is the worker goroutine: it connects the machine, collects its readings and,
+// when the connection ends, reconnects after a backoff (1 s doubling to 5 min, jittered; reset
+// once a connection delivered data) until ctx is cancelled. done is closed when it returns.
+func (machineWorker *worker) runConnectionLoop(ctx context.Context) {
 	defer close(machineWorker.done)
 
+	// DATA_COLLECTION_STEP_10: Check the machine can be connected and load its variable
+	// configuration before every connect attempt.
 	if machineWorker.machine.CNCEngine == nil {
-		machineWorker.event(model.EventConfigError, nil,
+		machineWorker.recordEvent(model.EventConfigError, nil,
 			"the machine's controller has no cnc_engine; set controllers.cnc_engine and save the machine")
 		<-ctx.Done()
 		return
@@ -112,127 +128,169 @@ func (machineWorker *worker) run(ctx context.Context) {
 	retry := backoff{max: 5 * time.Minute}
 	for attempt := 0; ctx.Err() == nil; attempt++ {
 		if attempt > 0 {
-			sleep(ctx, retry.next())
+			sleepUnlessCancelled(ctx, retry.nextWait())
 			if ctx.Err() != nil {
 				return
 			}
-			machineWorker.event(model.EventReconnect, nil, fmt.Sprintf("attempt %d", attempt+1))
+			machineWorker.recordEvent(model.EventReconnect, nil, fmt.Sprintf("attempt %d", attempt+1))
 		}
-		if err := machineWorker.loadVariables(ctx); err != nil {
+		if err := machineWorker.loadVariableConfig(ctx); err != nil {
 			slog.Error("cnc: load variable config", "machineId", machineWorker.machine.ID, "error", err)
 			continue
 		}
 
-		connection, id, err := machineWorker.connect(ctx)
+		// DATA_COLLECTION_STEP_11: Connect the machine, waiting for a free connect slot.
+		connection, id, err := machineWorker.connectWithinLimit(ctx)
 		if err != nil {
 			if ctx.Err() != nil {
 				return
 			}
+			// Every callback slot taken is a configuration problem (CNC_SLOTS), not a machine fault.
 			eventType := model.EventConnectFailed
 			if errors.Is(err, cnc.ErrNoFreeSlot) {
 				eventType = model.EventConfigError
 			}
-			machineWorker.event(eventType, &id, err.Error())
+			machineWorker.recordEvent(eventType, &id, err.Error())
 			continue
 		}
-		machineWorker.event(model.EventConnectOK, &id, fmt.Sprintf("connection %d (%s:%d, engine %d)",
+		machineWorker.recordEvent(model.EventConnectOK, &id, fmt.Sprintf("connection %d (%s:%d, engine %d)",
 			id, machineWorker.machine.LiveIP, machineWorker.machine.Port, *machineWorker.machine.CNCEngine))
+		slog.Info("cnc: machine subscribed", "machineId", machineWorker.machine.ID, "machine", machineWorker.machine.Name,
+			"ip", machineWorker.machine.LiveIP, "port", machineWorker.machine.Port, "engine", *machineWorker.machine.CNCEngine,
+			"connectionId", id, "variables", len(machineWorker.variables))
 
-		reason, gotData := machineWorker.collect(ctx, connection)
+		reason, gotData := machineWorker.collectReadings(ctx, connection)
+		// DATA_COLLECTION_STEP_17: Disconnect, record the machine offline, then retry.
 		connection.Disconnect()
-		machineWorker.disconnected(reason)
+		machineWorker.recordDisconnection(reason)
 		if gotData {
 			retry.reset()
 		}
 	}
 }
 
-// connect calls the driver, at most CNC_MAX_CONNECTING machines at a time per collector.
-func (machineWorker *worker) connect(ctx context.Context) (*cnc.Connection, int, error) {
+// connectWithinLimit calls the driver, at most CNC_MAX_CONNECTING machines at a time per
+// collector: CNCConnect may block while the DLL connects, so a start with many machines does not
+// open every connection at once.
+func (machineWorker *worker) connectWithinLimit(ctx context.Context) (*cnc.Connection, int, error) {
 	select {
-	case machineWorker.collector.connecting <- struct{}{}:
+	case machineWorker.collector.connectLimiter <- struct{}{}:
 	case <-ctx.Done():
 		return nil, 0, ctx.Err()
 	}
-	defer func() { <-machineWorker.collector.connecting }()
+	defer func() { <-machineWorker.collector.connectLimiter }()
 	return machineWorker.collector.driver.Connect(machineWorker.machine)
 }
 
-// loadVariables reads the machine's variable configuration and binds each variable to its
-// snapshot field.
-func (machineWorker *worker) loadVariables(ctx context.Context) error {
-	machineWorker.pendingMu.Lock()
-	if machineWorker.pendingMachine != nil {
-		machineWorker.machine = *machineWorker.pendingMachine
-		machineWorker.pendingMachine = nil
-	}
-	machineWorker.pendingMu.Unlock()
+// loadVariableConfig reads the machine's variable configuration and binds each variable to its
+// snapshot field. It first takes machine details queued by queueMachineUpdate, because the
+// variables depend on the controller version.
+func (machineWorker *worker) loadVariableConfig(ctx context.Context) error {
+	machineWorker.applyPendingMachineUpdate()
 
 	configs, err := machineWorker.collector.service.GetVariableConfig(ctx, machineWorker.machine, machineWorker.collector.driver.Sources())
 	if err != nil {
 		return err
 	}
 	variables := make([]boundVariable, 0, len(configs))
+	variableMap := make([]string, 0, len(configs)) // "14:opMode<-MachineMode", for the log
+	var unreadable []string                        // active variables without a readable address
 	for _, variable := range configs {
+		if variable.Address == "" {
+			unreadable = append(unreadable, fmt.Sprintf("%d:%s", variable.ID, variable.Code))
+			continue
+		}
 		field, ok := cnc.FieldIndex(variable.Address)
 		if !ok {
-			machineWorker.event(model.EventConfigError, nil,
+			machineWorker.recordEvent(model.EventConfigError, nil,
 				fmt.Sprintf("variable %d (%s): the DLL snapshot has no field %q", variable.ID, variable.Code, variable.Address))
 			continue
 		}
 		variables = append(variables, boundVariable{config: variable, field: field})
+		variableMap = append(variableMap, fmt.Sprintf("%d:%s<-%s", variable.ID, variable.Code, variable.Address))
 	}
 	machineWorker.variables = variables
 	// Clear live values cache on reload - will be reloaded on next reading
 	machineWorker.liveValues = nil
-	slog.Info("cnc: variables loaded", "machineId", machineWorker.machine.ID, "variables", len(variables))
+	slog.Info("cnc: variables loaded", "machineId", machineWorker.machine.ID, "machine", machineWorker.machine.Name,
+		"variables", len(variables), "map", variableMap)
+	if len(unreadable) > 0 {
+		// Logged, not stored as events: it would repeat on every reconnect.
+		slog.Warn("cnc: active variables not readable", "machineId", machineWorker.machine.ID,
+			"machine", machineWorker.machine.Name, "engine", *machineWorker.machine.CNCEngine,
+			"reason", "no address in a source the server can read (only DLL snapshot fields today)",
+			"count", len(unreadable), "variables", unreadable)
+	}
 	return nil
 }
 
-// collect handles readings until the worker stops or the connection goes stale. gotData
+// applyPendingMachineUpdate takes the machine details queued by queueMachineUpdate, if any.
+func (machineWorker *worker) applyPendingMachineUpdate() {
+	machineWorker.pendingMu.Lock()
+	defer machineWorker.pendingMu.Unlock()
+	if machineWorker.pendingMachine != nil {
+		machineWorker.machine = *machineWorker.pendingMachine
+		machineWorker.pendingMachine = nil
+	}
+}
+
+// collectReadings handles readings until the worker stops or the connection goes stale. gotData
 // reports whether the controller sent a usable reading.
-func (machineWorker *worker) collect(ctx context.Context, connection *cnc.Connection) (reason stopReason, gotData bool) {
+func (machineWorker *worker) collectReadings(ctx context.Context, connection *cnc.Connection) (reason stopReason, gotData bool) {
 	machineWorker.connection = connection
 	machineWorker.alarmsKnown = false
-	machineWorker.lastGoodAt = time.Now()
+	machineWorker.lastConnectedReadingAt = time.Now()
 	machineWorker.reportedError = ""
+	machineWorker.startReadingRateWindow(time.Now(), 0) // a new connection's callbacks count from 0
 
 	ticker := time.NewTicker(tickInterval)
 	defer ticker.Stop()
 	var lastReading time.Time
 
+	// DATA_COLLECTION_STEP_14: Wait for DLL readings, variable reloads and the 1 s tick on the
+	// worker goroutine; only this goroutine touches the worker's state.
 	for {
 		select {
 		case <-ctx.Done():
-			return stopStopped, gotData
-		case <-machineWorker.configChanged:
-			if err := machineWorker.loadVariables(ctx); err != nil {
+			return stopRequested, gotData
+		case <-machineWorker.variableReloadRequested:
+			if err := machineWorker.loadVariableConfig(ctx); err != nil {
 				slog.Error("cnc: reload variable config", "machineId", machineWorker.machine.ID, "error", err)
 			}
 		case <-connection.Signal():
-			machineWorker.reportDLLError(connection.Stats())
+			machineWorker.recordDLLError(connection.Stats())
+			// Signals collapse, so take the newest reading and skip one already processed.
 			reading, ok := connection.Latest()
 			if !ok || !reading.ReceivedAt.After(lastReading) {
 				continue
 			}
 			lastReading = reading.ReceivedAt
-			if machineWorker.handleReading(reading) {
+			machineWorker.processedCount++
+			if machineWorker.processReading(reading) {
 				gotData = true
 			}
 		case now := <-ticker.C:
-			if now.Sub(machineWorker.lastGoodAt) > machineWorker.collector.config.Stale {
-				return stopStale, gotData
+			// DATA_COLLECTION_STEP_16: Drop a stale connection (no connected reading for
+			// CNC_STALE_SEC) and refresh machine_live_status when it changed or every 10 s.
+			if now.Sub(machineWorker.lastConnectedReadingAt) > machineWorker.collector.config.Stale {
+				return stopConnectionStale, gotData
 			}
-			if machineWorker.statusDirty || now.Sub(machineWorker.statusAt) >= statusInterval {
-				machineWorker.saveStatus(now)
+			if machineWorker.statusDirty || now.Sub(machineWorker.statusSavedAt) >= statusInterval {
+				machineWorker.saveLiveStatus(now)
+			}
+			if now.Sub(machineWorker.rateLoggedAt) >= rateInterval {
+				machineWorker.logReadingRate(now, connection.Stats())
 			}
 		}
 	}
 }
 
-// handleReading stores one reading in machine_telementry (one row per variable) and works out
-// the mode and events. It returns whether the controller was connected.
-func (machineWorker *worker) handleReading(reading cnc.Reading) bool {
+// processReading stores one reading: every numeric value is upserted into
+// machine_variable_values, only the values that changed are inserted into machine_telementry,
+// and when something changed the alarm events and the mode are worked out. Text variables are
+// not stored. It returns whether the controller was connected.
+func (machineWorker *worker) processReading(reading cnc.Reading) bool {
+	// DATA_COLLECTION_STEP_15: Store the reading (change detection against the cached live values).
 	now := reading.ReceivedAt
 	machineWorker.lastSeenAt = &now
 	if !reading.SampleAt.IsZero() {
@@ -247,14 +305,18 @@ func (machineWorker *worker) handleReading(reading cnc.Reading) bool {
 		if machineWorker.connectedSince != nil {
 			machineWorker.connectedSince = nil
 			machineWorker.statusDirty = true
+			slog.Warn("cnc: controller data stopped (the DLL reports it lost the controller)",
+				"machineId", machineWorker.machine.ID, "machine", machineWorker.machine.Name)
 		}
-		machineWorker.setMode(now, model.ModeOffline)
+		machineWorker.recordModeChange(now, model.ModeOffline)
 		return false
 	}
-	machineWorker.lastGoodAt = now
+	machineWorker.lastConnectedReadingAt = now
 	if machineWorker.connectedSince == nil {
 		machineWorker.connectedSince = &now
 		machineWorker.statusDirty = true
+		slog.Info("cnc: controller data started", "machineId", machineWorker.machine.ID,
+			"machine", machineWorker.machine.Name, "missingNodes", reading.MissingNodes)
 	}
 
 	// Load live values if not already cached
@@ -307,21 +369,63 @@ func (machineWorker *worker) handleReading(reading cnc.Reading) bool {
 		// Insert into time-series if value changed
 		if valueChanged {
 			telemetryRows = append(telemetryRows, machineWorker.telemetryRow(variable.config, value, now))
+			if machineWorker.collector.config.LogValues {
+				machineWorker.logValueChange(variable.config, currentLive.Value, value.Number, now)
+			}
 		}
 
 		numbers[variable.config.ID] = value.Number
 	}
 
-	// Upsert live values and insert changed telemetry
+	// Alarms and mode are derived from the stored values, so they are rechecked only when a
+	// value changed.
 	if len(liveValueRows) > 0 {
 		machineWorker.upsertLiveValues(liveValueRows, now)
 	}
 	if len(telemetryRows) > 0 {
 		machineWorker.insertTelemetry(telemetryRows, now)
-		machineWorker.checkAlarms(now, numbers, alarmMessage)
-		machineWorker.setMode(now, modeFor(true, numbers))
+		machineWorker.recordAlarmChanges(now, numbers, alarmMessage)
+		machineWorker.recordModeChange(now, modeFor(true, numbers))
 	}
 	return true
+}
+
+// logValueChange logs one changed variable value (CNC_LOG_VALUES=true). previous is nil for
+// the first value the machine sends for the variable.
+func (machineWorker *worker) logValueChange(variable model.VariableConfig, previous *float64, value float64, readAt time.Time) {
+	slog.Info("cnc: variable value changed", "machineId", machineWorker.machine.ID, "machine", machineWorker.machine.Name,
+		"variableId", variable.ID, "variable", variable.Code, "address", variable.Address,
+		"previous", previous, "value", value, "readAt", readAt.Format(time.RFC3339Nano))
+}
+
+// startReadingRateWindow starts counting the reading rate from now; callbacks is the
+// connection's callback count at that moment.
+func (machineWorker *worker) startReadingRateWindow(now time.Time, callbacks int64) {
+	machineWorker.rateLoggedAt = now
+	machineWorker.rateCallbacks = callbacks
+	machineWorker.rateProcessed = machineWorker.processedCount
+	machineWorker.rateStored = machineWorker.storedCount
+}
+
+// logReadingRate logs how many readings the DLL sent since the last log, how many the worker
+// processed and how many values it stored. skipped readings arrived while the worker was still
+// busy with an earlier one: only the newest reading is processed (Connection.Signal collapses),
+// so a growing skipped count means the worker (mostly its database writes) is slower than the DLL.
+func (machineWorker *worker) logReadingRate(now time.Time, stats cnc.Stats) {
+	seconds := now.Sub(machineWorker.rateLoggedAt).Seconds()
+	callbacks := stats.Callbacks - machineWorker.rateCallbacks
+	processed := machineWorker.processedCount - machineWorker.rateProcessed
+	stored := machineWorker.storedCount - machineWorker.rateStored
+	slog.Info("cnc: reading rate", "machineId", machineWorker.machine.ID, "machine", machineWorker.machine.Name,
+		"seconds", roundToTenth(seconds), "callbacks", callbacks, "callbacksPerSecond", roundToTenth(float64(callbacks)/seconds),
+		"processed", processed, "skipped", callbacks-processed,
+		"storedValues", stored, "storedValuesPerSecond", roundToTenth(float64(stored)/seconds))
+	machineWorker.startReadingRateWindow(now, stats.Callbacks)
+}
+
+// roundToTenth rounds value to one decimal for logs.
+func roundToTenth(value float64) float64 {
+	return math.Round(value*10) / 10
 }
 
 // liveValueRow is the machine_variable_values row of value, read at readAt.
@@ -379,8 +483,8 @@ func (machineWorker *worker) insertTelemetry(rows []model.TelemetryValue, readAt
 	machineWorker.lastChangeAt = &readAt
 }
 
-// checkAlarms writes alarm_on / alarm_off and emergency_on / emergency_off when they change.
-func (machineWorker *worker) checkAlarms(now time.Time, numbers map[int]float64, alarmMessage string) {
+// recordAlarmChanges writes alarm_on / alarm_off and emergency_on / emergency_off when they change.
+func (machineWorker *worker) recordAlarmChanges(now time.Time, numbers map[int]float64, alarmMessage string) {
 	alarm, emergency := numbers[variableAlarm], numbers[variableEmergency]
 	previousAlarm, previousEmergency := machineWorker.alarm, machineWorker.emergency
 	if !machineWorker.alarmsKnown {
@@ -390,11 +494,11 @@ func (machineWorker *worker) checkAlarms(now time.Time, numbers map[int]float64,
 	if alarm != previousAlarm {
 		if previousAlarm != 0 {
 			code := int(previousAlarm)
-			machineWorker.eventAt(now, model.EventAlarmOff, &code, "")
+			machineWorker.recordEventAt(now, model.EventAlarmOff, &code, "")
 		}
 		if alarm != 0 {
 			code := int(alarm)
-			machineWorker.eventAt(now, model.EventAlarmOn, &code, alarmMessage)
+			machineWorker.recordEventAt(now, model.EventAlarmOn, &code, alarmMessage)
 		}
 	}
 	if (emergency != 0) != (previousEmergency != 0) {
@@ -402,16 +506,18 @@ func (machineWorker *worker) checkAlarms(now time.Time, numbers map[int]float64,
 		if emergency != 0 {
 			eventType = model.EventEmergencyOn
 		}
-		machineWorker.eventAt(now, eventType, nil, "")
+		machineWorker.recordEventAt(now, eventType, nil, "")
 	}
 	machineWorker.alarm, machineWorker.emergency = alarm, emergency
 }
 
-// setMode opens a new mode period when the mode changed.
-func (machineWorker *worker) setMode(at time.Time, mode int) {
+// recordModeChange opens a new mode period when the mode changed.
+func (machineWorker *worker) recordModeChange(at time.Time, mode int) {
 	if mode == machineWorker.mode {
 		return
 	}
+	slog.Info("cnc: mode changed", "machineId", machineWorker.machine.ID, "machine", machineWorker.machine.Name,
+		"from", modeName(machineWorker.mode), "to", modeName(mode), "program", machineWorker.program)
 	machineWorker.mode = mode
 	machineWorker.statusDirty = true
 	ctx, cancel := context.WithTimeout(context.Background(), writeTimeout)
@@ -424,18 +530,18 @@ func (machineWorker *worker) setMode(at time.Time, mode int) {
 	}
 }
 
-// reportDLLError writes a dll_error event when the DLL reports a new error message.
-func (machineWorker *worker) reportDLLError(stats cnc.Stats) {
+// recordDLLError writes a dll_error event when the DLL reports a new error message.
+func (machineWorker *worker) recordDLLError(stats cnc.Stats) {
 	if stats.LastError == "" || stats.LastError == machineWorker.reportedError {
 		return
 	}
 	machineWorker.reportedError = stats.LastError
 	machineWorker.statusDirty = true
-	machineWorker.event(model.EventDLLError, nil, stats.LastError)
+	machineWorker.recordEvent(model.EventDLLError, nil, stats.LastError)
 }
 
-// saveStatus writes the machine's machine_live_status row.
-func (machineWorker *worker) saveStatus(now time.Time) {
+// saveLiveStatus writes the machine's machine_live_status row.
+func (machineWorker *worker) saveLiveStatus(now time.Time) {
 	status := model.MachineLiveStatus{
 		MachineID:      machineWorker.machine.ID,
 		Shard:          machineWorker.collector.shard,
@@ -459,28 +565,30 @@ func (machineWorker *worker) saveStatus(now time.Time) {
 		slog.Error("cnc: save live status", "machineId", machineWorker.machine.ID, "error", err)
 	}
 	machineWorker.statusDirty = false
-	machineWorker.statusAt = now
+	machineWorker.statusSavedAt = now
 }
 
-// disconnected records the end of a connection: an event, the Offline mode and the status.
-func (machineWorker *worker) disconnected(reason stopReason) {
+// recordDisconnection records the end of a connection: a stale event when it went stale, a
+// disconnected event, the Offline mode and the live status.
+func (machineWorker *worker) recordDisconnection(reason stopReason) {
 	now := time.Now()
-	if reason == stopStale {
-		machineWorker.event(model.EventStale, nil, fmt.Sprintf("no usable reading for %s", machineWorker.collector.config.Stale))
+	if reason == stopConnectionStale {
+		machineWorker.recordEvent(model.EventStale, nil, fmt.Sprintf("no usable reading for %s", machineWorker.collector.config.Stale))
 	}
-	machineWorker.event(model.EventDisconnected, nil, "")
-	machineWorker.setMode(now, model.ModeOffline)
+	machineWorker.recordEvent(model.EventDisconnected, nil, "")
+	machineWorker.recordModeChange(now, model.ModeOffline)
 	machineWorker.connectedSince = nil
-	machineWorker.saveStatus(now)
+	machineWorker.saveLiveStatus(now)
 	machineWorker.connection = nil
 }
 
-func (machineWorker *worker) event(eventType string, code *int, message string) {
-	machineWorker.eventAt(time.Now(), eventType, code, message)
+// recordEvent stores and logs a machine event at the current time.
+func (machineWorker *worker) recordEvent(eventType string, code *int, message string) {
+	machineWorker.recordEventAt(time.Now(), eventType, code, message)
 }
 
-// eventAt stores a machine event and logs it.
-func (machineWorker *worker) eventAt(at time.Time, eventType string, code *int, message string) {
+// recordEventAt stores a machine event and logs it.
+func (machineWorker *worker) recordEventAt(at time.Time, eventType string, code *int, message string) {
 	machineID := machineWorker.machine.ID
 	ctx, cancel := context.WithTimeout(context.Background(), writeTimeout)
 	defer cancel()
@@ -513,7 +621,8 @@ type backoff struct {
 	max     time.Duration
 }
 
-func (retry *backoff) next() time.Duration {
+// nextWait returns the next wait: 1 s first, then double the previous one up to max, ±20 %.
+func (retry *backoff) nextWait() time.Duration {
 	if retry.current == 0 {
 		retry.current = time.Second
 	} else {
@@ -523,12 +632,13 @@ func (retry *backoff) next() time.Duration {
 	return retry.current + jitter
 }
 
+// reset makes the next wait 1 s again.
 func (retry *backoff) reset() {
 	retry.current = 0
 }
 
-// sleep waits for duration or until ctx ends.
-func sleep(ctx context.Context, duration time.Duration) {
+// sleepUnlessCancelled waits for duration or until ctx ends.
+func sleepUnlessCancelled(ctx context.Context, duration time.Duration) {
 	timer := time.NewTimer(duration)
 	defer timer.Stop()
 	select {

@@ -92,15 +92,20 @@ func toEntityResponseError(err error) error {
 
 ### Handler Pattern
 ```go
-func (h *EntityHandler) GetByID(w http.ResponseWriter, r *http.Request) {
-    id, err := pathID(r)  // Extract ID from path
+// GetByID handles GET /api/v1/entities/{id}.
+func (entityHandler *EntityHandler) GetByID(writer http.ResponseWriter, request *http.Request) {
+    id, err := pathID(request)
     if err != nil {
-        response.SendResponse(w, r, http.StatusBadRequest, err)
+        response.SendResponse(writer, request, err, nil)
         return
     }
-    
-    entity, err := h.service.GetByID(r.Context(), id)
-    response.SendResponse(w, r, err, entity)
+
+    entity, err := entityHandler.service.GetByID(request.Context(), id)
+    if err != nil {
+        response.SendResponse(writer, request, err, nil)
+        return
+    }
+    response.SendResponse(writer, request, response.Success, entity)
 }
 ```
 
@@ -111,8 +116,43 @@ func (h *EntityHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 - **Constructors**: `NewXxx` (`NewUserHandler`)
 - **Errors**: `ErrXxx` (`ErrNotFound`, `ErrDuplicateField`)
 
+## Coding Standards
+
+These apply to all new and changed code. Match the file you are in; do not refactor existing code just to meet them.
+
+### Naming
+- Names say what a thing is or does: `customerID`, `machineScope`, `checkBreaksFit`. No abbreviations or single letters beyond the usual `ctx`, `err`, `id`, `i`.
+- Receivers and HTTP parameters use full words, as the existing code does: `(userHandler *UserHandler)`, `(userService *UserService)`, `writer http.ResponseWriter, request *http.Request`.
+- A function's name matches what it does. If it also saves, deletes or changes state, the name says so (`SaveTheme`, not `GetTheme`). When a function's behaviour changes, rename it.
+- Use the same verbs per layer: repository `FindAll` / `FindByID` / `Create` / `Update` / `Delete`; service and handler `GetAll` / `GetByID` / `Create` / `Update` / `Delete`; checks are `checkXxx` / `isXxx` / `hasXxx`; error mapping is `toEntityResponseError` (service) and `mapEntityError` (repository).
+- Use the domain's words consistently: customer, company, member, clientele, shift, break. Don't name one thing two ways (e.g. `client` vs `clientele`).
+- DTOs are `CreateXxxRequest` / `UpdateXxxRequest` / `XxxResponse`; JSON fields are camelCase, DB columns snake_case.
+
+### Functions
+- One function, one job. If you need "and" to describe it, or it is too long to follow at a glance, extract a named private helper. Don't pull out single-use helpers that only hide two or three plain lines.
+- Return early on errors (guard clauses); avoid deep nesting.
+- Handle every error. Wrap with the operation name in repositories (`fmt.Errorf("find user: %w", err)`); map to `response.*` errors in services.
+- Pass `ctx context.Context` first, then the acting user (`actor`) when the method needs one, then the inputs.
+- Prefer plain code over clever code: no generics, interfaces, reflection or goroutines unless the problem needs them (concurrency lives in `internal/collector` / `internal/monitor`).
+
+### Comments
+- Every exported type and function gets a short doc comment that starts with its name and says what it does, e.g. `// GetByID handles GET /api/v1/brands/{id}.` (handlers name their route and query parameters).
+- Inside functions, comment only the *why*: business rules, non-obvious decisions, multi-step workflows (transactions, keep / add / soft-delete of child rows), edge cases (shift past midnight, DLL limits).
+- Don't comment what the code already says (`// Extract ID from path`, `// Call service`), don't leave commented-out code, and don't leave TODOs without an owner or reason.
+- Update or delete a comment when the code it describes changes.
+
+### Formatting and checks
+- Run `gofmt` (or `goimports`) on every changed file; group imports as standard library, third party, then `7th-sense-server/internal/...`.
+- `go build ./...` and `go vet ./...` must pass; run `go test ./tests/...` when you touch behaviour that tests cover.
+- No magic numbers or strings: give a value used in more than one place, or a value whose meaning isn't obvious, a named constant (e.g. `dto.LicenceKeyTrialDays`).
+
+### Scope of changes
+- Change only what the task needs. Don't rename, reformat or restructure unrelated code in the same change.
+- Never change architecture, API contracts, database schema or business rules as part of a "cleanup". These need their own task.
+- When you change an endpoint, table or rule, update the matching section of this file in the same change.
+
 ## Response Format
-All responses use `response.SendResponse(w, r, statusCode, data)`:
+All responses use `response.SendResponse(writer, request, result, data)`. `result` is a `response.*` value (`response.Success`, `response.EntityNotFound`, ...) or an error; any other error becomes a 500:
 ```json
 {"statusCode": 200, "success": true, "message": "success", "data": {...}}
 {"statusCode": 404, "success": false, "message": "Entity not found"}
@@ -172,8 +212,8 @@ Base path: `/api/v1`
 **CNC data collection** (no API yet; `docs/cnc-telemetry-collector-plan.md`, migration `028_cnc_machine_telementry.sql`):
 - **What starts it:** the API server itself, in-process (`internal/collector.Supervisor` runs `monitor.Collector` in a goroutine; no separate process or service). `CNC_ENABLED` defaults to `true`; `false` = API only. The DLL is 32-bit, so the server must be built `GOARCH=386`: `.\run.ps1`, `.\build.ps1` (→ `bin\server.exe`) and `go tool air` do. A 64-bit build refuses to start while `CNC_ENABLED=true` (`collector.ErrWrongBuild`); with `CNC_ENABLED=false` it serves the API only.
 - **Machines:** the server connects every machine (shard 0 of 1, at most `CNC_SLOTS` ≤ 990) with `status = 'active'`, not deleted, through `FanucCncCommunication.dll` in `Lib\` (`internal/cnc`: `CNCConnect`, one callback slot per machine, Siemens login via `SIEMENS_USER`/`SIEMENS_PASS` under a lock). The engine comes from `controllers.cnc_engine` (NULL = `config_error` event, not connected).
-- **Variables:** `cnc_variables` (old `mm_variables` ids), `cnc_variable_addresses` (source `snapshot` = a DLL snapshot field, the only one readable today; `plc`/`nc` wait for a DLL read function), `machine_variables` (per machine, `id` = variable id, key `(machine_id, id)`, hard delete).
-- **Flow:** `internal/monitor`: one worker per machine loads live values from `machine_variable_values` (numeric only), upserts every reading to detect changes, and inserts **only changed numeric values** into time-series (`MachineTelemetryService.UpsertLiveValues` → `InsertTelemetry`; no batching, but change detection is used: `store_mode` / deadband / `min_interval_ms` are not used). Text variables are not stored at all. Works out the `machine_modes` id (old `machines_modes` ids). Mode changes, events and statuses are written directly too.
+- **Variables:** `cnc_variables` (old `mm_variables` ids), `cnc_variable_addresses` (source `snapshot` = a DLL snapshot field, the only one readable today; `plc`/`nc` wait for a DLL read function), `machine_variables` (per machine, `id` = variable id, key `(machine_id, id)`, hard delete). Axis positions of X, Y, Z (MachPos / AbsPos / RelPos / DistToGo, ids 208–219, addresses `MachPos[0]` = X … `[2]` = Z) come from migration 029; the code reads all 5 snapshot axes, a variable decides which are stored.
+- **Flow:** `internal/monitor`: one worker per machine loads live values from `machine_variable_values` (numeric only), upserts every reading to detect changes, and inserts **only changed numeric values** into time-series (`MachineTelemetryService.UpsertLiveValues` → `InsertTelemetry`; no batching, but change detection is used: `store_mode` / deadband / `min_interval_ms` are not used). Text variables are not stored at all. Works out the `machine_modes` id (old `machines_modes` ids). Mode changes, events and statuses are written directly too. Logs: `cnc collector: worker started`, `cnc: variables loaded` (variable → field map) and `cnc: active variables not readable` (FindVariableConfig returns those with an empty address), `cnc: machine subscribed` on connect, `cnc: controller data started` / `stopped`, `cnc: mode changed`, `cnc: reading rate` every 10 s per machine (callbacks / processed / skipped / stored), `cnc: variable value changed` per changed value when `CNC_LOG_VALUES=true`.
 - **Tables written:** `machine_variable_values` (one row per machine-variable: latest numeric value only, upserted every reading to detect changes; text variables not stored), `machine_telementry` (hypertable; only changed numeric values, `value`; the latest value is the newest row), `machine_live_status`, `machine_mode_log`, `machine_events`, plus `machines.mode_id`/`online_status`.
 - **Change notifications:** `machines_changed` / `cnc_config_changed` NOTIFY make collectors follow edits without polling.
 - **Builds and logs:** a non-386 build cannot load the DLL. Collection logs go to `logs/app.log` with the API's. A native crash inside the DLL ends the whole server.
@@ -196,6 +236,7 @@ UPLOAD_DIR=uploads    # uploaded files (part drawings); keep outside the deploy 
 CNC_ENABLED=true      # the server connects the machines itself (GOARCH=386 build + Lib\); false = API only
 CNC_SLOTS=300         # most machines the server holds (max 990)
 CNC_LIB_DIR=Lib       # CNC_DLL_NAME=FanucCncCommunication.dll
+CNC_LOG_VALUES=false  # true logs every changed variable value (data frequency analysis; many lines)
 # CNC_STALE_SEC=30 CNC_MAX_CONNECTING=20 CNC_STOP_TIMEOUT_SEC=15
 ```
 

@@ -15,11 +15,11 @@ import (
 // ===================== SETTINGS =====================
 
 const (
-	plcIP       = "157.10.57.69"
-	plcPort     = 4840
+	plcIP       = "192.168.0.254"
+	plcPort     = 8193
 	siemensUser = "JYOTI"
 	siemensPass = "12345678"
-	endpoint    = "opc.tcp://157.10.57.69:4840"
+	endpoint    = "opc.tcp://192.168.0.254:8193"
 
 	verbose            = false
 	emergencyAvailable = false

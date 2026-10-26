@@ -1,6 +1,10 @@
 package monitor
 
-import "7th-sense-server/internal/model"
+import (
+	"strconv"
+
+	"7th-sense-server/internal/model"
+)
 
 // Variables the mode rules and events read (cnc_variables ids, the old mm_variables ids).
 const (
@@ -21,6 +25,27 @@ const (
 	progStatusWaiting     = 3
 	progStatusInterrupted = 4
 )
+
+// modeName names a machine_modes id for logs.
+func modeName(mode int) string {
+	switch mode {
+	case model.ModeSetup:
+		return "Setup"
+	case model.ModeInProduction:
+		return "In Production"
+	case model.ModeHold:
+		return "Hold"
+	case model.ModeIdle:
+		return "Idle"
+	case model.ModeDowntime:
+		return "Downtime"
+	case model.ModeOffline:
+		return "Offline"
+	case model.ModeRapid:
+		return "Rapid Mode"
+	}
+	return strconv.Itoa(mode)
+}
 
 // modeFor turns the machine's state into a machine_modes id. First match wins:
 //

@@ -87,13 +87,14 @@ func mapMachineTelemetryError(operation string, err error) error {
 // FindVariableConfig returns the variables machine reads, with its overrides applied. Per
 // variable the address is the one for the machine's controller version before the one for all
 // versions, then the cheapest source; only sources in sources (what the collector can read)
-// are used. Variables without a usable address are left out.
+// are used. A variable without a usable address comes back with an empty source and address,
+// so the collector can report it instead of dropping it silently.
 func (telemetryRepository *MachineTelemetryRepository) FindVariableConfig(ctx context.Context, machine model.MonitoredMachine, sources []string) ([]model.VariableConfig, error) {
 	query := `SELECT v.id, v.code, v.data_type, v.store_mode,
 			COALESCE(mv.deadband, v.deadband) AS deadband,
 			COALESCE(mv.min_interval_ms, v.min_interval_ms) AS min_interval_ms,
-			COALESCE(mv.source, a.source) AS source,
-			COALESCE(mv.address, a.address) AS address
+			COALESCE(mv.source, a.source, '') AS source,
+			COALESCE(mv.address, a.address, '') AS address
 		FROM cnc_variables v
 		LEFT JOIN machine_variables mv ON mv.id = v.id AND mv.machine_id = $1
 		LEFT JOIN LATERAL (
@@ -108,7 +109,6 @@ func (telemetryRepository *MachineTelemetryRepository) FindVariableConfig(ctx co
 		) a ON true
 		WHERE v.is_deleted = false AND v.status = 'active'
 		  AND COALESCE(mv.is_enabled, true)
-		  AND COALESCE(mv.address, a.address) IS NOT NULL
 		ORDER BY v.id`
 
 	rows, err := db.Execute(ctx, telemetryRepository.database, query,

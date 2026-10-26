@@ -2,7 +2,7 @@
 // It only connects, receives readings and disconnects: no database code, no business rules.
 //
 // The DLL is 32-bit: it is loaded only in windows/386 builds (dll_windows_386.go). Every other
-// build returns ErrNotSupported from Open.
+// build returns ErrNotSupported from LoadDriver.
 package cnc
 
 import (
@@ -16,7 +16,7 @@ import (
 )
 
 var (
-	// ErrNotSupported is returned by Open when the DLL cannot be used in this build.
+	// ErrNotSupported is returned by LoadDriver when the DLL cannot be used in this build.
 	ErrNotSupported = errors.New("cnc: the CNC DLL is 32-bit; build the server with GOARCH=386 on Windows")
 	// ErrNoFreeSlot is returned by Connect when every callback slot is in use (CNC_SLOTS).
 	ErrNoFreeSlot = errors.New("cnc: no free callback slot")
@@ -95,13 +95,13 @@ func (connection *Connection) Disconnect() {
 	})
 }
 
-// publish stores a reading and wakes the worker. It never blocks (it runs on the DLL thread).
-func (connection *Connection) publish(reading Reading) {
+// publishReading stores a reading and wakes the worker. It never blocks (it runs on the DLL thread).
+func (connection *Connection) publishReading(reading Reading) {
 	connection.mu.Lock()
 	connection.latest, connection.hasReading = reading, true
 	connection.stats.Callbacks++
 	connection.mu.Unlock()
-	connection.wake()
+	connection.signalWorker()
 }
 
 // publishError stores a DLL error and wakes the worker. It never blocks.
@@ -110,10 +110,12 @@ func (connection *Connection) publishError(code int, message string) {
 	connection.stats.Errors++
 	connection.stats.LastError = fmt.Sprintf("%d: %s", code, message)
 	connection.mu.Unlock()
-	connection.wake()
+	connection.signalWorker()
 }
 
-func (connection *Connection) wake() {
+// signalWorker wakes the worker without blocking the DLL thread: the channel holds one value,
+// so arrivals while the worker is busy collapse into one wake-up.
+func (connection *Connection) signalWorker() {
 	select {
 	case connection.signal <- struct{}{}:
 	default:
@@ -126,9 +128,10 @@ type Driver struct {
 	name string
 }
 
-// Open loads the DLL. A collector cannot work without it.
-func Open(cncConfig config.CNCConfig) (*Driver, error) {
-	dll, err := openDLL(cncConfig)
+// LoadDriver loads the CNC DLL and prepares its callback slots (CNC_SLOTS). A collector cannot
+// work without it.
+func LoadDriver(cncConfig config.CNCConfig) (*Driver, error) {
+	dll, err := loadDLL(cncConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -148,8 +151,9 @@ func (driver *Driver) Sources() []string {
 // Connect starts receiving readings from machine. It returns the DLL connection id
 // (CNCConnect's result, also on failure) for events. It may block while the DLL connects.
 func (driver *Driver) Connect(machine model.MonitoredMachine) (*Connection, int, error) {
+	// DATA_COLLECTION_STEP_12: Connect the machine through the DLL (callback slot + CNCConnect).
 	if machine.CNCEngine == nil {
 		return nil, 0, ErrNoEngine
 	}
-	return driver.dll.connect(machine)
+	return driver.dll.connectMachine(machine)
 }

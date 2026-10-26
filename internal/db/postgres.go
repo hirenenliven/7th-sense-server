@@ -59,10 +59,10 @@ func WithTransaction(ctx context.Context, pool *pgxpool.Pool, fn func(tx pgx.Tx)
 	return pgx.BeginFunc(ctx, pool, fn)
 }
 
-// Listen runs LISTEN on channels on one connection taken from pool and calls notify for
-// every notification until ctx is cancelled or the connection fails (the error is returned;
-// the caller reconnects). ready is called once the LISTENs are active.
-func Listen(ctx context.Context, pool *pgxpool.Pool, channels []string, ready func(), notify func(channel, payload string)) error {
+// ListenForDatabaseNotifications runs LISTEN on channels on one connection taken from pool and
+// calls notify for every notification until ctx is cancelled or the connection fails (the error
+// is returned; the caller reconnects). ready is called once the LISTENs are active.
+func ListenForDatabaseNotifications(ctx context.Context, pool *pgxpool.Pool, channels []string, ready func(), notify func(channel, payload string)) error {
 	pooled, err := pool.Acquire(ctx)
 	if err != nil {
 		return fmt.Errorf("db: acquire listen connection: %w", err)
