@@ -342,11 +342,16 @@ so the worker needs no locks for its own data.
 
   Setup (1) and Rapid Mode (12) are no longer decided.
 
-- **Log:** each change is logged once as `cnc: mode changed` with `from`, `to`, `reason` (the rule
+- **Log:** each change is logged once as `cnc: mode changed [machine <id> <name>] <from> -> <to>` with `from`, `to`, `reason` (the rule
   that matched, e.g. `program running, feed override ≤ 0`) and the NC inputs `opMode`,
   `procStatus` (raw value and state), `chanStatus`, `feedOverride`, `alarmNo`, `emergency`,
   `ncProgram`, so a mode can be checked against the HMI. It is always on; `CNC_LOG_VALUES` only
   controls the per-reading `cnc: variable values changed` line.
+- **Debugging chosen machines:** `CNC_DEBUG_MACHINE_IDS=225,247` (restart to apply) logs, for those
+  machines only, `cnc debug: mode check [machine <id> <name>] <mode>` whenever the NC inputs
+  change (with `decided`, `current`, `modeChanges`, `reason` and the inputs), and their variable
+  value changes as with `CNC_LOG_VALUES=true`. Every machine is still collected and stored.
+  All of it is in `internal/monitor/debug_log.go`.
 
 - **If a write fails:** the error is logged and saved in `machine_live_status.last_error`. Failed
   telemetry rows are lost and counted in `dropped_count`; the next reading is stored normally.

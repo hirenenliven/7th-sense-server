@@ -78,6 +78,7 @@ func (collector *Collector) RunCollection(ctx context.Context) error {
 	collector.recordCollectorEvent(model.EventCollectorStart,
 		fmt.Sprintf("shard %d of %d, %s", collector.shard, collector.shards, collector.driver.Name()))
 	logger.Info("cnc collector started", "driver", collector.driver.Name())
+	logDebugMachines(collector.config.DebugMachineIDs)
 
 	syncLoopDone := make(chan struct{})
 	go func() {

@@ -72,6 +72,11 @@ type worker struct {
 
 	liveValues map[int]model.LiveValue // cache of current live values by variable_id
 
+	// debug is set for the machines in CNC_DEBUG_MACHINE_IDS (debug_log.go); lastModeCheck is
+	// the NC state last logged by logModeCheck.
+	debug         bool
+	lastModeCheck *machineState
+
 	// The counters at the last reading rate log; logReadingRate reports the change since then.
 	rateLoggedAt  time.Time
 	rateCallbacks int64
@@ -89,6 +94,7 @@ func newMachineWorker(collector *Collector, machine model.MonitoredMachine, canc
 		cancel:                  cancel,
 		done:                    make(chan struct{}),
 		mode:                    model.ModeOffline, // the collector starts every machine offline
+		debug:                   collector.config.DebugMachineIDs[machine.ID],
 	}
 }
 
@@ -159,7 +165,7 @@ func (machineWorker *worker) runConnectionLoop(ctx context.Context) {
 		slog.Info("cnc: machine subscribed", "machineId", machineWorker.machine.ID, "machine", machineWorker.machine.Name,
 			"ip", machineWorker.machine.LiveIP, "port", machineWorker.machine.Port, "engine", *machineWorker.machine.CNCEngine,
 			"connectionId", id, "variables", len(machineWorker.variables),
-			"logValues", machineWorker.collector.config.LogValues)
+			"logValues", machineWorker.collector.config.LogValues, "debug", machineWorker.debug)
 
 		reason, gotData := machineWorker.collectReadings(ctx, connection)
 		// DATA_COLLECTION_STEP_17: Disconnect, record the machine offline, then retry.
@@ -345,7 +351,7 @@ func (machineWorker *worker) processReading(reading cnc.Reading) bool {
 	alarmMessage := ""
 	telemetryRows := make([]model.TelemetryValue, 0, len(machineWorker.variables))
 	liveValueRows := make([]model.LiveValue, 0, len(machineWorker.variables))
-	changeLog := newValueChangeLog(machineWorker.collector.config.LogValues)
+	changeLog := newValueChangeLog(machineWorker.collector.config.LogValues || machineWorker.debug)
 	for _, variable := range machineWorker.variables {
 		value := reading.Values[variable.field]
 		currentLive := machineWorker.liveValues[variable.config.ID]
@@ -530,15 +536,22 @@ func (machineWorker *worker) recordAlarmChanges(now time.Time, numbers map[int]f
 	machineWorker.alarm, machineWorker.emergency = alarm, emergency
 }
 
+// logLabel names the machine in log messages, e.g. "[machine 225 VM14]", so a line shows
+// which machine it is about without reading its attributes.
+func (machineWorker *worker) logLabel() string {
+	return fmt.Sprintf("[machine %d %s]", machineWorker.machine.ID, machineWorker.machine.Name)
+}
+
 // recordModeChange opens a new mode period when the mode changed and logs why: reason is the
 // rule that decided it and inputs the NC values it was decided from (none for Offline).
 func (machineWorker *worker) recordModeChange(at time.Time, mode int, reason string, inputs []any) {
 	if mode == machineWorker.mode {
 		return
 	}
+	message := fmt.Sprintf("cnc: mode changed %s %s -> %s", machineWorker.logLabel(), modeName(machineWorker.mode), modeName(mode))
 	attributes := []any{"machineId", machineWorker.machine.ID, "machine", machineWorker.machine.Name,
 		"from", modeName(machineWorker.mode), "to", modeName(mode), "reason", reason, "program", machineWorker.program}
-	slog.Info("cnc: mode changed", append(attributes, inputs...)...)
+	slog.Info(message, append(attributes, inputs...)...)
 	machineWorker.mode = mode
 	machineWorker.statusDirty = true
 	ctx, cancel := context.WithTimeout(context.Background(), writeTimeout)

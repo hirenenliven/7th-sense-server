@@ -207,5 +207,6 @@ func holdReason(state machineState) string {
 func (machineWorker *worker) recordModeFromReading(at time.Time, reading cnc.Reading) {
 	state := machineStateFromReading(reading)
 	mode, reason := decideMachineMode(state)
+	machineWorker.logModeCheck(state, mode, reason)
 	machineWorker.recordModeChange(at, mode, reason, state.logAttributes())
 }

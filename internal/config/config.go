@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -42,6 +43,10 @@ type CNCConfig struct {
 	// LogValues logs the changed variable values of each reading in one line (monitor/value_log.go). For
 	// analysing data frequency only: at 10 readings/s it writes many lines per machine.
 	LogValues bool
+	// DebugMachineIDs (CNC_DEBUG_MACHINE_IDS, e.g. "225,247") are the machines whose mode
+	// decisions and value changes are logged in detail (monitor/debug_log.go). Every machine is
+	// still collected and stored; empty = no machine.
+	DebugMachineIDs map[int64]bool
 	// CertDir is the directory where client certificates are generated for OPC UA authentication.
 	// If empty, certificates are generated next to the server binary.
 	CertDir string
@@ -77,15 +82,16 @@ func Load() Config {
 		CookieSecure: getEnv("COOKIE_SECURE", "false") == "true",
 		UploadDir:    getEnv("UPLOAD_DIR", "uploads"),
 		CNC: CNCConfig{
-			Enabled:       getEnv("CNC_ENABLED", "true") == "true",
-			Slots:         getEnvInt("CNC_SLOTS", 300),
-			LibDir:        getEnv("CNC_LIB_DIR", "Lib"),
-			DLLName:       getEnv("CNC_DLL_NAME", "FanucCncCommunication.dll"),
-			Stale:         time.Duration(getEnvInt("CNC_STALE_SEC", 30)) * time.Second,
-			MaxConnecting: getEnvInt("CNC_MAX_CONNECTING", 20),
-			StopTimeout:   time.Duration(getEnvInt("CNC_STOP_TIMEOUT_SEC", 15)) * time.Second,
-			LogValues:     getEnv("CNC_LOG_VALUES", "false") == "true",
-			CertDir:       getEnv("CNC_CERT_DIR", ""),
+			Enabled:         getEnv("CNC_ENABLED", "true") == "true",
+			Slots:           getEnvInt("CNC_SLOTS", 300),
+			LibDir:          getEnv("CNC_LIB_DIR", "Lib"),
+			DLLName:         getEnv("CNC_DLL_NAME", "FanucCncCommunication.dll"),
+			Stale:           time.Duration(getEnvInt("CNC_STALE_SEC", 30)) * time.Second,
+			MaxConnecting:   getEnvInt("CNC_MAX_CONNECTING", 20),
+			StopTimeout:     time.Duration(getEnvInt("CNC_STOP_TIMEOUT_SEC", 15)) * time.Second,
+			LogValues:       getEnv("CNC_LOG_VALUES", "false") == "false",
+			DebugMachineIDs: getEnvIDs("CNC_DEBUG_MACHINE_IDS"),
+			CertDir:         getEnv("CNC_CERT_DIR", ""),
 		},
 	}
 }
@@ -104,4 +110,21 @@ func getEnvInt(key string, fallback int) int {
 		return fallback
 	}
 	return value
+}
+
+// getEnvIDs reads a list of positive ids separated by commas or spaces ("225, 247"); an invalid
+// entry is logged and left out.
+func getEnvIDs(key string) map[int64]bool {
+	ids := map[int64]bool{}
+	for _, entry := range strings.FieldsFunc(getEnv(key, ""), func(character rune) bool {
+		return character == ',' || character == ' '
+	}) {
+		id, err := strconv.ParseInt(entry, 10, 64)
+		if err != nil || id <= 0 {
+			slog.Warn("invalid id ignored", "variable", key, "value", entry)
+			continue
+		}
+		ids[id] = true
+	}
+	return ids
 }
