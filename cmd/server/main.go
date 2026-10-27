@@ -58,6 +58,7 @@ func run() error {
 	productRepository := repository.NewProductRepository(dbPool)
 	controllerRepository := repository.NewControllerRepository(dbPool)
 	machineRepository := repository.NewMachineRepository(dbPool)
+	telemetryRepository := repository.NewMachineTelemetryRepository(dbPool)
 	// Organization: each service checks its parent with the service above it
 	userCountryService := service.NewUserCountryService(repository.NewUserCountryRepository(dbPool))
 	userStateService := service.NewUserStateService(repository.NewUserStateRepository(dbPool), userCountryService)
@@ -77,6 +78,8 @@ func run() error {
 	// A machine checks its customer, brand, controller, model and the customer's line
 	machineService := service.NewMachineService(machineRepository, repository.NewUserRepository(dbPool),
 		machineModelService, brandService, controllerService, userLineService)
+	telemetryService := service.NewMachineTelemetryService(dbPool, telemetryRepository)
+	healthService := service.NewHealthService(machineService, telemetryService)
 	roleService := service.NewRoleService(repository.NewRoleRepository(dbPool))
 	clienteleService := service.NewClienteleService(repository.NewClienteleRepository(dbPool), repository.NewUserRepository(dbPool))
 	// A part checks its customer, clientele and applicable machines; drawings are files under UPLOAD_DIR
@@ -115,6 +118,7 @@ func run() error {
 		UserCell:       handler.NewUserCellHandler(userCellService),
 		UserSupervisor: handler.NewUserSupervisorHandler(userSupervisorService),
 		Role:           handler.NewRoleHandler(roleService),
+		Health:         handler.NewHealthHandler(healthService),
 	}, middleware.Authenticate(authService))
 
 	server := &http.Server{

@@ -6,9 +6,9 @@
     "semantic_hash": "8c58146bf0c47700bfef5615ac617dd5"
   },
   "cmd/server/main.go": {
-    "mtime": 1793076450.4518027,
-    "seen": 1793077444.4173,
-    "ast_hash": "c9e5af7967ea7466f88f77c9ec4aef6c",
+    "mtime": 1793091392.156429,
+    "seen": 1793091492.160358,
+    "ast_hash": "2985f68039ab7bcde5df7a811318a72b",
     "semantic_hash": ""
   },
   "go.mod": {
@@ -864,9 +864,9 @@
     "semantic_hash": "ec0ba3e490363a65fb7583f5f246020f"
   },
   "internal/routes/routes.go": {
-    "mtime": 1792556056.5773654,
-    "seen": 1792556242.0114312,
-    "ast_hash": "8b77ce31e77eae6255bf69fcb1ca6a30",
+    "mtime": 1793091858.1087875,
+    "seen": 1793092168.0539343,
+    "ast_hash": "bdf700030dd8c6be4403c0ab3b80fd71",
     "semantic_hash": ""
   },
   "internal/routes/shift_routes.go": {
@@ -1218,9 +1218,9 @@
     "semantic_hash": "83e782660b9df6e3978298333b4f35a6"
   },
   ".claude/CLAUDE.md": {
-    "mtime": 1793078067.938035,
-    "seen": 1793078078.9906914,
-    "ast_hash": "a9d4af9ed4aa22d6a9c4dd692e43ceee",
+    "mtime": 1793092159.1988027,
+    "seen": 1793092168.0540495,
+    "ast_hash": "4c76cfd52e2dcece66cb24ee8cc19f43",
     "semantic_hash": ""
   },
   "7th_server_skills.md.md": {
@@ -1392,9 +1392,9 @@
     "semantic_hash": ""
   },
   "internal/monitor/worker.go": {
-    "mtime": 1793078055.0088148,
-    "seen": 1793078078.990449,
-    "ast_hash": "147e5b2ed721d61318f751e5ee4a0c0e",
+    "mtime": 1793078286.4575455,
+    "seen": 1793078430.772101,
+    "ast_hash": "662be812b150e3456ffe0eda2528ba4a",
     "semantic_hash": ""
   },
   "build.ps1": {
@@ -1410,21 +1410,21 @@
     "semantic_hash": ""
   },
   "internal/model/machine_telemetry.go": {
-    "mtime": 1792754042.8913264,
-    "seen": 1792754786.777086,
-    "ast_hash": "a7af1d0c0d479a6cdb5d4befae31fe82",
+    "mtime": 1793091359.9613883,
+    "seen": 1793091492.1605415,
+    "ast_hash": "3631137635ee4fa39159652efb131ed0",
     "semantic_hash": ""
   },
   "internal/repository/machine_telemetry_repository.go": {
-    "mtime": 1793005720.0425887,
-    "seen": 1793005827.5196826,
-    "ast_hash": "a2761362605e0ffd08e2f62b00ab105a",
+    "mtime": 1793091359.9590857,
+    "seen": 1793091492.1606128,
+    "ast_hash": "6236e9147c29eeacbf342695b1035fd1",
     "semantic_hash": ""
   },
   "internal/service/machine_telemetry_service.go": {
-    "mtime": 1793005720.1281912,
-    "seen": 1793005827.5197935,
-    "ast_hash": "8eaad455ada74cb3929a2f422aff2695",
+    "mtime": 1793091359.960091,
+    "seen": 1793091492.1607306,
+    "ast_hash": "7590bba7573caff90a6cc5aa47bf9222",
     "semantic_hash": ""
   },
   "docs/cnc-data-collection-flow.md": {
@@ -1467,6 +1467,48 @@
     "mtime": 1793078003.9767983,
     "seen": 1793078078.9904466,
     "ast_hash": "d9ddf49e1282bf12f582f1c49ad65eb1",
+    "semantic_hash": ""
+  },
+  "internal/dto/health_dto.go": {
+    "mtime": 1793091367.0387235,
+    "seen": 1793091492.1604114,
+    "ast_hash": "52d2e08a5acd406311d148201beb6025",
+    "semantic_hash": ""
+  },
+  "internal/handler/health_handler.go": {
+    "mtime": 1793091858.1097903,
+    "seen": 1793092168.053719,
+    "ast_hash": "9a179bcddcc28837cb67ab3b7e58ee07",
+    "semantic_hash": ""
+  },
+  "internal/routes/health_routes.go": {
+    "mtime": 1793091858.04407,
+    "seen": 1793092168.053917,
+    "ast_hash": "042b26578ef45f0b05aaf8e9781c3650",
+    "semantic_hash": ""
+  },
+  "internal/service/health_service.go": {
+    "mtime": 1793091858.1097903,
+    "seen": 1793092168.053973,
+    "ast_hash": "6f371ba4f3a971b88d76d3d73ae26e69",
+    "semantic_hash": ""
+  },
+  "web/mode-chart/mode-chart.js": {
+    "mtime": 1793092141.5372808,
+    "seen": 1793092168.054046,
+    "ast_hash": "213d81994aef2c7107d0328ad670ecd5",
+    "semantic_hash": ""
+  },
+  "web/web.go": {
+    "mtime": 1793091857.9980514,
+    "seen": 1793092168.0540478,
+    "ast_hash": "87f3bcadb79b283bc1cfdc007c01f02c",
+    "semantic_hash": ""
+  },
+  "web/mode-chart/index.html": {
+    "mtime": 1793092141.5933452,
+    "seen": 1793092168.0540602,
+    "ast_hash": "ab99369d2d9089af0ad41a1a4f968f4d",
     "semantic_hash": ""
   }
 }

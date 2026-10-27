@@ -385,3 +385,25 @@ func (telemetryRepository *MachineTelemetryRepository) MarkShardOffline(ctx cont
 	}
 	return nil
 }
+
+// FindModePeriods returns machine machineID's mode periods that were running at or after since,
+// oldest first. The open period (ended_at NULL) counts its duration up to now.
+func (telemetryRepository *MachineTelemetryRepository) FindModePeriods(ctx context.Context, machineID int64, since time.Time) ([]model.MachineModePeriod, error) {
+	query := `SELECT l.id, l.mode_id, COALESCE(mm.name, '') AS mode_name,
+			COALESCE(l.program_name, '') AS program_name, l.started_at, l.ended_at,
+			COALESCE(l.duration_sec, EXTRACT(EPOCH FROM now() - l.started_at)::int) AS duration_sec
+		FROM machine_mode_log l
+		LEFT JOIN machine_modes mm ON mm.id = l.mode_id
+		WHERE l.machine_id = $1 AND (l.ended_at IS NULL OR l.ended_at >= $2)
+		ORDER BY l.started_at`
+
+	rows, err := db.Execute(ctx, telemetryRepository.database, query, machineID, since)
+	if err != nil {
+		return nil, fmt.Errorf("find mode periods: %w", err)
+	}
+	periods, err := pgx.CollectRows(rows, pgx.RowToStructByName[model.MachineModePeriod])
+	if err != nil {
+		return nil, fmt.Errorf("find mode periods: %w", err)
+	}
+	return periods, nil
+}

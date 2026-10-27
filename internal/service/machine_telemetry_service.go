@@ -130,3 +130,8 @@ func (telemetryService *MachineTelemetryService) ListenForConfigurationChanges(c
 	return db.ListenForDatabaseNotifications(ctx, telemetryService.dbPool,
 		[]string{MachinesChangedChannel, CNCConfigChangedChannel}, ready, notify)
 }
+
+// GetModePeriods returns machine machineID's mode periods running at or after since, oldest first.
+func (telemetryService *MachineTelemetryService) GetModePeriods(ctx context.Context, machineID int64, since time.Time) ([]model.MachineModePeriod, error) {
+	return telemetryService.telemetryRepository.FindModePeriods(ctx, machineID, since)
+}

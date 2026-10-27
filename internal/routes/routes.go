@@ -44,11 +44,14 @@ type Handlers struct {
 	UserCell       *handler.UserCellHandler
 	UserSupervisor *handler.UserSupervisorHandler
 	Role           *handler.RoleHandler
+	// Health serves /health/machines/{id}/modes (mode history of a machine)
+	Health *handler.HealthHandler
 }
 
 // New builds the main router with all routes and global middleware.
 // authenticate resolves the logged-in user (middleware.Authenticate in the
-// server). Only /health, login and logout work without a session; every other
+// server). Only /health, the machine mode history and its chart page (/mode-chart/),
+// login and logout work without a session; every other
 // /api route answers 401 until the user logs in.
 func New(handlers Handlers, authenticate middleware.Middleware) http.Handler {
 	router := http.NewServeMux()
@@ -59,6 +62,9 @@ func New(handlers Handlers, authenticate middleware.Middleware) http.Handler {
 
 	if handlers.Auth != nil {
 		registerAuthRoutes(router, apiPrefix+"/v1", handlers.Auth, authenticate)
+	}
+	if handlers.Health != nil {
+		registerHealthRoutes(router, apiPrefix+"/v1", handlers.Health)
 	}
 
 	// Register API versions behind authentication

@@ -112,6 +112,18 @@ type ModeChange struct {
 	At          time.Time
 }
 
+// MachineModePeriod is one row of machine_mode_log with its mode name. EndedAt is nil for the
+// current period, whose DurationSec runs up to now.
+type MachineModePeriod struct {
+	ID          int64      `db:"id" json:"id"`
+	ModeID      int        `db:"mode_id" json:"modeId"`
+	ModeName    string     `db:"mode_name" json:"modeName"`
+	ProgramName string     `db:"program_name" json:"programName"`
+	StartedAt   time.Time  `db:"started_at" json:"startedAt"`
+	EndedAt     *time.Time `db:"ended_at" json:"endedAt"`
+	DurationSec int        `db:"duration_sec" json:"durationSec"`
+}
+
 // MachineEvent is one row of machine_events. MachineID is nil for collector events.
 type MachineEvent struct {
 	MachineID *int64
