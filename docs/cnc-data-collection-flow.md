@@ -48,7 +48,7 @@ internal/service/machine_telemetry_service.go  →  internal/repository/machine_
 | Supervisor | `internal/collector/supervisor.go` | Starts collection when the server starts, restarts the collector if it fails to start, stops everything on shutdown |
 | Collector | `internal/monitor/collector.go` | Loads active machines, keeps exactly one worker per active machine, listens for database changes |
 | Worker | `internal/monitor/worker.go` | Handles one machine: connect → read → store → reconnect |
-| Mode rules | `internal/monitor/rules.go` | Works out the machine mode (Production, Idle, …) from the values |
+| Mode decision | `internal/monitor/machine_mode.go` | Decides the machine mode (Production, Hold, …) from the NC state of each reading |
 | Driver | `internal/cnc/cnc.go`, `internal/cnc/dll_windows_386.go` | Loads the DLL, connects machines, receives the DLL callbacks |
 | Service | `internal/service/machine_telemetry_service.go` | Business rules and transactions for collection |
 | Repository | `internal/repository/machine_telemetry_repository.go` | All SQL for collection |
@@ -304,7 +304,7 @@ so the worker needs no locks for its own data.
 ### Step 15 — Store the reading
 - **File:** `internal/monitor/worker.go`
 - **Functions:** `worker.processReading`, `upsertLiveValues`, `insertTelemetry`,
-  `recordAlarmChanges`, `recordModeChange`, and `modeFor` in `internal/monitor/rules.go`
+  `recordAlarmChanges`, `recordModeChange`, and `decideMachineMode` in `internal/monitor/machine_mode.go`
 - **What it does:**
   1. If the DLL says the machine is **not connected**: set mode Offline and stop here.
   2. The first time (or after a variable reload) load the current values from
@@ -317,21 +317,30 @@ so the worker needs no locks for its own data.
   5. Only values that **changed** are inserted into `machine_telementry` (time series).
      With `CNC_LOG_VALUES=true` each changed value is also logged as `cnc: variable value changed`
      (machine, variable id and code, address, previous and new value, read time).
-  6. If anything changed, it also:
-     - writes `alarm_on` / `alarm_off` and `emergency_on` / `emergency_off` events when they change,
-     - works out the mode and, if it is different, closes the old period and opens a new one in
-       `machine_mode_log` (and sets `machines.mode_id`), in one transaction.
-- **How the mode is chosen** (`modeFor`, first match wins):
+  6. If anything changed, it also writes `alarm_on` / `alarm_off` and `emergency_on` /
+     `emergency_off` events when they change.
+  7. On **every** connected reading it decides the mode from the NC state of the reading
+     (`machineStateFromReading` → `decideMachineMode`) and, if it is different, closes the old
+     period and opens a new one in `machine_mode_log` (and sets `machines.mode_id`), in one
+     transaction. The mode does not depend on the machine's variables, and it is right from the
+     first reading after a start or reconnect even when no value changed.
+- **NC state read from the snapshot:** opMode = `MachineMode` (0 JOG, 1 MDA, 2 AUTO); program =
+  `ProcStatus`, which the DLL reads from `/Channel/State/acProg` (0 reset, 1 stopped, 2 active,
+  3 waiting, 4 interrupted; `programStateFromProcStatus`); feedRateOvr = `FeedRatePercetnage`;
+  alarmActive = `AlarmNo` ≠ 0 or `IsEmergency`. chanStatus is not in the snapshot, so it is
+  unknown and decides nothing until the DLL sends it.
+- **How the mode is chosen** (`decideMachineMode`, first match wins; running = program running
+  or waiting):
 
   | Condition | Mode (id) |
   |---|---|
-  | Not connected | Offline (9) |
-  | Emergency stop or an alarm | Downtime (6) |
-  | JOG / MDA | Setup (1) |
-  | AUTO, program running, rapid (G0) | Rapid Mode (12) |
-  | AUTO, program running | In Production (3) |
-  | AUTO, stopped / waiting / interrupted | Hold (4) |
-  | Anything else (reset) | Idle (5) |
+  | No NC connection | Offline (9) |
+  | Alarm active and not running | Downtime (6) |
+  | AUTO, running, chanStatus active (or unknown), feed override > 0, no alarm | In Production (3) |
+  | Program interrupted / stopped, chanStatus interrupted, or running with feed override ≤ 0, an alarm or not in AUTO | Hold (4) |
+  | Anything else (reset, not running, JOG) | Idle (5) |
+
+  Setup (1) and Rapid Mode (12) are no longer decided.
 
 - **If a write fails:** the error is logged and saved in `machine_live_status.last_error`. Failed
   telemetry rows are lost and counted in `dropped_count`; the next reading is stored normally.

@@ -290,8 +290,9 @@ func (machineWorker *worker) collectReadings(ctx context.Context, connection *cn
 
 // processReading stores one reading: every numeric value is upserted into
 // machine_variable_values, only the values that changed are inserted into machine_telementry,
-// and when something changed the alarm events and the mode are worked out. Text variables are
-// not stored. It returns whether the controller was connected.
+// and when something changed the alarm events are worked out. Text variables are not stored.
+// The mode is decided on every connected reading (machine_mode.go). It returns whether the
+// controller was connected.
 func (machineWorker *worker) processReading(reading cnc.Reading) bool {
 	// DATA_COLLECTION_STEP_15: Store the reading (change detection against the cached live values).
 	now := reading.ReceivedAt
@@ -381,16 +382,17 @@ func (machineWorker *worker) processReading(reading cnc.Reading) bool {
 	}
 	changeLog.flush(machineWorker.machine, now)
 
-	// Alarms and mode are derived from the stored values, so they are rechecked only when a
-	// value changed.
+	// Alarm events are derived from the stored values, so they are rechecked only when a value
+	// changed. The mode is decided on every reading from the NC state itself, so it is right
+	// from the first reading of a connection even when nothing changed since the last run.
 	if len(liveValueRows) > 0 {
 		machineWorker.upsertLiveValues(liveValueRows, now)
 	}
 	if len(telemetryRows) > 0 {
 		machineWorker.insertTelemetry(telemetryRows, now)
 		machineWorker.recordAlarmChanges(now, numbers, alarmMessage)
-		machineWorker.recordModeChange(now, modeFor(true, numbers))
 	}
+	machineWorker.recordModeChange(now, decideMachineMode(machineStateFromReading(reading)))
 	return true
 }
 

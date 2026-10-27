@@ -1218,9 +1218,9 @@
     "semantic_hash": "83e782660b9df6e3978298333b4f35a6"
   },
   ".claude/CLAUDE.md": {
-    "mtime": 1793092159.1988027,
-    "seen": 1793092168.0540495,
-    "ast_hash": "4c76cfd52e2dcece66cb24ee8cc19f43",
+    "mtime": 1793094603.1228113,
+    "seen": 1793094612.6856768,
+    "ast_hash": "d1ab570fe43d6b84846b4c22cd26c643",
     "semantic_hash": ""
   },
   "7th_server_skills.md.md": {
@@ -1380,21 +1380,15 @@
     "semantic_hash": ""
   },
   "internal/monitor/rules.go": {
-    "mtime": 1793005738.7826264,
-    "seen": 1793005827.519648,
-    "ast_hash": "1f88ccc7e9d08048a1a3472d80cc52a7",
-    "semantic_hash": ""
-  },
-  "internal/monitor/rules_test.go": {
-    "mtime": 1792752705.1571076,
-    "seen": 1792752773.2278316,
-    "ast_hash": "ef849e3f4ebaa4f24defa23bc2abfdc8",
+    "mtime": 1793094572.7830043,
+    "seen": 1793094612.6854658,
+    "ast_hash": "97854eb093cb7bd479130b6c220bcf95",
     "semantic_hash": ""
   },
   "internal/monitor/worker.go": {
-    "mtime": 1793078286.4575455,
-    "seen": 1793078430.772101,
-    "ast_hash": "662be812b150e3456ffe0eda2528ba4a",
+    "mtime": 1793094603.11795,
+    "seen": 1793094612.6854692,
+    "ast_hash": "721577b5c52680a1ffba3e3b8848a1e4",
     "semantic_hash": ""
   },
   "build.ps1": {
@@ -1428,9 +1422,9 @@
     "semantic_hash": ""
   },
   "docs/cnc-data-collection-flow.md": {
-    "mtime": 1793006429.1348345,
-    "seen": 1793015324.1044097,
-    "ast_hash": "08a8e1616e0128291b83de0a36cc77d0",
+    "mtime": 1793094603.1201417,
+    "seen": 1793094612.6856837,
+    "ast_hash": "e0c448028a472a85fd0301fcd7ca43dd",
     "semantic_hash": ""
   },
   "internal/cnc/fields_test.go": {
@@ -1509,6 +1503,18 @@
     "mtime": 1793092141.5933452,
     "seen": 1793092168.0540602,
     "ast_hash": "ab99369d2d9089af0ad41a1a4f968f4d",
+    "semantic_hash": ""
+  },
+  "internal/monitor/machine_mode.go": {
+    "mtime": 1793094558.286809,
+    "seen": 1793094612.6854615,
+    "ast_hash": "51ad443d3056cd6d5e081da3cd0fa653",
+    "semantic_hash": ""
+  },
+  "internal/monitor/machine_mode_test.go": {
+    "mtime": 1793094558.353568,
+    "seen": 1793094612.685464,
+    "ast_hash": "872d90bd256c570be1156c9d881f4e2f",
     "semantic_hash": ""
   }
 }
