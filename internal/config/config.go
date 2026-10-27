@@ -42,6 +42,9 @@ type CNCConfig struct {
 	// LogValues logs every changed variable value (machine, variable, old and new value). For
 	// analysing data frequency only: at 10 readings/s it writes many lines per machine.
 	LogValues bool
+	// CertDir is the directory where client certificates are generated for OPC UA authentication.
+	// If empty, certificates are generated next to the server binary.
+	CertDir string
 }
 
 // DBConfig holds the PostgreSQL connection settings.
@@ -82,6 +85,7 @@ func Load() Config {
 			MaxConnecting: getEnvInt("CNC_MAX_CONNECTING", 20),
 			StopTimeout:   time.Duration(getEnvInt("CNC_STOP_TIMEOUT_SEC", 15)) * time.Second,
 			LogValues:     getEnv("CNC_LOG_VALUES", "false") == "true",
+			CertDir:       getEnv("CNC_CERT_DIR", ""),
 		},
 	}
 }

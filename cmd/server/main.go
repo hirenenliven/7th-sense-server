@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"7th-sense-server/internal/cert"
 	"7th-sense-server/internal/collector"
 	"7th-sense-server/internal/config"
 	"7th-sense-server/internal/db"
@@ -34,6 +35,12 @@ func main() {
 // It returns instead of exiting so every defer (like closing the database) runs.
 func run() error {
 	appConfig := config.Load()
+
+	// Generate OPC UA client certificates for Siemens authentication
+	if err := cert.GenerateCertificates(appConfig.CNC.CertDir); err != nil {
+		slog.Warn("failed to generate certificates", "error", err)
+		// Continue without certificates - CNC connection may fail if required
+	}
 
 	// ctx is cancelled on Ctrl+C / SIGTERM.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
