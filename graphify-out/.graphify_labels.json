@@ -1,7 +1,6 @@
 {
   "0": "HTTP Handlers Layer",
   "4": "Route Registration & Guards",
-  "5": "Machine DTOs",
   "7": "CNC Snapshot Struct Fields",
   "11": "Integration & DTO Tests (2)",
   "22": "HTTP Handlers Layer (2)",

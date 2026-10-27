@@ -53,8 +53,6 @@ func NewCollector(cncConfig config.CNCConfig, telemetryService *service.MachineT
 // cleanly: every machine is disconnected and every machine of the shard is left offline.
 // It returns an error only when the collector cannot start (the supervisor then retries).
 func (collector *Collector) RunCollection(ctx context.Context) error {
-	logger := slog.With("shard", collector.shard, "shards", collector.shards)
-
 	// DATA_COLLECTION_STEP_5: Prepare the shard: check the hypertable and start every machine
 	// offline, closing mode periods a previous run left open.
 	hypertable, err := collector.service.IsHypertable(ctx)
@@ -62,7 +60,8 @@ func (collector *Collector) RunCollection(ctx context.Context) error {
 		return fmt.Errorf("check machine_telementry: %w", err)
 	}
 	if !hypertable {
-		logger.Error("machine_telementry is not a TimescaleDB hypertable: fine for development, too slow for production")
+		collector.log(logTypeOther, slog.LevelError,
+			"machine_telementry is not a TimescaleDB hypertable: fine for development, too slow for production", "shard", collector.shard, "shards", collector.shards)
 	}
 	if err := collector.service.InitializeShardForCollection(ctx, collector.shard, collector.shards, time.Now()); err != nil {
 		return fmt.Errorf("initialize shard: %w", err)
@@ -77,8 +76,8 @@ func (collector *Collector) RunCollection(ctx context.Context) error {
 	// database (machine list and change notifications).
 	collector.recordCollectorEvent(model.EventCollectorStart,
 		fmt.Sprintf("shard %d of %d, %s", collector.shard, collector.shards, collector.driver.Name()))
-	logger.Info("cnc collector started", "driver", collector.driver.Name())
-	logDebugMachines(collector.config.DebugMachineIDs)
+	collector.log(logTypeOther, slog.LevelInfo, "cnc collector started", "shard", collector.shard, "shards", collector.shards, "driver", collector.driver.Name())
+	collector.logCollectionSettings()
 
 	syncLoopDone := make(chan struct{})
 	go func() {
@@ -89,7 +88,7 @@ func (collector *Collector) RunCollection(ctx context.Context) error {
 	<-ctx.Done()
 	// DATA_COLLECTION_STEP_20: Stop the sync loop and every worker (each disconnects and writes
 	// its Offline period), then mark the shard offline and record collector_stop.
-	logger.Info("cnc collector stopping")
+	collector.log(logTypeOther, slog.LevelInfo, "cnc collector stopping", "shard", collector.shard, "shards", collector.shards)
 	stopWorkers()
 	<-syncLoopDone
 	collector.waitForWorkersToStop()
@@ -97,10 +96,10 @@ func (collector *Collector) RunCollection(ctx context.Context) error {
 	stopCtx, cancel := context.WithTimeout(context.Background(), collector.config.StopTimeout)
 	defer cancel()
 	if err := collector.service.FinalizeShardCollection(stopCtx, collector.shard, collector.shards, time.Now()); err != nil {
-		logger.Error("cnc collector: mark machines offline", "error", err)
+		collector.log(logTypeOther, slog.LevelError, "cnc collector: mark machines offline", "shard", collector.shard, "shards", collector.shards, "error", err)
 	}
 	collector.recordCollectorEvent(model.EventCollectorStop, fmt.Sprintf("shard %d of %d", collector.shard, collector.shards))
-	logger.Info("cnc collector stopped")
+	collector.log(logTypeOther, slog.LevelInfo, "cnc collector stopped", "shard", collector.shard, "shards", collector.shards)
 	return nil
 }
 
@@ -123,7 +122,8 @@ func (collector *Collector) runDatabaseSynchronizationLoop(ctx context.Context) 
 			return
 		}
 		wait := retry.nextWait()
-		slog.Error("cnc collector: database listener lost, reconnecting", "shard", collector.shard, "retryIn", wait.String(), "error", err)
+		collector.log(logTypeOther, slog.LevelError, "cnc collector: database listener lost, reconnecting",
+			"shard", collector.shard, "retryIn", wait.String(), "error", err)
 		sleepUnlessCancelled(ctx, wait)
 	}
 }
@@ -134,12 +134,16 @@ func (collector *Collector) syncWorkersWithActiveMachines(ctx context.Context) {
 	// DATA_COLLECTION_STEP_8: Load all active machines of the shard from the database.
 	machines, err := collector.service.GetActiveMachines(ctx, collector.shard, collector.shards)
 	if err != nil {
-		slog.Error("cnc collector: list active machines", "shard", collector.shard, "error", err)
+		collector.log(logTypeOther, slog.LevelError, "cnc collector: list active machines", "shard", collector.shard, "error", err)
 		return
 	}
 	activeMachineIDs := make(map[int64]bool, len(machines))
 	machineIDs := make([]int64, 0, len(machines))
 	for _, machine := range machines {
+		// CNC_MACHINE_IDS: the machines left out are not connected, and their workers stop.
+		if !collector.config.Machines.Includes(machine.ID) {
+			continue
+		}
 		activeMachineIDs[machine.ID] = true
 		machineIDs = append(machineIDs, machine.ID)
 		// DATA_COLLECTION_STEP_9: Start (or update) one worker per active machine.
@@ -156,7 +160,8 @@ func (collector *Collector) syncWorkersWithActiveMachines(ctx context.Context) {
 	for _, machineID := range removedMachineIDs {
 		collector.stopWorker(machineID)
 	}
-	slog.Info("cnc collector: machines loaded", "shard", collector.shard, "machines", len(machines), "machineIds", machineIDs)
+	collector.log(logTypeOther, slog.LevelInfo, "cnc collector: machines loaded", "shard", collector.shard,
+		"machines", len(machineIDs), "machineIds", machineIDs)
 }
 
 // handleChangeNotification follows one database notification: machines_changed (payload: the
@@ -167,23 +172,25 @@ func (collector *Collector) handleChangeNotification(ctx context.Context, channe
 	switch channel {
 	case service.MachinesChangedChannel:
 		machineID, err := strconv.ParseInt(payload, 10, 64)
-		if err != nil || machineID%int64(collector.shards) != int64(collector.shard) {
+		if err != nil || machineID%int64(collector.shards) != int64(collector.shard) ||
+			!collector.config.Machines.Includes(machineID) {
 			return
 		}
 		machine, err := collector.service.GetActiveMachine(ctx, machineID)
-		slog.Info("cnc collector: processing machine change notification", "machineId", machineID, "shard", collector.shard, "shards", collector.shards)
+		collector.log(logTypeOther, slog.LevelInfo, "cnc collector: processing machine change notification",
+			"machineId", machineID, "shard", collector.shard, "shards", collector.shards)
 		if errors.Is(err, response.MachineNotFound) {
 			collector.stopWorker(machineID)
 			return
 		}
 		if err != nil {
-			slog.Error("cnc collector: reload machine", "machineId", machineID, "error", err)
+			collector.log(logTypeOther, slog.LevelError, "cnc collector: reload machine", "machineId", machineID, "error", err)
 			return
 		}
 		collector.startOrUpdateWorker(machine)
 
 	case service.CNCConfigChangedChannel:
-		slog.Info("cnc collector: variable config changed, reloading variables", "payload", payload)
+		collector.log(logTypeOther, slog.LevelInfo, "cnc collector: variable config changed, reloading variables", "payload", payload)
 		collector.mu.Lock()
 		defer collector.mu.Unlock()
 		if machineText, ok := strings.CutPrefix(payload, "machine:"); ok {
@@ -216,12 +223,12 @@ func (collector *Collector) startOrUpdateWorker(machine model.MonitoredMachine) 
 			existing.queueMachineUpdate(machine)
 			return
 		}
-		slog.Info("cnc collector: machine connection changed, reconnecting", "machineId", machine.ID)
+		collector.logMachine(logTypeOther, slog.LevelInfo, machine, "cnc collector: machine connection changed, reconnecting")
 		collector.stopWorker(machine.ID)
 		select { // the old worker writes its Offline period before the new one starts
 		case <-existing.done:
 		case <-time.After(collector.config.StopTimeout):
-			slog.Warn("cnc collector: old worker did not stop in time", "machineId", machine.ID)
+			collector.logMachine(logTypeOther, slog.LevelWarn, machine, "cnc collector: old worker did not stop in time")
 		}
 	}
 
@@ -234,7 +241,7 @@ func (collector *Collector) startOrUpdateWorker(machine model.MonitoredMachine) 
 	workerCtx, cancel := context.WithCancel(collector.workerCtx)
 	machineWorker := newMachineWorker(collector, machine, cancel)
 	collector.workers[machine.ID] = machineWorker
-	slog.Info("cnc collector: worker started", "machineId", machine.ID, "machine", machine.Name,
+	collector.logMachine(logTypeOther, slog.LevelInfo, machine, "cnc collector: worker started",
 		"ip", machine.LiveIP, "port", machine.Port)
 	go machineWorker.runConnectionLoop(workerCtx)
 }
@@ -252,7 +259,7 @@ func (collector *Collector) stopWorker(machineID int64) {
 	delete(collector.workers, machineID)
 	collector.mu.Unlock()
 	if machineWorker != nil {
-		slog.Info("cnc collector: machine no longer collected", "machineId", machineID)
+		machineWorker.log(logTypeOther, slog.LevelInfo, "cnc collector: machine no longer collected")
 		machineWorker.cancel()
 	}
 }
@@ -272,7 +279,7 @@ func (collector *Collector) waitForWorkersToStop() {
 		select {
 		case <-machineWorker.done:
 		case <-deadline:
-			slog.Warn("cnc collector: workers did not stop in time", "shard", collector.shard)
+			collector.log(logTypeOther, slog.LevelWarn, "cnc collector: workers did not stop in time", "shard", collector.shard)
 			return
 		}
 	}
@@ -285,6 +292,6 @@ func (collector *Collector) recordCollectorEvent(eventType, message string) {
 	defer cancel()
 	event := model.MachineEvent{Shard: collector.shard, Type: eventType, Message: message, At: time.Now()}
 	if err := collector.service.AddEvent(ctx, event); err != nil {
-		slog.Error("cnc collector: store event", "event", eventType, "error", err)
+		collector.log(logTypeOther, slog.LevelError, "cnc collector: store event", "event", eventType, "error", err)
 	}
 }

@@ -72,9 +72,7 @@ type worker struct {
 
 	liveValues map[int]model.LiveValue // cache of current live values by variable_id
 
-	// debug is set for the machines in CNC_DEBUG_MACHINE_IDS (debug_log.go); lastModeCheck is
-	// the NC state last logged by logModeCheck.
-	debug         bool
+	// lastModeCheck is the NC state last logged by logModeCheck (cnc_log.go).
 	lastModeCheck *machineState
 
 	// The counters at the last reading rate log; logReadingRate reports the change since then.
@@ -94,7 +92,6 @@ func newMachineWorker(collector *Collector, machine model.MonitoredMachine, canc
 		cancel:                  cancel,
 		done:                    make(chan struct{}),
 		mode:                    model.ModeOffline, // the collector starts every machine offline
-		debug:                   collector.config.DebugMachineIDs[machine.ID],
 	}
 }
 
@@ -142,7 +139,7 @@ func (machineWorker *worker) runConnectionLoop(ctx context.Context) {
 			machineWorker.recordEvent(model.EventReconnect, nil, fmt.Sprintf("attempt %d", attempt+1))
 		}
 		if err := machineWorker.loadVariableConfig(ctx); err != nil {
-			slog.Error("cnc: load variable config", "machineId", machineWorker.machine.ID, "error", err)
+			machineWorker.log(logTypeOther, slog.LevelError, "cnc: load variable config", "error", err)
 			continue
 		}
 
@@ -162,10 +159,9 @@ func (machineWorker *worker) runConnectionLoop(ctx context.Context) {
 		}
 		machineWorker.recordEvent(model.EventConnectOK, &id, fmt.Sprintf("connection %d (%s:%d, engine %d)",
 			id, machineWorker.machine.LiveIP, machineWorker.machine.Port, *machineWorker.machine.CNCEngine))
-		slog.Info("cnc: machine subscribed", "machineId", machineWorker.machine.ID, "machine", machineWorker.machine.Name,
+		machineWorker.log(logTypeOther, slog.LevelInfo, "cnc: machine subscribed",
 			"ip", machineWorker.machine.LiveIP, "port", machineWorker.machine.Port, "engine", *machineWorker.machine.CNCEngine,
-			"connectionId", id, "variables", len(machineWorker.variables),
-			"logValues", machineWorker.collector.config.LogValues, "debug", machineWorker.debug)
+			"connectionId", id, "variables", len(machineWorker.variables))
 
 		reason, gotData := machineWorker.collectReadings(ctx, connection)
 		// DATA_COLLECTION_STEP_17: Disconnect, record the machine offline, then retry.
@@ -220,12 +216,11 @@ func (machineWorker *worker) loadVariableConfig(ctx context.Context) error {
 	machineWorker.variables = variables
 	// Clear live values cache on reload - will be reloaded on next reading
 	machineWorker.liveValues = nil
-	slog.Info("cnc: variables loaded", "machineId", machineWorker.machine.ID, "machine", machineWorker.machine.Name,
-		"variables", len(variables), "map", variableMap)
+	machineWorker.log(logTypeOther, slog.LevelInfo, "cnc: variables loaded", "variables", len(variables), "map", variableMap)
 	if len(unreadable) > 0 {
 		// Logged, not stored as events: it would repeat on every reconnect.
-		slog.Warn("cnc: active variables not readable", "machineId", machineWorker.machine.ID,
-			"machine", machineWorker.machine.Name, "engine", *machineWorker.machine.CNCEngine,
+		machineWorker.log(logTypeOther, slog.LevelWarn, "cnc: active variables not readable",
+			"engine", *machineWorker.machine.CNCEngine,
 			"reason", "no address in a source the server can read (only DLL snapshot fields today)",
 			"count", len(unreadable), "variables", unreadable)
 	}
@@ -264,7 +259,7 @@ func (machineWorker *worker) collectReadings(ctx context.Context, connection *cn
 			return stopRequested, gotData
 		case <-machineWorker.variableReloadRequested:
 			if err := machineWorker.loadVariableConfig(ctx); err != nil {
-				slog.Error("cnc: reload variable config", "machineId", machineWorker.machine.ID, "error", err)
+				machineWorker.log(logTypeOther, slog.LevelError, "cnc: reload variable config", "error", err)
 			}
 		case <-connection.Signal():
 			machineWorker.recordDLLError(connection.Stats())
@@ -315,8 +310,7 @@ func (machineWorker *worker) processReading(reading cnc.Reading) bool {
 		if machineWorker.connectedSince != nil {
 			machineWorker.connectedSince = nil
 			machineWorker.statusDirty = true
-			slog.Warn("cnc: controller data stopped (the DLL reports it lost the controller)",
-				"machineId", machineWorker.machine.ID, "machine", machineWorker.machine.Name)
+			machineWorker.log(logTypeOther, slog.LevelWarn, "cnc: controller data stopped (the DLL reports it lost the controller)")
 		}
 		machineWorker.logWaitingForController(reading)
 		machineWorker.recordModeChange(now, model.ModeOffline, reasonNoConnection, nil)
@@ -326,8 +320,7 @@ func (machineWorker *worker) processReading(reading cnc.Reading) bool {
 	if machineWorker.connectedSince == nil {
 		machineWorker.connectedSince = &now
 		machineWorker.statusDirty = true
-		slog.Info("cnc: controller data started", "machineId", machineWorker.machine.ID,
-			"machine", machineWorker.machine.Name, "missingNodes", reading.MissingNodes)
+		machineWorker.log(logTypeOther, slog.LevelInfo, "cnc: controller data started", "missingNodes", reading.MissingNodes)
 	}
 
 	// Load live values if not already cached
@@ -340,7 +333,7 @@ func (machineWorker *worker) processReading(reading cnc.Reading) bool {
 		defer cancel()
 		liveValues, err := machineWorker.collector.service.GetLiveValues(ctx, machineWorker.machine.ID, variableIDs)
 		if err != nil {
-			slog.Error("cnc: load live values", "machineId", machineWorker.machine.ID, "error", err)
+			machineWorker.log(logTypeOther, slog.LevelError, "cnc: load live values", "error", err)
 			// Continue without live values - we'll still upsert them
 		} else {
 			machineWorker.liveValues = liveValues
@@ -351,7 +344,7 @@ func (machineWorker *worker) processReading(reading cnc.Reading) bool {
 	alarmMessage := ""
 	telemetryRows := make([]model.TelemetryValue, 0, len(machineWorker.variables))
 	liveValueRows := make([]model.LiveValue, 0, len(machineWorker.variables))
-	changeLog := newValueChangeLog(machineWorker.collector.config.LogValues || machineWorker.debug)
+	changeLog := newValueChangeLog(machineWorker.collector.config.Logs.Variables)
 	for _, variable := range machineWorker.variables {
 		value := reading.Values[variable.field]
 		currentLive := machineWorker.liveValues[variable.config.ID]
@@ -386,7 +379,7 @@ func (machineWorker *worker) processReading(reading cnc.Reading) bool {
 
 		numbers[variable.config.ID] = value.Number
 	}
-	changeLog.flush(machineWorker.machine, now)
+	changeLog.flush(machineWorker, now)
 
 	// Alarm events are derived from the stored values, so they are rechecked only when a value
 	// changed. The mode is decided on every reading from the NC state itself, so it is right
@@ -403,14 +396,13 @@ func (machineWorker *worker) processReading(reading cnc.Reading) bool {
 }
 
 // logWaitingForController logs once per connection that the DLL sends readings but does not
-// reach the controller: until it does, no values are read, stored or logged (CNC_LOG_VALUES).
+// reach the controller: until it does, no values are read, stored or logged (CNC_LOG_VARIABLES).
 func (machineWorker *worker) logWaitingForController(reading cnc.Reading) {
 	if machineWorker.waitingLogged || machineWorker.connectedSince != nil {
 		return
 	}
 	machineWorker.waitingLogged = true
-	attributes := []any{"machineId", machineWorker.machine.ID, "machine", machineWorker.machine.Name,
-		"ip", machineWorker.machine.LiveIP, "port", machineWorker.machine.Port,
+	attributes := []any{"ip", machineWorker.machine.LiveIP, "port", machineWorker.machine.Port,
 		"reason", "the DLL reports IsConnected=0; check the controller is on and reachable"}
 	if machineWorker.connection != nil {
 		if lastError := machineWorker.connection.Stats().LastError; lastError != "" {
@@ -420,7 +412,7 @@ func (machineWorker *worker) logWaitingForController(reading cnc.Reading) {
 	if reading.MissingNodes != "" {
 		attributes = append(attributes, "missingNodes", reading.MissingNodes)
 	}
-	slog.Warn("cnc: controller not sending data, no values read", attributes...)
+	machineWorker.log(logTypeOther, slog.LevelWarn, "cnc: controller not sending data, no values read", attributes...)
 }
 
 // startReadingRateWindow starts counting the reading rate from now; callbacks is the
@@ -441,7 +433,7 @@ func (machineWorker *worker) logReadingRate(now time.Time, stats cnc.Stats) {
 	callbacks := stats.Callbacks - machineWorker.rateCallbacks
 	processed := machineWorker.processedCount - machineWorker.rateProcessed
 	stored := machineWorker.storedCount - machineWorker.rateStored
-	slog.Info("cnc: reading rate", "machineId", machineWorker.machine.ID, "machine", machineWorker.machine.Name,
+	machineWorker.log(logTypeOther, slog.LevelInfo, "cnc: reading rate",
 		"seconds", roundToTenth(seconds), "callbacks", callbacks, "callbacksPerSecond", roundToTenth(float64(callbacks)/seconds),
 		"processed", processed, "skipped", callbacks-processed,
 		"storedValues", stored, "storedValuesPerSecond", roundToTenth(float64(stored)/seconds))
@@ -478,7 +470,7 @@ func (machineWorker *worker) upsertLiveValues(rows []model.LiveValue, readAt tim
 	if err := machineWorker.collector.service.UpsertLiveValues(ctx, rows); err != nil {
 		machineWorker.reportedError = err.Error()
 		machineWorker.statusDirty = true
-		slog.Error("cnc: upsert live values", "machineId", machineWorker.machine.ID, "rows", len(rows), "error", err)
+		machineWorker.log(logTypeOther, slog.LevelError, "cnc: upsert live values", "rows", len(rows), "error", err)
 	} else {
 		// Update cache
 		for _, row := range rows {
@@ -501,7 +493,7 @@ func (machineWorker *worker) insertTelemetry(rows []model.TelemetryValue, readAt
 		machineWorker.droppedCount += int64(len(rows))
 		machineWorker.reportedError = err.Error()
 		machineWorker.statusDirty = true
-		slog.Error("cnc: insert telemetry", "machineId", machineWorker.machine.ID, "rows", len(rows), "error", err)
+		machineWorker.log(logTypeOther, slog.LevelError, "cnc: insert telemetry", "rows", len(rows), "error", err)
 		return
 	}
 	machineWorker.storedCount += int64(len(rows))
@@ -536,22 +528,14 @@ func (machineWorker *worker) recordAlarmChanges(now time.Time, numbers map[int]f
 	machineWorker.alarm, machineWorker.emergency = alarm, emergency
 }
 
-// logLabel names the machine in log messages, e.g. "[machine 225 VM14]", so a line shows
-// which machine it is about without reading its attributes.
-func (machineWorker *worker) logLabel() string {
-	return fmt.Sprintf("[machine %d %s]", machineWorker.machine.ID, machineWorker.machine.Name)
-}
-
-// recordModeChange opens a new mode period when the mode changed and logs why: reason is the
-// rule that decided it and inputs the NC values it was decided from (none for Offline).
+// recordModeChange opens a new mode period when the mode changed and logs why (CNC_LOG_MODES):
+// reason is the rule that decided it and inputs the NC values it was decided from (none for
+// Offline).
 func (machineWorker *worker) recordModeChange(at time.Time, mode int, reason string, inputs []any) {
 	if mode == machineWorker.mode {
 		return
 	}
-	message := fmt.Sprintf("cnc: mode changed %s %s -> %s", machineWorker.logLabel(), modeName(machineWorker.mode), modeName(mode))
-	attributes := []any{"machineId", machineWorker.machine.ID, "machine", machineWorker.machine.Name,
-		"from", modeName(machineWorker.mode), "to", modeName(mode), "reason", reason, "program", machineWorker.program}
-	slog.Info(message, append(attributes, inputs...)...)
+	machineWorker.logModeChange(mode, reason, inputs)
 	machineWorker.mode = mode
 	machineWorker.statusDirty = true
 	ctx, cancel := context.WithTimeout(context.Background(), writeTimeout)
@@ -560,7 +544,7 @@ func (machineWorker *worker) recordModeChange(at time.Time, mode int, reason str
 		MachineID: machineWorker.machine.ID, ModeID: mode, ProgramName: machineWorker.program, At: at,
 	})
 	if err != nil {
-		slog.Error("cnc: change mode", "machineId", machineWorker.machine.ID, "mode", mode, "error", err)
+		machineWorker.log(logTypeMode, slog.LevelError, "cnc: change mode", "mode", mode, "error", err)
 	}
 }
 
@@ -596,7 +580,7 @@ func (machineWorker *worker) saveLiveStatus(now time.Time) {
 	ctx, cancel := context.WithTimeout(context.Background(), writeTimeout)
 	defer cancel()
 	if err := machineWorker.collector.service.SaveStatus(ctx, status); err != nil {
-		slog.Error("cnc: save live status", "machineId", machineWorker.machine.ID, "error", err)
+		machineWorker.log(logTypeOther, slog.LevelError, "cnc: save live status", "error", err)
 	}
 	machineWorker.statusDirty = false
 	machineWorker.statusSavedAt = now
@@ -621,7 +605,7 @@ func (machineWorker *worker) recordEvent(eventType string, code *int, message st
 	machineWorker.recordEventAt(time.Now(), eventType, code, message)
 }
 
-// recordEventAt stores a machine event and logs it.
+// recordEventAt stores a machine event and logs it (CNC_LOG_EVENTS).
 func (machineWorker *worker) recordEventAt(at time.Time, eventType string, code *int, message string) {
 	machineID := machineWorker.machine.ID
 	ctx, cancel := context.WithTimeout(context.Background(), writeTimeout)
@@ -630,22 +614,10 @@ func (machineWorker *worker) recordEventAt(at time.Time, eventType string, code 
 		MachineID: &machineID, Shard: machineWorker.collector.shard, Type: eventType, Code: code, Message: message, At: at,
 	})
 	if err != nil {
-		slog.Error("cnc: store event", "machineId", machineID, "event", eventType, "error", err)
+		machineWorker.log(logTypeEvent, slog.LevelError, "cnc: store event", "event", eventType, "error", err)
 	}
 
-	attributes := []any{"machineId", machineID, "machine", machineWorker.machine.Name, "event", eventType}
-	if code != nil {
-		attributes = append(attributes, "code", *code)
-	}
-	if message != "" {
-		attributes = append(attributes, "message", message)
-	}
-	switch eventType {
-	case model.EventConnectFailed, model.EventConfigError, model.EventDLLError, model.EventStale:
-		slog.Warn("cnc machine event", attributes...)
-	default:
-		slog.Info("cnc machine event", attributes...)
-	}
+	machineWorker.logMachineEvent(eventType, code, message)
 }
 
 // backoff gives waits that double from 1 s up to max, with ±20 % jitter so machines that

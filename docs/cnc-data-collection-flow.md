@@ -185,7 +185,8 @@ data. Steps 19–20 run at shutdown.
 - **File:** `internal/monitor/collector.go`
 - **Function:** `Collector.syncWorkersWithActiveMachines`
 - **Calls:** `MachineTelemetryService.GetActiveMachines` → `MachineTelemetryRepository.FindActiveMachines`
-- **What it does:** reads the machines to collect:
+- **What it does:** reads the machines to collect (with `CNC_MACHINE_IDS=225,247` only those
+  machines are kept, the others are not connected and their workers stop):
 
   ```sql
   SELECT m.id, m.name, m.live_ip, m.port, username, password, controller_version_type, c.cnc_engine
@@ -315,8 +316,8 @@ so the worker needs no locks for its own data.
      - **Numeric** variables are compared with the cached value.
   4. Every numeric value is **upserted** into `machine_variable_values` (one row per machine and variable).
   5. Only values that **changed** are inserted into `machine_telementry` (time series).
-     With `CNC_LOG_VALUES=true` each changed value is also logged as `cnc: variable value changed`
-     (machine, variable id and code, address, previous and new value, read time).
+     With `CNC_LOG_VARIABLES=true` the changed values of the reading are also logged in one line,
+     `[machine <id> <name>] cnc: variable values changed` (`count`, `changes`, read time).
   6. If anything changed, it also writes `alarm_on` / `alarm_off` and `emergency_on` /
      `emergency_off` events when they change.
   7. On **every** connected reading it decides the mode from the NC state of the reading
@@ -342,16 +343,12 @@ so the worker needs no locks for its own data.
 
   Setup (1) and Rapid Mode (12) are no longer decided.
 
-- **Log:** each change is logged once as `cnc: mode changed [machine <id> <name>] <from> -> <to>` with `from`, `to`, `reason` (the rule
-  that matched, e.g. `program running, feed override ≤ 0`) and the NC inputs `opMode`,
-  `procStatus` (raw value and state), `chanStatus`, `feedOverride`, `alarmNo`, `emergency`,
-  `ncProgram`, so a mode can be checked against the HMI. It is always on; `CNC_LOG_VALUES` only
-  controls the per-reading `cnc: variable values changed` line.
-- **Debugging chosen machines:** `CNC_DEBUG_MACHINE_IDS=225,247` (restart to apply) logs, for those
-  machines only, `cnc debug: mode check [machine <id> <name>] <mode>` whenever the NC inputs
-  change (with `decided`, `current`, `modeChanges`, `reason` and the inputs), and their variable
-  value changes as with `CNC_LOG_VALUES=true`. Every machine is still collected and stored.
-  All of it is in `internal/monitor/debug_log.go`.
+- **Log** (`CNC_LOG_MODES=true`): each change as `[machine <id> <name>] cnc: mode changed <from> -> <to>`
+  with `reason` (the rule that matched, e.g. `program running, feed override ≤ 0`) and the NC
+  inputs `opMode`, `procStatus` (raw value and state), `chanStatus`, `feedOverride`, `alarmNo`,
+  `emergency`, `ncProgram`; and, whenever those inputs change, `[machine <id> <name>] cnc: mode
+  check <mode>` with `decided`, `current` and `modeChanges`, so a mode can be checked against
+  the HMI while it does not change.
 
 - **If a write fails:** the error is logged and saved in `machine_live_status.last_error`. Failed
   telemetry rows are lost and counted in `dropped_count`; the next reading is stored normally.
@@ -427,6 +424,21 @@ So when a user edits a machine on the website, collection follows within moments
 
 ### Log lines (in `logs/app.log`, search for the message)
 
+All collector lines are written by one function, `writeLog` in `internal/monitor/cnc_log.go`
+(`collector.log`, `collector.logMachine`, `machineWorker.log`), with a log type and a level. A
+line about a machine starts with `[machine <id> <name>]` and has `machineId` and `machine`; every
+line has `logType`:
+
+| `logType` | Switch | Lines |
+|---|---|---|
+| `event` | `CNC_LOG_EVENTS` | machine events |
+| `mode` | `CNC_LOG_MODES` | mode changes |
+| `modeCheck` | `CNC_LOG_MODE_CHECKS` | the mode the NC inputs decide, whenever they change |
+| `variable` | `CNC_LOG_VARIABLES` | changed variable values |
+| `other` | `CNC_LOG_OTHER` | start / stop, connections, variables loaded, reading rate, … (`cnc collector: settings` is always written) |
+
+Errors are always written, whatever the switch.
+
 | Message | Level | When | Step |
 |---|---|---|---|
 | `cnc dll loaded` / `cnc data collection started` | Info | Server start | 3, 4 |
@@ -435,11 +447,13 @@ So when a user edits a machine on the website, collection follows within moments
 | `cnc collector: worker started` | Info | A worker starts for a machine | 9 |
 | `cnc: variables loaded` | Info | Variable list and its variable → field map | 10 |
 | `cnc: active variables not readable` | Warn | Active variables the server cannot read | 10 |
-| `cnc machine event` (`connect_ok`, `connect_failed`, `reconnect`, …) | Info / Warn | Every machine event | 12, 17 |
+| `cnc collector: settings` | Info | Machines connected (`CNC_MACHINE_IDS`) and which CNC logs are on | 6 |
+| `[machine <id> <name>] cnc machine event <event>` (`connect_ok`, `connect_failed`, `reconnect`, …) | Info / Warn | Every machine event (`CNC_LOG_EVENTS=true`) | 12, 17 |
 | `cnc: machine subscribed` | Info | Connected (IP, port, engine, connection id) | 12 |
 | `cnc: controller data started` / `stopped` | Info / Warn | The DLL starts / stops sending connected data | 15 |
-| `cnc: variable value changed` | Info | Each changed value (`CNC_LOG_VALUES=true` only) | 15 |
-| `cnc: mode changed` | Info | Mode changes (from, to, program) | 15 |
+| `[machine <id> <name>] cnc: variable values changed` | Info | The changed values of a reading (`CNC_LOG_VARIABLES=true`) | 15 |
+| `[machine <id> <name>] cnc: mode changed <from> -> <to>` | Info | Mode changes with reason and NC inputs (`CNC_LOG_MODES=true`) | 15 |
+| `[machine <id> <name>] cnc: mode check <mode>` | Info | The NC inputs of the mode changed (`CNC_LOG_MODE_CHECKS=true`) | 15 |
 | `cnc: reading rate` | Info | Every 10 s per machine | 16 |
 | `cnc collector: processing machine change notification` | Info | A machine was edited | 18 |
 | `cnc collector: variable config changed, reloading variables` | Info | Variables were edited | 18 |
@@ -457,7 +471,12 @@ So when a user edits a machine on the website, collection follows within moments
 | `CNC_STALE_SEC` | `30` | Seconds without data before a connection counts as dead |
 | `CNC_MAX_CONNECTING` | `20` | Connect calls allowed at the same time |
 | `CNC_STOP_TIMEOUT_SEC` | `15` | Longest wait for a clean stop |
-| `CNC_LOG_VALUES` | `false` | `true` logs every changed value (step 15). For analysis only: it writes many lines per second |
+| `CNC_MACHINE_IDS` | `ALL` | `225,247` = connect only these machines (the others get no data, mode or status); `ALL` / empty = every active machine (steps 8, 18) |
+| `CNC_LOG_EVENTS` | `true` | Log machine events |
+| `CNC_LOG_MODES` | `true` | Log mode changes (step 15) |
+| `CNC_LOG_MODE_CHECKS` | `true` | Log the mode the NC inputs decide whenever they change (step 15) |
+| `CNC_LOG_VARIABLES` | `false` | Log the changed values of every reading (step 15). For analysis only: many lines per second |
+| `CNC_LOG_OTHER` | `true` | Log everything else: start / stop, connections, reading rate, … |
 | `SIEMENS_USER`, `SIEMENS_PASS` | – | Set per machine by the server from the machine's login (step 12) |
 
 ### Tables

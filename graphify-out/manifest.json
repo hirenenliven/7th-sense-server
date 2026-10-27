@@ -6,8 +6,8 @@
     "semantic_hash": "8c58146bf0c47700bfef5615ac617dd5"
   },
   "cmd/server/main.go": {
-    "mtime": 1793091392.156429,
-    "seen": 1793091492.160358,
+    "mtime": 1793098110.6840885,
+    "seen": 1793098212.7270205,
     "ast_hash": "2985f68039ab7bcde5df7a811318a72b",
     "semantic_hash": ""
   },
@@ -18,9 +18,9 @@
     "semantic_hash": "c881b9deed424c8932c328d2c51b50af"
   },
   "internal/config/config.go": {
-    "mtime": 1793096743.1024263,
-    "seen": 1793096752.63867,
-    "ast_hash": "ec3910d2fd73d434b6a474b6153c6ea2",
+    "mtime": 1793098561.3288856,
+    "seen": 1793098584.9622827,
+    "ast_hash": "9b51ed7ce25f855a6c04241c1ccc5607",
     "semantic_hash": ""
   },
   "internal/db/postgres.go": {
@@ -1218,9 +1218,9 @@
     "semantic_hash": "83e782660b9df6e3978298333b4f35a6"
   },
   ".claude/CLAUDE.md": {
-    "mtime": 1793096743.2865338,
-    "seen": 1793096752.639065,
-    "ast_hash": "5e0df47aa045c862ad3f4570945375ab",
+    "mtime": 1793098561.3319137,
+    "seen": 1793098584.962701,
+    "ast_hash": "17c4d2f05fac79b5171f5f4471a1c993",
     "semantic_hash": ""
   },
   "7th_server_skills.md.md": {
@@ -1374,9 +1374,9 @@
     "semantic_hash": ""
   },
   "internal/monitor/collector.go": {
-    "mtime": 1793096704.4936414,
-    "seen": 1793096752.6388476,
-    "ast_hash": "0092b431be6ce6709724299c80f4a4cf",
+    "mtime": 1793098316.37254,
+    "seen": 1793098372.601829,
+    "ast_hash": "844c3acfce26e9a51623f15480e934ad",
     "semantic_hash": ""
   },
   "internal/monitor/rules.go": {
@@ -1386,9 +1386,9 @@
     "semantic_hash": ""
   },
   "internal/monitor/worker.go": {
-    "mtime": 1793096704.4921098,
-    "seen": 1793096752.6388586,
-    "ast_hash": "55e6e1a621265acadbfd830fbd1ec2b4",
+    "mtime": 1793098316.3740451,
+    "seen": 1793098372.601836,
+    "ast_hash": "679290cd59e1a22bfda44fc7d29961b5",
     "semantic_hash": ""
   },
   "build.ps1": {
@@ -1422,9 +1422,9 @@
     "semantic_hash": ""
   },
   "docs/cnc-data-collection-flow.md": {
-    "mtime": 1793096743.2885766,
-    "seen": 1793096752.639072,
-    "ast_hash": "6455a0180569ff3cfcfcae7ff931bf89",
+    "mtime": 1793098561.333795,
+    "seen": 1793098584.9627082,
+    "ast_hash": "ec227e70e953dd4eb8a224893f1ec379",
     "semantic_hash": ""
   },
   "internal/cnc/fields_test.go": {
@@ -1455,12 +1455,6 @@
     "mtime": 1793076344.204169,
     "seen": 1793077444.4177942,
     "ast_hash": "b18ff3052bddd0f6008d959af58cffe1",
-    "semantic_hash": ""
-  },
-  "internal/monitor/value_log.go": {
-    "mtime": 1793078003.9767983,
-    "seen": 1793078078.9904466,
-    "ast_hash": "d9ddf49e1282bf12f582f1c49ad65eb1",
     "semantic_hash": ""
   },
   "internal/dto/health_dto.go": {
@@ -1506,9 +1500,9 @@
     "semantic_hash": ""
   },
   "internal/monitor/machine_mode.go": {
-    "mtime": 1793096704.493115,
-    "seen": 1793096752.638852,
-    "ast_hash": "8ba7a71b62502cb6071b73dacb7f1fbe",
+    "mtime": 1793098110.8220334,
+    "seen": 1793098212.7272525,
+    "ast_hash": "f4cba3050b6634b9ae56519c9e82ff41",
     "semantic_hash": ""
   },
   "internal/monitor/machine_mode_test.go": {
@@ -1517,10 +1511,16 @@
     "ast_hash": "2daac089952c6efcc9148d6c37f0d088",
     "semantic_hash": ""
   },
-  "internal/monitor/debug_log.go": {
-    "mtime": 1793096704.5322273,
-    "seen": 1793096752.63885,
-    "ast_hash": "daccae82fde3259f7e9a6413e7c7a75c",
+  "internal/monitor/cnc_log.go": {
+    "mtime": 1793098561.3298855,
+    "seen": 1793098584.9624708,
+    "ast_hash": "462632f9a7c83aa88f8b430a98214ede",
+    "semantic_hash": ""
+  },
+  "internal/monitor/cnc_log_test.go": {
+    "mtime": 1793098561.3309112,
+    "seen": 1793098584.9624724,
+    "ast_hash": "505ff446a1ada6ad9c6742c035671f81",
     "semantic_hash": ""
   }
 }

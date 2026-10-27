@@ -40,13 +40,12 @@ type CNCConfig struct {
 	MaxConnecting int
 	// StopTimeout bounds the collection's graceful stop.
 	StopTimeout time.Duration
-	// LogValues logs the changed variable values of each reading in one line (monitor/value_log.go). For
-	// analysing data frequency only: at 10 readings/s it writes many lines per machine.
-	LogValues bool
-	// DebugMachineIDs (CNC_DEBUG_MACHINE_IDS, e.g. "225,247") are the machines whose mode
-	// decisions and value changes are logged in detail (monitor/debug_log.go). Every machine is
-	// still collected and stored; empty = no machine.
-	DebugMachineIDs map[int64]bool
+	// Machines (CNC_MACHINE_IDS) are the machines the server connects: "225,247" only these, the
+	// others are not connected (no data, mode or status) — for analysing a few machines; "ALL" or
+	// empty every active machine.
+	Machines MachineSelection
+	// Logs picks which CNC logs are written (monitor/cnc_log.go).
+	Logs CNCLogSettings
 	// CertDir is the directory where client certificates are generated for OPC UA authentication.
 	// If empty, certificates are generated next to the server binary.
 	CertDir string
@@ -82,16 +81,22 @@ func Load() Config {
 		CookieSecure: getEnv("COOKIE_SECURE", "false") == "true",
 		UploadDir:    getEnv("UPLOAD_DIR", "uploads"),
 		CNC: CNCConfig{
-			Enabled:         getEnv("CNC_ENABLED", "true") == "true",
-			Slots:           getEnvInt("CNC_SLOTS", 300),
-			LibDir:          getEnv("CNC_LIB_DIR", "Lib"),
-			DLLName:         getEnv("CNC_DLL_NAME", "FanucCncCommunication.dll"),
-			Stale:           time.Duration(getEnvInt("CNC_STALE_SEC", 30)) * time.Second,
-			MaxConnecting:   getEnvInt("CNC_MAX_CONNECTING", 20),
-			StopTimeout:     time.Duration(getEnvInt("CNC_STOP_TIMEOUT_SEC", 15)) * time.Second,
-			LogValues:       getEnv("CNC_LOG_VALUES", "false") == "false",
-			DebugMachineIDs: getEnvIDs("CNC_DEBUG_MACHINE_IDS"),
-			CertDir:         getEnv("CNC_CERT_DIR", ""),
+			Enabled:       getEnv("CNC_ENABLED", "true") == "true",
+			Slots:         getEnvInt("CNC_SLOTS", 300),
+			LibDir:        getEnv("CNC_LIB_DIR", "Lib"),
+			DLLName:       getEnv("CNC_DLL_NAME", "FanucCncCommunication.dll"),
+			Stale:         time.Duration(getEnvInt("CNC_STALE_SEC", 30)) * time.Second,
+			MaxConnecting: getEnvInt("CNC_MAX_CONNECTING", 20),
+			StopTimeout:   time.Duration(getEnvInt("CNC_STOP_TIMEOUT_SEC", 15)) * time.Second,
+			Machines:      getEnvMachineSelection("CNC_MACHINE_IDS"),
+			Logs: CNCLogSettings{
+				Events:     getEnvBool("CNC_LOG_EVENTS", true),
+				Modes:      getEnvBool("CNC_LOG_MODES", true),
+				ModeChecks: getEnvBool("CNC_LOG_MODE_CHECKS", true),
+				Variables:  getEnvBool("CNC_LOG_VARIABLES", false),
+				Other:      getEnvBool("CNC_LOG_OTHER", true),
+			},
+			CertDir: getEnv("CNC_CERT_DIR", ""),
 		},
 	}
 }
@@ -112,19 +117,71 @@ func getEnvInt(key string, fallback int) int {
 	return value
 }
 
-// getEnvIDs reads a list of positive ids separated by commas or spaces ("225, 247"); an invalid
-// entry is logged and left out.
-func getEnvIDs(key string) map[int64]bool {
-	ids := map[int64]bool{}
-	for _, entry := range strings.FieldsFunc(getEnv(key, ""), func(character rune) bool {
+// getEnvBool reads "true" or "false" (any case); a missing or other value falls back.
+func getEnvBool(key string, fallback bool) bool {
+	switch strings.ToLower(getEnv(key, "")) {
+	case "true":
+		return true
+	case "false":
+		return false
+	}
+	return fallback
+}
+
+// CNCLogSettings switch the CNC logs on and off (CNC_LOG_EVENTS, CNC_LOG_MODES,
+// CNC_LOG_MODE_CHECKS, CNC_LOG_VARIABLES, CNC_LOG_OTHER); monitor/cnc_log.go writes them.
+// Errors are written whatever these say.
+type CNCLogSettings struct {
+	// Events logs machine events: connect, disconnect, alarms.
+	Events bool
+	// Modes logs mode changes.
+	Modes bool
+	// ModeChecks logs, whenever the NC inputs change, the mode they decide (even when the mode
+	// stays the same).
+	ModeChecks bool
+	// Variables logs the changed variable values of each reading in one line; at 10 readings/s
+	// it writes many lines per machine.
+	Variables bool
+	// Other logs everything else: collector start / stop, connections, variables loaded,
+	// reading rate every 10 s per machine.
+	Other bool
+}
+
+// AllMachines is the CNC_MACHINE_IDS value that selects every machine (as does empty).
+const AllMachines = "ALL"
+
+// MachineSelection is a set of machines picked in a setting; no ids means every machine.
+type MachineSelection struct {
+	IDs map[int64]bool
+}
+
+// Includes reports whether machine id is selected.
+func (selection MachineSelection) Includes(id int64) bool {
+	return selection.IsAll() || selection.IDs[id]
+}
+
+// IsAll reports whether every machine is selected ("ALL" or empty).
+func (selection MachineSelection) IsAll() bool {
+	return len(selection.IDs) == 0
+}
+
+// getEnvMachineSelection reads "ALL" (any case), empty, or positive machine ids separated by
+// commas or spaces ("225, 247"); an invalid id is logged and left out.
+func getEnvMachineSelection(key string) MachineSelection {
+	selection := MachineSelection{IDs: map[int64]bool{}}
+	value := strings.TrimSpace(getEnv(key, ""))
+	if strings.EqualFold(value, AllMachines) {
+		return selection
+	}
+	for _, entry := range strings.FieldsFunc(value, func(character rune) bool {
 		return character == ',' || character == ' '
 	}) {
 		id, err := strconv.ParseInt(entry, 10, 64)
 		if err != nil || id <= 0 {
-			slog.Warn("invalid id ignored", "variable", key, "value", entry)
+			slog.Warn("invalid machine id ignored", "variable", key, "value", entry)
 			continue
 		}
-		ids[id] = true
+		selection.IDs[id] = true
 	}
-	return ids
+	return selection
 }

@@ -21,8 +21,9 @@ import (
 //	feedRateOvr  FeedRatePercetnage  feed override, %
 //	alarmActive  AlarmNo ≠ 0 or IsEmergency (E-stop raises alarm 3000 as well)
 //
-// Every mode change is logged as "cnc: mode changed" with these inputs and the rule that
-// matched (recordModeChange), so a mode can be checked against the HMI.
+// With CNC_LOG_MODES=true every mode change is logged with these inputs and the rule that
+// matched, and so is every change of the inputs (cnc_log.go), so a mode can be checked against
+// the HMI.
 
 // opModeAuto is opMode AUTO; JOG (0) and MDA (1) are manual modes.
 const opModeAuto = 2
