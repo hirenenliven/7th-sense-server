@@ -6,9 +6,9 @@
     "semantic_hash": "8c58146bf0c47700bfef5615ac617dd5"
   },
   "cmd/server/main.go": {
-    "mtime": 1792994817.6651318,
-    "seen": 1792999340.536242,
-    "ast_hash": "6993876118f0298de9e3468bcec57777",
+    "mtime": 1793076450.4518027,
+    "seen": 1793077444.4173,
+    "ast_hash": "c9e5af7967ea7466f88f77c9ec4aef6c",
     "semantic_hash": ""
   },
   "go.mod": {
@@ -18,9 +18,9 @@
     "semantic_hash": "c881b9deed424c8932c328d2c51b50af"
   },
   "internal/config/config.go": {
-    "mtime": 1792999089.9146962,
-    "seen": 1792999340.5362682,
-    "ast_hash": "ed3de256778b1d859e7d216712d7162e",
+    "mtime": 1793078068.0030708,
+    "seen": 1793078078.9902365,
+    "ast_hash": "f52b45ccba2a817e0109096f7e6060fb",
     "semantic_hash": ""
   },
   "internal/db/postgres.go": {
@@ -1218,9 +1218,9 @@
     "semantic_hash": "83e782660b9df6e3978298333b4f35a6"
   },
   ".claude/CLAUDE.md": {
-    "mtime": 1793006429.055374,
-    "seen": 1793015324.1044028,
-    "ast_hash": "692cdd33f0212ac016f128a9eab8c2e2",
+    "mtime": 1793078067.938035,
+    "seen": 1793078078.9906914,
+    "ast_hash": "a9d4af9ed4aa22d6a9c4dd692e43ceee",
     "semantic_hash": ""
   },
   "7th_server_skills.md.md": {
@@ -1392,9 +1392,9 @@
     "semantic_hash": ""
   },
   "internal/monitor/worker.go": {
-    "mtime": 1793005776.3846843,
-    "seen": 1793005827.5196514,
-    "ast_hash": "c4b57ec5dc727eb415c8c31e8f3dd87b",
+    "mtime": 1793078055.0088148,
+    "seen": 1793078078.990449,
+    "ast_hash": "147e5b2ed721d61318f751e5ee4a0c0e",
     "semantic_hash": ""
   },
   "build.ps1": {
@@ -1449,6 +1449,24 @@
     "mtime": 1793012016.241179,
     "seen": 1793015324.1044116,
     "ast_hash": "fa47d3da88007afe252ec6a663679c97",
+    "semantic_hash": ""
+  },
+  "internal/cert/generate.go": {
+    "mtime": 1793076565.2223568,
+    "seen": 1793077444.4173148,
+    "ast_hash": "1ab855016b53260fb0d0605e96ee587d",
+    "semantic_hash": ""
+  },
+  "scripts/gencert.go": {
+    "mtime": 1793076344.204169,
+    "seen": 1793077444.4177942,
+    "ast_hash": "b18ff3052bddd0f6008d959af58cffe1",
+    "semantic_hash": ""
+  },
+  "internal/monitor/value_log.go": {
+    "mtime": 1793078003.9767983,
+    "seen": 1793078078.9904466,
+    "ast_hash": "d9ddf49e1282bf12f582f1c49ad65eb1",
     "semantic_hash": ""
   }
 }

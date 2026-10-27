@@ -39,7 +39,7 @@ type CNCConfig struct {
 	MaxConnecting int
 	// StopTimeout bounds the collection's graceful stop.
 	StopTimeout time.Duration
-	// LogValues logs every changed variable value (machine, variable, old and new value). For
+	// LogValues logs the changed variable values of each reading in one line (monitor/value_log.go). For
 	// analysing data frequency only: at 10 readings/s it writes many lines per machine.
 	LogValues bool
 	// CertDir is the directory where client certificates are generated for OPC UA authentication.

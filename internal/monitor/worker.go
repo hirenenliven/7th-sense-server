@@ -68,6 +68,7 @@ type worker struct {
 	statusDirty            bool
 	statusSavedAt          time.Time // when machine_live_status was last written
 	connection             *cnc.Connection
+	waitingLogged          bool // "controller not sending data" was logged for this connection
 
 	liveValues map[int]model.LiveValue // cache of current live values by variable_id
 
@@ -157,7 +158,8 @@ func (machineWorker *worker) runConnectionLoop(ctx context.Context) {
 			id, machineWorker.machine.LiveIP, machineWorker.machine.Port, *machineWorker.machine.CNCEngine))
 		slog.Info("cnc: machine subscribed", "machineId", machineWorker.machine.ID, "machine", machineWorker.machine.Name,
 			"ip", machineWorker.machine.LiveIP, "port", machineWorker.machine.Port, "engine", *machineWorker.machine.CNCEngine,
-			"connectionId", id, "variables", len(machineWorker.variables))
+			"connectionId", id, "variables", len(machineWorker.variables),
+			"logValues", machineWorker.collector.config.LogValues)
 
 		reason, gotData := machineWorker.collectReadings(ctx, connection)
 		// DATA_COLLECTION_STEP_17: Disconnect, record the machine offline, then retry.
@@ -241,6 +243,7 @@ func (machineWorker *worker) collectReadings(ctx context.Context, connection *cn
 	machineWorker.alarmsKnown = false
 	machineWorker.lastConnectedReadingAt = time.Now()
 	machineWorker.reportedError = ""
+	machineWorker.waitingLogged = false
 	machineWorker.startReadingRateWindow(time.Now(), 0) // a new connection's callbacks count from 0
 
 	ticker := time.NewTicker(tickInterval)
@@ -308,6 +311,7 @@ func (machineWorker *worker) processReading(reading cnc.Reading) bool {
 			slog.Warn("cnc: controller data stopped (the DLL reports it lost the controller)",
 				"machineId", machineWorker.machine.ID, "machine", machineWorker.machine.Name)
 		}
+		machineWorker.logWaitingForController(reading)
 		machineWorker.recordModeChange(now, model.ModeOffline)
 		return false
 	}
@@ -340,6 +344,7 @@ func (machineWorker *worker) processReading(reading cnc.Reading) bool {
 	alarmMessage := ""
 	telemetryRows := make([]model.TelemetryValue, 0, len(machineWorker.variables))
 	liveValueRows := make([]model.LiveValue, 0, len(machineWorker.variables))
+	changeLog := newValueChangeLog(machineWorker.collector.config.LogValues)
 	for _, variable := range machineWorker.variables {
 		value := reading.Values[variable.field]
 		currentLive := machineWorker.liveValues[variable.config.ID]
@@ -369,13 +374,12 @@ func (machineWorker *worker) processReading(reading cnc.Reading) bool {
 		// Insert into time-series if value changed
 		if valueChanged {
 			telemetryRows = append(telemetryRows, machineWorker.telemetryRow(variable.config, value, now))
-			if machineWorker.collector.config.LogValues {
-				machineWorker.logValueChange(variable.config, currentLive.Value, value.Number, now)
-			}
+			changeLog.add(variable.config, currentLive.Value, value.Number)
 		}
 
 		numbers[variable.config.ID] = value.Number
 	}
+	changeLog.flush(machineWorker.machine, now)
 
 	// Alarms and mode are derived from the stored values, so they are rechecked only when a
 	// value changed.
@@ -390,12 +394,25 @@ func (machineWorker *worker) processReading(reading cnc.Reading) bool {
 	return true
 }
 
-// logValueChange logs one changed variable value (CNC_LOG_VALUES=true). previous is nil for
-// the first value the machine sends for the variable.
-func (machineWorker *worker) logValueChange(variable model.VariableConfig, previous *float64, value float64, readAt time.Time) {
-	slog.Info("cnc: variable value changed", "machineId", machineWorker.machine.ID, "machine", machineWorker.machine.Name,
-		"variableId", variable.ID, "variable", variable.Code, "address", variable.Address,
-		"previous", previous, "value", value, "readAt", readAt.Format(time.RFC3339Nano))
+// logWaitingForController logs once per connection that the DLL sends readings but does not
+// reach the controller: until it does, no values are read, stored or logged (CNC_LOG_VALUES).
+func (machineWorker *worker) logWaitingForController(reading cnc.Reading) {
+	if machineWorker.waitingLogged || machineWorker.connectedSince != nil {
+		return
+	}
+	machineWorker.waitingLogged = true
+	attributes := []any{"machineId", machineWorker.machine.ID, "machine", machineWorker.machine.Name,
+		"ip", machineWorker.machine.LiveIP, "port", machineWorker.machine.Port,
+		"reason", "the DLL reports IsConnected=0; check the controller is on and reachable"}
+	if machineWorker.connection != nil {
+		if lastError := machineWorker.connection.Stats().LastError; lastError != "" {
+			attributes = append(attributes, "dllError", lastError)
+		}
+	}
+	if reading.MissingNodes != "" {
+		attributes = append(attributes, "missingNodes", reading.MissingNodes)
+	}
+	slog.Warn("cnc: controller not sending data, no values read", attributes...)
 }
 
 // startReadingRateWindow starts counting the reading rate from now; callbacks is the

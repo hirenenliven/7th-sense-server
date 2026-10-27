@@ -1,17 +1,17 @@
-# Graph Report - 7th-sense-server  (2026-10-26)
+# Graph Report - 7th-sense-server  (2026-10-27)
 
 ## Corpus Check
-- 240 files · ~123,651 words
+- 243 files · ~124,513 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 4 file(s) not represented in the graph (top: (none) 3, .toml 1)
 
 ## Summary
-- 1924 nodes · 15744 edges · 89 communities (72 shown, 17 thin omitted)
-- Extraction: 95% EXTRACTED · 5% INFERRED · 0% AMBIGUOUS · INFERRED: 772 edges (avg confidence: 0.87)
+- 1933 nodes · 15829 edges · 72 communities (60 shown, 12 thin omitted)
+- Extraction: 95% EXTRACTED · 5% INFERRED · 0% AMBIGUOUS · INFERRED: 779 edges (avg confidence: 0.87)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `515f44ca`
+- Built from commit: `adc8abcd`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -22,61 +22,59 @@
 - UserShopService
 - Route Registration & Guards
 - Machine DTOs
-- config.go
+- HolidayService
 - CNC Snapshot Struct Fields
 - BranchService
-- net/http.Handler
-- AuthUser
+- LicenceKeyService
+- IdleReasonService
 - Integration & DTO Tests (2)
 - Shift
 - CncCommunication.dll API & Integration Guide (Go Client)
-- context.Context
-- .validate
-- 2. All steps at a glance
-- UserCity
+- executeAffected
+- DowntimeReasonService
+- .runConnectionLoop
+- UserCityService
 - PartService
 - Connection
 - UserService
-- UserLineService
+- Execute
 - HTTP Handlers Layer (2)
 - UserSupervisorService
 - CNC Go Client Run & Check Mode
 - user_access_test.go
-- Execute
-- UserStateService
-- demo_monitor/main.go
-- LicenceKeyService
-- UserCellService
+- context.Context
+- validateCatalogFields
+- ControllerService
+- .Generate
+- UserLineService
+- UserProfileRepository
 - Org Location/Shop DTOs (2)
-- UserCountryService
+- UserStateService
 - decodeAndValidate
 - sinumerik_client.go
 - time.Time
-- NewError
+- BrandService
 - CNC Connect API & Callbacks
 - Server API Domain Docs
 - run
 - HTTP Handlers Layer (5)
-- go_pkg_log_slog
-- Collector
+- Category
+- 2. All steps at a glance
 - run
-- MachineModelService
+- UserRepository
 - 7th Sense Server Engineering Principles (Skills Doc)
-- time.Time
+- MachineTelemetryService
 - GET /health
-- ClienteleService
-- ProductionScheduleRepository
+- VariableConfig
+- NewError
 - CncCommunication.dll (C++ core runtime, x86, OPC UA inside)
 - .Login
-- Category
+- BreakRepository
 - CNC Event-Driven Data Flow
 - Product
 - Check-mode OPC UA node mapping
-- validText
-- .validate
-- Address
 - Sinumerik DLL Go Client (use case) (2)
-- ControllerService
+- MachineModelService
 - Go Module Root
 - Current User Middleware
 - Role Guard Middleware
@@ -85,26 +83,13 @@
 - CncCommunication.dll API & Integration Guide (Go Client) - text version
 - MachineTelemetryService
 - statusRecorder
-- CompanyProfile
-- .Validate
-- .RunCollection
 - AuthHandler
-- VariableConfig
-- User
-- .validate
-- Role
-- validateUserCity
-- AuthService
-- LocationRepository
-- containsID
-- containsMachineID
-- MachineHandler
 
 ## God Nodes (most connected - your core abstractions)
 1. `Execute()` - 170 edges
 2. `SendResponse()` - 141 edges
 3. `NewError()` - 130 edges
-4. `run()` - 85 edges
+4. `run()` - 86 edges
 5. `pathID()` - 77 edges
 6. `AuthUser` - 69 edges
 7. `Querier` - 58 edges
@@ -117,10 +102,10 @@
   docs/CncCommunication.dll — API & Integration Guide (Go Client).pdf → .claude/CLAUDE.md
 - `Snapshot Fields (positions, spindle, feed, program, tool, alarms)` --conceptually_related_to--> `Machines API (/machines)`  [AMBIGUOUS]
   docs/CncCommunication.dll — API & Integration Guide (Go Client).pdf → .claude/CLAUDE.md
+- `Step 12 — Call the DLL's CNCConnect` --references--> `Connection`  [INFERRED]
+  docs/cnc-data-collection-flow.md → internal/cnc/cnc.go
 - `2. All steps at a glance` --references--> `LoadDriver()`  [INFERRED]
   docs/cnc-data-collection-flow.md → internal/cnc/cnc.go
-- `Step 4 — Run the collector in the background` --references--> `MachineTelemetryService`  [INFERRED]
-  docs/cnc-data-collection-flow.md → internal/service/machine_telemetry_service.go
 - `Step 4 — Run the collector in the background` --references--> `Collector`  [INFERRED]
   docs/cnc-data-collection-flow.md → internal/monitor/collector.go
 
@@ -136,15 +121,15 @@
 - **Struct ABI compatibility (pack(8) x86, size 34440, GOARCH=386)** — docs_cnc_communication_cncmastersnapshot, docs_cnc_communication_struct_size_assertion, docs_cnc_communication_prereq_goarch_386, docs_cnc_communication_ts_memory_panic [INFERRED 0.85]
 - **Session authentication and authorization flow** — readme_session_cookie, readme_auth_tokens_hashed, readme_per_request_session_check, readme_login_lockout, readme_csrf_cross_origin, _claude_claude_role_guards [INFERRED 0.85]
 
-## Communities (89 total, 17 thin omitted)
+## Communities (72 total, 12 thin omitted)
 
 ### Community 0 - "HTTP Handlers Layer"
 Cohesion: 0.10
-Nodes (11): BreakHandler, ClienteleHandler, DowntimeReasonHandler, HolidayHandler, IdleReasonHandler, PartHandler, ProductionScheduleHandler, currentUser() (+3 more)
+Nodes (12): BreakHandler, ClienteleHandler, DowntimeReasonHandler, HolidayHandler, IdleReasonHandler, MachineHandler, PartHandler, ProductionScheduleHandler (+4 more)
 
 ### Community 1 - "testing.T"
-Cohesion: 0.10
-Nodes (65): decodeData(), expectStatus(), newCatalogRouter(), runCatalogCRUD(), sendRequest(), uniqueSuffix(), apiResponse, createAuthTestUser() (+57 more)
+Cohesion: 0.05
+Nodes (102): NewLicenceKey, UpdateThemeRequest, CreateLicenceKeysRequest, ValidLicenceKey(), CreateUserRequest, CustomerDetails, UpdateUserRequest, isTimeZone() (+94 more)
 
 ### Community 2 - "CNC Data Collection Flow"
 Cohesion: 0.12
@@ -162,129 +147,133 @@ Nodes (30): RequireRole(), registerBranchRoutes(), registerBrandRoutes(), regist
 Cohesion: 0.13
 Nodes (15): CreateMachineRequest, MachineFields, UpdateMachineRequest, validCoordinate(), validHealthIDs(), validIPv4(), Machine, MachineScope (+7 more)
 
-### Community 6 - "config.go"
-Cohesion: 0.24
-Nodes (8): main(), run(), Config, getEnv(), getEnvInt(), DBConfig, Load(), TestMain()
+### Community 6 - "HolidayService"
+Cohesion: 0.15
+Nodes (11): CreateHolidayRequest, HolidayFields, UpdateHolidayRequest, Holiday, HolidayRepository, mapHolidayError(), NewHolidayRepository(), HolidayService (+3 more)
 
 ### Community 7 - "CNC Snapshot Struct Fields"
 Cohesion: 0.11
 Nodes (38): CncMasterSnapshot (34,440 bytes, #pragma pack(8), x86), AbsPos ([5]float64, Inches / Degrees, Work Coordinate System (WCS) positions), ActiveGCode ([16]byte, ASCII, Currently active G-code group), ActiveProgPath ([256]byte, ASCII Path, Storage path of active NC artifact), AlarmMsg ([128]byte, UTF-8 / ASCII, Alarm description message), AlarmNo (int32, Code (0 = OK), Primary alarm or fault number), AxisLoadXPercentage (int16, Percent (%), Servo X axis drive load (AxisLoadX/Y/ZPercentage)), AxisLoadYPercentage (int16, Percent (%), Servo Y axis drive load (AxisLoadX/Y/ZPercentage)) (+30 more)
 
 ### Community 8 - "BranchService"
+Cohesion: 0.23
+Nodes (5): CreateBranchRequest, UpdateBranchRequest, validateBranchFields(), cityOwner(), toBranchResponseError()
+
+### Community 9 - "LicenceKeyService"
+Cohesion: 0.18
+Nodes (10): NewLicenceKeyHandler(), LicenceKey, LicenceKeyRepository, mapLicenceKeyError(), NewLicenceKeyRepository(), LicenceKeyService, licenceExpiresOn(), NewLicenceKeyService() (+2 more)
+
+### Community 10 - "IdleReasonService"
 Cohesion: 0.15
-Nodes (9): CreateBranchRequest, UpdateBranchRequest, validateBranchFields(), Branch, BranchRepository, mapBranchError(), cityOwner(), BranchService (+1 more)
-
-### Community 9 - "net/http.Handler"
-Cohesion: 0.14
-Nodes (24): NewClienteleHandler(), NewLicenceKeyHandler(), NewMachineHandler(), NewPartHandler(), NewProductionScheduleHandler(), RoleHandler, NewRoleHandler(), CrossOrigin() (+16 more)
-
-### Community 10 - "AuthUser"
-Cohesion: 0.07
-Nodes (26): CreateDowntimeReasonRequest, DowntimeReasonFields, UpdateDowntimeReasonRequest, NewDowntimeReasonHandler(), NewIdleReasonHandler(), AuthUser, DowntimeReason, Holiday (+18 more)
+Nodes (12): CreateIdleReasonRequest, IdleReasonFields, UpdateIdleReasonRequest, NewIdleReasonHandler(), IdleReason, IdleReasonRepository, mapIdleReasonError(), NewIdleReasonRepository() (+4 more)
 
 ### Community 11 - "Integration & DTO Tests (2)"
-Cohesion: 0.42
-Nodes (5): cncMasterSnapshot, LanguageResponse, ThemeResponse, authUserKey, machineModelRecord
+Cohesion: 0.45
+Nodes (3): cncMasterSnapshot, authUserKey, machineModelRecord
 
 ### Community 12 - "Shift"
-Cohesion: 0.07
-Nodes (29): WithTransaction(), BreakFields, CreateBreakRequest, UpdateBreakRequest, uniquePositiveIDs(), clockMinutes(), CreateShiftRequest, ShiftFields (+21 more)
+Cohesion: 0.13
+Nodes (18): WithTransaction(), uniquePositiveIDs(), CreateShiftRequest, ShiftFields, UpdateShiftRequest, validWorkingDays(), Shift, NewBreakRepository() (+10 more)
 
 ### Community 13 - "CncCommunication.dll API & Integration Guide (Go Client)"
 Cohesion: 0.13
 Nodes (21): Machine Catalog Brand -> Controller -> Model, CNCConnect param machineType (int32 engine id, see §4.2), Engine 0: Simulator (local loopback mock engine), Engine 2: Siemens (Sinumerik OPC UA, active profile), Engine 3: Syntec (Open API / TCP), Engine 4: Mitsubishi (driver not specified), Machine identifier mapping (engine id enum 0-4), §9 Controller-Specific Profiles (+13 more)
 
-### Community 14 - "context.Context"
-Cohesion: 0.22
-Nodes (6): UserProfile, execute(), UserProfileRepository, mapProfileError(), toUserProfileResponseError(), UserProfileService
+### Community 14 - "executeAffected"
+Cohesion: 0.17
+Nodes (4): ProductionScheduleItem, executeAffected(), ProductionScheduleRepository, mapProductionScheduleError()
 
-### Community 15 - ".validate"
-Cohesion: 0.47
-Nodes (3): CreateIdleReasonRequest, IdleReasonFields, UpdateIdleReasonRequest
+### Community 15 - "DowntimeReasonService"
+Cohesion: 0.15
+Nodes (12): CreateDowntimeReasonRequest, DowntimeReasonFields, UpdateDowntimeReasonRequest, NewDowntimeReasonHandler(), DowntimeReason, DowntimeReasonRepository, mapDowntimeReasonError(), NewDowntimeReasonRepository() (+4 more)
 
-### Community 16 - "2. All steps at a glance"
-Cohesion: 0.19
-Nodes (9): 2. All steps at a glance, 5. Connect and collect, per machine: steps 10 – 17, Retry and timing summary, Step 11 — Connect, a few machines at a time, Step 14 — The data collection loop, Step 16 — Every second: dead connection check and live status, sleepUnlessCancelled(), backoff (+1 more)
+### Community 16 - ".runConnectionLoop"
+Cohesion: 0.27
+Nodes (6): Retry and timing summary, Step 10 — Get ready to connect, FieldIndex(), TestFieldIndexAxisPositions(), sleepUnlessCancelled(), backoff
 
-### Community 17 - "UserCity"
-Cohesion: 0.23
-Nodes (5): UserCity, UserCityRepository, mapUserCityError(), UserCityService, toUserCityResponseError()
+### Community 17 - "UserCityService"
+Cohesion: 0.16
+Nodes (8): CreateUserCityRequest, UpdateUserCityRequest, validateUserCity(), UserCity, UserCityRepository, mapUserCityError(), UserCityService, toUserCityResponseError()
 
 ### Community 18 - "PartService"
-Cohesion: 0.13
-Nodes (12): ValidPartDrawingFile(), Part, PartProcess, PartSubProgram, executeAffected(), PartRepository, mapPartError(), NewPartRepository() (+4 more)
+Cohesion: 0.07
+Nodes (22): PartProcessFields, PartSubProgramFields, CreatePartRequest, PartFields, UpdatePartRequest, UploadPartDrawingRequest, ValidPartDrawingFile(), validText() (+14 more)
 
 ### Community 19 - "Connection"
-Cohesion: 0.11
-Nodes (15): dllDriver, slot, Step 12 — Call the DLL's CNCConnect, Step 13 — The DLL sends data, Step 17 — Disconnect and try again, Connection, Reading, Stats (+7 more)
+Cohesion: 0.10
+Nodes (16): dllDriver, slot, 5. Connect and collect, per machine: steps 10 – 17, Step 11 — Connect, a few machines at a time, Step 13 — The DLL sends data, Step 17 — Disconnect and try again, Connection, Reading (+8 more)
 
 ### Community 20 - "UserService"
-Cohesion: 0.08
-Nodes (33): CreateUserRequest, CustomerDetails, UpdateUserRequest, UserResponse, ParseDayStart(), TestParseDayStart(), AssignableRoles(), CanAssignRole() (+25 more)
+Cohesion: 0.05
+Nodes (41): Querier, UserResponse, ParseDayStart(), TestParseDayStart(), Address, AssignableRoles(), CanAssignRole(), SeesAllCompanyMachines() (+33 more)
 
-### Community 21 - "UserLineService"
-Cohesion: 0.15
-Nodes (9): CreateUserLineRequest, UpdateUserLineRequest, validateUserLine(), NewUserLineHandler(), UserLine, UserLineRepository, mapUserLineError(), UserLineService (+1 more)
+### Community 21 - "Execute"
+Cohesion: 0.17
+Nodes (7): Execute(), Branch, BranchRepository, mapBranchError(), MachineTelemetryRepository, mapMachineTelemetryError(), NewMachineTelemetryService()
 
 ### Community 22 - "HTTP Handlers Layer (2)"
 Cohesion: 0.09
-Nodes (13): BranchHandler, ControllerHandler, pathID(), targetUserID(), UserCellHandler, UserCityHandler, UserCountryHandler, UserLineHandler (+5 more)
+Nodes (13): ProductHandler, pathID(), targetUserID(), RoleHandler, UserCellHandler, UserCityHandler, UserCountryHandler, UserLineHandler (+5 more)
 
 ### Community 23 - "UserSupervisorService"
-Cohesion: 0.15
-Nodes (10): CreateUserSupervisorRequest, UpdateUserSupervisorRequest, validateUserSupervisor(), NewUserSupervisorHandler(), UserSupervisor, UserSupervisorRepository, mapUserSupervisorError(), UserSupervisorService (+2 more)
+Cohesion: 0.14
+Nodes (11): CreateUserSupervisorRequest, UpdateUserSupervisorRequest, validateUserSupervisor(), NewUserSupervisorHandler(), UserSupervisor, UserSupervisorRepository, mapUserSupervisorError(), NewUserSupervisorRepository() (+3 more)
 
 ### Community 24 - "CNC Go Client Run & Check Mode"
 Cohesion: 0.14
 Nodes (21): Prerequisite: 32-bit x86 DLL, compile Go with GOARCH=386, Prerequisite: SIEMENS_USER / SIEMENS_PASS env vars before CNCConnect, §3.1 Environment & Prerequisites, §6 Snapshot Data Structure, §10 Diagnostics & Troubleshooting, Siemens credentials: SIEMENS_USER / SIEMENS_PASS env vars, Siemens trust: cert must be trusted in NCU Access Administration, Struct size assertion: unsafe.Sizeof(CncMasterSnapshot{}) == 34440 (+13 more)
 
 ### Community 25 - "user_access_test.go"
-Cohesion: 0.37
-Nodes (3): LicenceKeyDuration, licenceKeyDurations(), body
+Cohesion: 0.34
+Nodes (5): LanguageResponse, LicenceKeyDuration, ThemeResponse, licenceKeyDurations(), body
 
-### Community 26 - "Execute"
-Cohesion: 0.12
-Nodes (4): Execute(), UserState, mapAuthError(), mapUserStateError()
+### Community 26 - "context.Context"
+Cohesion: 0.15
+Nodes (5): ModeChange, ClienteleRepository, mapClienteleError(), NewMachineTelemetryRepository(), execute()
 
-### Community 27 - "UserStateService"
-Cohesion: 0.29
-Nodes (3): CreateUserStateRequest, validateUserState(), toUserStateResponseError()
+### Community 27 - "validateCatalogFields"
+Cohesion: 0.11
+Nodes (11): CreateBrandRequest, UpdateBrandRequest, validateCatalogFields(), CreateCategoryRequest, UpdateCategoryRequest, CreateControllerRequest, UpdateControllerRequest, validateControllerFields() (+3 more)
 
-### Community 28 - "demo_monitor/main.go"
-Cohesion: 0.17
-Nodes (8): CncMasterSnapshot, MachineDef, cstr(), enableVT(), initDLL(), main(), render(), TestSnapshotSize()
+### Community 28 - "ControllerService"
+Cohesion: 0.21
+Nodes (5): Controller, ControllerRepository, mapControllerError(), ControllerService, toControllerResponseError()
 
-### Community 29 - "LicenceKeyService"
-Cohesion: 0.14
-Nodes (11): NewLicenceKey, CreateLicenceKeysRequest, GenerateLicenceKeysRequest, GeneratedLicenceKeys, LicenceKey, LicenceKeyRepository, mapLicenceKeyError(), LicenceKeyService (+3 more)
+### Community 29 - ".Generate"
+Cohesion: 0.40
+Nodes (3): GenerateLicenceKeysRequest, GeneratedLicenceKeys, newLicenceKey()
 
-### Community 30 - "UserCellService"
-Cohesion: 0.14
-Nodes (10): CreateUserCellRequest, UpdateUserCellRequest, validateUserCell(), NewUserCellHandler(), UserCell, UserCellRepository, mapUserCellError(), UserCellService (+2 more)
+### Community 30 - "UserLineService"
+Cohesion: 0.07
+Nodes (20): CreateUserCellRequest, UpdateUserCellRequest, validateUserCell(), CreateUserLineRequest, UpdateUserLineRequest, validateUserLine(), NewUserCellHandler(), NewUserLineHandler() (+12 more)
+
+### Community 31 - "UserProfileRepository"
+Cohesion: 0.19
+Nodes (5): UserProfile, UserProfileRepository, mapProfileError(), toUserProfileResponseError(), UserProfileService
 
 ### Community 32 - "Org Location/Shop DTOs (2)"
 Cohesion: 0.16
 Nodes (8): CreateUserLocationRequest, UpdateUserLocationRequest, validateUserLocation(), UserLocation, UserLocationRepository, mapUserLocationError(), UserLocationService, toUserLocationResponseError()
 
-### Community 33 - "UserCountryService"
-Cohesion: 0.20
-Nodes (4): CreateUserCountryRequest, UserCountry, mapUserCountryError(), toUserCountryResponseError()
+### Community 33 - "UserStateService"
+Cohesion: 0.09
+Nodes (13): CreateUserCountryRequest, CreateUserStateRequest, validateUserState(), UserCountry, UserState, UserCountryRepository, mapUserCountryError(), UserStateRepository (+5 more)
 
 ### Community 34 - "decodeAndValidate"
-Cohesion: 0.14
-Nodes (5): validator, LicenceKeyHandler, currentUserID(), decodeAndValidate(), UserHandler
+Cohesion: 0.17
+Nodes (5): validator, BranchHandler, currentUserID(), decodeAndValidate(), UserHandler
 
 ### Community 35 - "sinumerik_client.go"
-Cohesion: 0.20
-Nodes (17): axisColor(), cstr(), enableVT(), findLibDir(), initDLL(), isRotary(), lbl(), logf() (+9 more)
+Cohesion: 0.05
+Nodes (38): main(), run(), main(), Config, CncMasterSnapshot, MachineDef, cstr(), enableVT() (+30 more)
 
 ### Community 36 - "time.Time"
-Cohesion: 0.20
-Nodes (11): Known issue, Step 15 — Store the reading, Value, TelemetryValue, modeFor(), modeName(), TestModeFor(), roundToTenth() (+3 more)
+Cohesion: 0.13
+Nodes (19): Known issue, Step 14 — The data collection loop, Step 15 — Store the reading, Step 16 — Every second: dead connection check and live status, Value, LiveValue, TelemetryValue, modeFor() (+11 more)
 
-### Community 37 - "NewError"
-Cohesion: 0.14
-Nodes (10): CreateAddressRequest, UpdateAddressRequest, UpdateLanguageRequest, UpdateLicenceKeyRequest, validDuration(), ValidLicenceKey(), NewError(), newResponse() (+2 more)
+### Community 37 - "BrandService"
+Cohesion: 0.25
+Nodes (5): Brand, BrandRepository, mapBrandError(), BrandService, toBrandResponseError()
 
 ### Community 38 - "CNC Connect API & Callbacks"
 Cohesion: 0.31
@@ -295,44 +284,44 @@ Cohesion: 0.23
 Nodes (13): Clienteles API (/clienteles), Company Scoping (companyOwner / ownCompanyCustomer), Customer Display Names (customerName / companyName), Licence Keys API (/licence-keys), Machines API (/machines), Organization Hierarchy APIs (/user-country..supervisor), Parts API (/parts with processes, drawings), Production Schedules API (/production-schedules) (+5 more)
 
 ### Community 40 - "run"
-Cohesion: 0.38
+Cohesion: 0.36
 Nodes (10): checkNotTaken(), createSuperadmin(), ensureProfile(), execute(), main(), parseFlags(), run(), superadminRoleID() (+2 more)
 
 ### Community 41 - "HTTP Handlers Layer (5)"
-Cohesion: 0.14
-Nodes (5): BrandHandler, CategoryHandler, MachineModelHandler, ProductHandler, SendResponse()
+Cohesion: 0.11
+Nodes (6): BrandHandler, CategoryHandler, ControllerHandler, LicenceKeyHandler, MachineModelHandler, SendResponse()
 
-### Community 42 - "go_pkg_log_slog"
-Cohesion: 0.33
-Nodes (3): main(), Init(), InitFile()
+### Community 42 - "Category"
+Cohesion: 0.25
+Nodes (5): Category, CategoryRepository, mapCategoryError(), CategoryService, toCategoryResponseError()
 
-### Community 43 - "Collector"
+### Community 43 - "2. All steps at a glance"
 Cohesion: 0.22
-Nodes (9): Step 18 — React to machine and variable changes, Step 8 — Load all active machines, Step 9 — Start one worker per machine, equalEngine(), MonitoredMachine, isMachineUnchanged(), newMachineWorker(), toMachineTelemetryResponseError() (+1 more)
+Nodes (10): 2. All steps at a glance, Step 12 — Call the DLL's CNCConnect, Step 18 — React to machine and variable changes, Step 9 — Start one worker per machine, equalEngine(), MonitoredMachine, isMachineUnchanged(), newMachineWorker() (+2 more)
 
 ### Community 44 - "run"
-Cohesion: 0.06
-Nodes (76): run(), Connect(), Querier, NewBranchHandler(), NewBrandHandler(), NewBreakHandler(), NewCategoryHandler(), NewControllerHandler() (+68 more)
+Cohesion: 0.05
+Nodes (82): run(), Connect(), NewAuthHandler(), NewBranchHandler(), NewBrandHandler(), NewBreakHandler(), NewCategoryHandler(), NewClienteleHandler() (+74 more)
 
-### Community 45 - "MachineModelService"
-Cohesion: 0.20
-Nodes (6): MachineModelRequest, MachineModel, MachineModelRepository, mapMachineModelError(), MachineModelService, toMachineModelResponseError()
+### Community 45 - "UserRepository"
+Cohesion: 0.27
+Nodes (4): UserListFilter, User, UserRepository, mapUserError()
 
 ### Community 46 - "7th Sense Server Engineering Principles (Skills Doc)"
 Cohesion: 0.05
 Nodes (22): Common Mistakes to Avoid, CRUD Implementation Checklist (11 steps), 7th Sense Server Engineering Principles (Skills Doc), Golden Reference Pattern: User CRUD, Unique Constraint Error Mapping (pgconn 23505), updated_at Trigger in Migrations, Air Hot Reload, 7th Sense Server - Claude Context (+14 more)
 
-### Community 47 - "time.Time"
-Cohesion: 0.11
-Nodes (7): LiveValue, MachineEvent, MachineLiveStatus, ModeChange, MachineTelemetryRepository, mapMachineTelemetryError(), MachineTelemetryService
+### Community 47 - "MachineTelemetryService"
+Cohesion: 0.12
+Nodes (10): 4. Find the machines: steps 5 – 9, Step 20 — Stop the workers and mark machines offline, Step 5 — Prepare the database, Step 6 — Record the start and begin following the database, Step 7 — Listen for database changes, Step 8 — Load all active machines, ListenForDatabaseNotifications(), MachineEvent (+2 more)
 
-### Community 49 - "ClienteleService"
-Cohesion: 0.14
-Nodes (10): ClienteleFields, CreateClienteleRequest, UpdateClienteleRequest, validClienteleEmail(), Clientele, ClienteleRepository, mapClienteleError(), clienteleFromFields() (+2 more)
+### Community 49 - "VariableConfig"
+Cohesion: 0.22
+Nodes (7): VariableConfig, formatPreviousValue(), formatValue(), newValueChangeLog(), boundVariable, valueChange, valueChangeLog
 
-### Community 50 - "ProductionScheduleRepository"
-Cohesion: 0.09
-Nodes (19): validDate(), CreateProductionScheduleRequest, ProductionScheduleFields, ProductionScheduleItemFields, UpdateProductionScheduleRequest, ScheduleDay(), ProductionSchedule, ProductionScheduleItem (+11 more)
+### Community 50 - "NewError"
+Cohesion: 0.06
+Nodes (47): CreateAddressRequest, UpdateAddressRequest, UpdateLanguageRequest, BreakFields, CreateBreakRequest, UpdateBreakRequest, ClienteleFields, CreateClienteleRequest (+39 more)
 
 ### Community 51 - "CncCommunication.dll (C++ core runtime, x86, OPC UA inside)"
 Cohesion: 0.24
@@ -342,89 +331,37 @@ Nodes (16): client_cert.der/.pem (X.509 client cert for Siemens OPC UA), client_
 Cohesion: 0.18
 Nodes (7): LoginRequest, newSessionToken(), truncate(), newLoginThrottle(), loginFailures, loginThrottle, Session
 
-### Community 53 - "Category"
-Cohesion: 0.25
-Nodes (5): Category, CategoryRepository, mapCategoryError(), CategoryService, toCategoryResponseError()
+### Community 53 - "BreakRepository"
+Cohesion: 0.22
+Nodes (3): ShiftBreak, BreakRepository, mapBreakError()
 
 ### Community 55 - "CNC Event-Driven Data Flow"
 Cohesion: 0.36
 Nodes (8): Flow 1: load DLL, register two stdcall callbacks (syscall.NewCallback), Flow 2: CNCConnect starts DLL background worker thread, Flow 3: worker polls controller, assembles snapshot, invokes data callback, Flow 4: callback copies payload, signals renderer via buffered channel, Flow 5: main goroutine renders live ANSI dashboard, OPC UA (Siemens transport, port 4840), §2 System Architecture, SINUMERIK CNC (PLC/NCU)
 
 ### Community 56 - "Product"
-Cohesion: 0.16
-Nodes (9): CreateProductRequest, UpdateProductRequest, validateProductFields(), Product, ProductRepository, mapProductError(), ProductService, productImageOrDefault() (+1 more)
+Cohesion: 0.23
+Nodes (6): Product, ProductRepository, mapProductError(), ProductService, productImageOrDefault(), toProductResponseError()
 
 ### Community 57 - "Check-mode OPC UA node mapping"
 Cohesion: 0.19
 Nodes (14): Check mode: go run sinumerik_client.go check (OPC UA node existence report), Go Client (sinumerik_client.go, callback -> copy -> render), Program status -> /Channel/State/acProg[u1,1], Operating mode -> /Bag/State/opMode[u1], Tool -> /Channel/State/actTNumber[u1,1], Check-mode OPC UA node mapping, Run: go run sinumerik_client.go (live dashboard), §8 Running the Go Client (+6 more)
 
-### Community 58 - "validText"
-Cohesion: 0.19
-Nodes (8): PartProcessFields, PartSubProgramFields, CreatePartRequest, PartFields, UpdatePartRequest, UploadPartDrawingRequest, validText(), PartDrawing
-
-### Community 59 - ".validate"
-Cohesion: 0.50
-Nodes (3): isTimeZone(), isWebsite(), normalizeFilters()
-
-### Community 60 - "Address"
-Cohesion: 0.27
-Nodes (5): Address, AddressRepository, mapAddressError(), toAddressResponseError(), AddressService
-
-### Community 64 - "ControllerService"
-Cohesion: 0.07
-Nodes (18): CreateBrandRequest, UpdateBrandRequest, validateCatalogFields(), CreateCategoryRequest, UpdateCategoryRequest, CreateControllerRequest, UpdateControllerRequest, validateControllerFields() (+10 more)
+### Community 64 - "MachineModelService"
+Cohesion: 0.20
+Nodes (6): MachineModelRequest, MachineModel, MachineModelRepository, mapMachineModelError(), MachineModelService, toMachineModelResponseError()
 
 ### Community 70 - "CncCommunication.dll API & Integration Guide (Go Client) - text version"
 Cohesion: 0.22
 Nodes (11): CNCConnect(ip, port, dataCb, errCb, machineType) int32, CNCConnect param dataCb (uintptr stdcall OnData(const CncMasterSnapshot*)), CNCConnect param errCb (uintptr stdcall OnErr(int32 code, const char* msg)), CNCConnect param ip (const char*, ANSI NUL-terminated), CNCConnect param port (int32, e.g. 4840), CNCdisconnect(machineId int32), CncCommunication.dll API & Integration Guide (Go Client) - text version, LazyDLL binding (syscall.NewLazyDLL + eager mod.Load in init) (+3 more)
 
 ### Community 71 - "MachineTelemetryService"
-Cohesion: 0.16
-Nodes (13): Supervisor, 3. Startup: steps 1 – 4, Step 1 — Start collection with the server, Step 2 — Check that collection is enabled, Step 3 — Load the DLL, Step 4 — Run the collector in the background, Driver, LoadDriver() (+5 more)
-
-### Community 74 - "CompanyProfile"
-Cohesion: 0.23
-Nodes (8): CompanyProfile, CompanyProfileRepository, mapCompanyProfileError(), NewCompanyProfileRepository(), NewCompanyProfileService(), toCompanyProfileResponseError(), CompanyProfileService, TestCompanyProfileCRUD()
-
-### Community 75 - ".Validate"
-Cohesion: 0.21
-Nodes (11): UpdateThemeRequest, normalizeTheme(), TestCreateUserRequestValidate(), TestCreateUserRequestValidateDropsDuplicateMachines(), TestCreateUserRequestValidateNormalizes(), TestCustomerFiltersValidate(), TestUpdateThemeRequestValidate(), TestUpdateUserRequestValidateStatus() (+3 more)
-
-### Community 76 - ".RunCollection"
-Cohesion: 0.26
-Nodes (6): 4. Find the machines: steps 5 – 9, Step 20 — Stop the workers and mark machines offline, Step 5 — Prepare the database, Step 6 — Record the start and begin following the database, Step 7 — Listen for database changes, ListenForDatabaseNotifications()
+Cohesion: 0.19
+Nodes (11): Supervisor, 3. Startup: steps 1 – 4, Step 1 — Start collection with the server, Step 2 — Check that collection is enabled, Step 3 — Load the DLL, Step 4 — Run the collector in the background, Driver, LoadDriver() (+3 more)
 
 ### Community 77 - "AuthHandler"
 Cohesion: 0.38
 Nodes (3): AuthHandler, CurrentUser(), UserID()
-
-### Community 78 - "VariableConfig"
-Cohesion: 0.25
-Nodes (5): Step 10 — Get ready to connect, FieldIndex(), TestFieldIndexAxisPositions(), VariableConfig, boundVariable
-
-### Community 79 - "User"
-Cohesion: 0.32
-Nodes (3): UserListFilter, User, mapUserError()
-
-### Community 80 - ".validate"
-Cohesion: 0.47
-Nodes (3): CreateHolidayRequest, HolidayFields, UpdateHolidayRequest
-
-### Community 81 - "Role"
-Cohesion: 0.33
-Nodes (3): Role, mapRoleError(), toRoleResponseError()
-
-### Community 82 - "validateUserCity"
-Cohesion: 0.40
-Nodes (3): CreateUserCityRequest, UpdateUserCityRequest, validateUserCity()
-
-### Community 83 - "AuthService"
-Cohesion: 0.18
-Nodes (14): NewAuthHandler(), Authenticate(), WithAuthUser(), AuthRepository, NewAuthRepository(), AuthService, hashToken(), NewAuthService() (+6 more)
-
-### Community 84 - "LocationRepository"
-Cohesion: 0.50
-Nodes (3): mapLocationError(), NewLocationRepository(), LocationRepository
 
 ## Ambiguous Edges - Review These
 - `Snapshot Fields (positions, spindle, feed, program, tool, alarms)` → `Machines API (/machines)`  [AMBIGUOUS]
@@ -432,24 +369,24 @@ Nodes (3): mapLocationError(), NewLocationRepository(), LocationRepository
 
 ## Knowledge Gaps
 - **25 isolated node(s):** `hello`, `7th-sense-server`, `Siemens default ports: 4840 (native NCU) / 4841 (custom)`, `Engine 0: Simulator (local loopback mock engine)`, `Engine 4: Mitsubishi (driver not specified)` (+20 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 98 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **17 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 92 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **12 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `NewError()` connect `NewError` to `HTTP Handlers Layer`, `UserShopService`, `Machine DTOs`, `BranchService`, `AuthUser`, `Shift`, `context.Context`, `.validate`, `UserCity`, `PartService`, `UserService`, `UserLineService`, `HTTP Handlers Layer (2)`, `UserSupervisorService`, `user_access_test.go`, `UserStateService`, `LicenceKeyService`, `UserCellService`, `Org Location/Shop DTOs (2)`, `UserCountryService`, `decodeAndValidate`, `MachineModelService`, `ClienteleService`, `ProductionScheduleRepository`, `.Login`, `Category`, `Product`, `validText`, `.validate`, `ControllerService`, `CompanyProfile`, `.Validate`, `.validate`, `Role`, `validateUserCity`?**
-  _High betweenness centrality (0.055) - this node is a cross-community bridge._
+- **Why does `NewError()` connect `NewError` to `HTTP Handlers Layer`, `testing.T`, `UserShopService`, `Machine DTOs`, `HolidayService`, `BranchService`, `LicenceKeyService`, `IdleReasonService`, `Shift`, `DowntimeReasonService`, `UserCityService`, `PartService`, `UserService`, `HTTP Handlers Layer (2)`, `UserSupervisorService`, `user_access_test.go`, `ControllerService`, `.Generate`, `UserLineService`, `UserProfileRepository`, `Org Location/Shop DTOs (2)`, `UserStateService`, `decodeAndValidate`, `BrandService`, `Category`, `run`, `.Login`, `Product`, `MachineModelService`?**
+  _High betweenness centrality (0.073) - this node is a cross-community bridge._
 - **What connects `hello`, `7th-sense-server`, `Siemens default ports: 4840 (native NCU) / 4841 (custom)` to the rest of the system?**
   _25 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `HTTP Handlers Layer` be split into smaller, more focused modules?**
-  _Cohesion score 0.09979296066252588 - nodes in this community are weakly interconnected._
-- **Why does `SendResponse()` connect `HTTP Handlers Layer (5)` to `HTTP Handlers Layer`, `decodeAndValidate`, `Route Registration & Guards`, `net/http.Handler`, `AuthHandler`, `AuthService`, `HTTP Handlers Layer (2)`, `user_access_test.go`, `MachineHandler`?**
-  _High betweenness centrality (0.028) - this node is a cross-community bridge._
-- **Should `testing.T` be split into smaller, more focused modules?**
-  _Cohesion score 0.10491659350307288 - nodes in this community are weakly interconnected._
-- **Why does `CurrentUser()` connect `AuthHandler` to `HTTP Handlers Layer`, `Route Registration & Guards`, `AuthUser`, `Integration & DTO Tests (2)`, `context.Context`, `HTTP Handlers Layer (2)`?**
+  _Cohesion score 0.09550989345509893 - nodes in this community are weakly interconnected._
+- **Why does `Connection` connect `Connection` to `Integration & DTO Tests (2)`, `2. All steps at a glance`, `.Login`, `time.Time`?**
   _High betweenness centrality (0.025) - this node is a cross-community bridge._
+- **Should `testing.T` be split into smaller, more focused modules?**
+  _Cohesion score 0.052623261694058156 - nodes in this community are weakly interconnected._
+- **Why does `currentUser()` connect `HTTP Handlers Layer` to `decodeAndValidate`, `HTTP Handlers Layer (5)`, `AuthHandler`, `NewError`, `HTTP Handlers Layer (2)`, `user_access_test.go`?**
+  _High betweenness centrality (0.024) - this node is a cross-community bridge._
 
 ### Low-confidence Hints
 _AMBIGUOUS edges — the extractor was unsure. Verify before acting on these._
