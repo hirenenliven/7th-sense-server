@@ -342,6 +342,12 @@ so the worker needs no locks for its own data.
 
   Setup (1) and Rapid Mode (12) are no longer decided.
 
+- **Log:** each change is logged once as `cnc: mode changed` with `from`, `to`, `reason` (the rule
+  that matched, e.g. `program running, feed override ≤ 0`) and the NC inputs `opMode`,
+  `procStatus` (raw value and state), `chanStatus`, `feedOverride`, `alarmNo`, `emergency`,
+  `ncProgram`, so a mode can be checked against the HMI. It is always on; `CNC_LOG_VALUES` only
+  controls the per-reading `cnc: variable values changed` line.
+
 - **If a write fails:** the error is logged and saved in `machine_live_status.last_error`. Failed
   telemetry rows are lost and counted in `dropped_count`; the next reading is stored normally.
 

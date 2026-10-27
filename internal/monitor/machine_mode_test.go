@@ -20,14 +20,14 @@ func TestDecideMachineMode(t *testing.T) {
 		want  int
 	}{
 		{"offline", with(func(state *machineState) { state.connected = false }), model.ModeOffline},
-		{"alarm, reset", with(func(state *machineState) { state.alarmActive, state.program = true, programReset }), model.ModeDowntime},
-		{"alarm, stopped", with(func(state *machineState) { state.alarmActive, state.program = true, programStopped }), model.ModeDowntime},
+		{"alarm, reset", with(func(state *machineState) { state.alarmNumber, state.program = 3000, programReset }), model.ModeDowntime},
+		{"alarm, stopped", with(func(state *machineState) { state.emergency, state.program = true, programStopped }), model.ModeDowntime},
 		{"auto running", cutting, model.ModeInProduction},
 		{"auto waiting", with(func(state *machineState) { state.program = programWaiting }), model.ModeInProduction},
 		{"auto running, channel active", with(func(state *machineState) { state.channel = channelActive }), model.ModeInProduction},
 		{"auto running, channel reset", with(func(state *machineState) { state.channel = channelReset }), model.ModeIdle},
 		{"feed override 0", with(func(state *machineState) { state.feedOverride = 0 }), model.ModeHold},
-		{"alarm while running", with(func(state *machineState) { state.alarmActive = true }), model.ModeHold},
+		{"alarm while running", with(func(state *machineState) { state.alarmNumber = 700115 }), model.ModeHold},
 		{"running in MDA", with(func(state *machineState) { state.opMode = 1 }), model.ModeHold},
 		{"stopped", with(func(state *machineState) { state.program = programStopped }), model.ModeHold},
 		{"interrupted", with(func(state *machineState) { state.program = programInterrupted }), model.ModeHold},
@@ -37,8 +37,8 @@ func TestDecideMachineMode(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if got := decideMachineMode(test.state); got != test.want {
-				t.Errorf("decideMachineMode = %s, want %s", modeName(got), modeName(test.want))
+			if got, reason := decideMachineMode(test.state); got != test.want || reason == "" {
+				t.Errorf("decideMachineMode = %s (%q), want %s", modeName(got), reason, modeName(test.want))
 			}
 		})
 	}
@@ -51,10 +51,11 @@ func TestMachineStateFromReading(t *testing.T) {
 	reading.Values[cnc.FieldProcStatus].Number = procStatusWaiting
 	reading.Values[cnc.FieldFeedOverride].Number = 80
 	reading.Values[cnc.FieldIsEmergency].Number = 1
+	reading.Values[cnc.FieldProgName].Text = "PART.MPF"
 
 	state := machineStateFromReading(reading)
-	want := machineState{connected: true, opMode: opModeAuto, program: programWaiting, channel: channelUnknown,
-		feedOverride: 80, alarmActive: true}
+	want := machineState{connected: true, opMode: opModeAuto, procStatus: procStatusWaiting, program: programWaiting,
+		channel: channelUnknown, feedOverride: 80, emergency: true, programName: "PART.MPF"}
 	if state != want {
 		t.Errorf("machineStateFromReading = %+v, want %+v", state, want)
 	}

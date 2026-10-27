@@ -313,7 +313,7 @@ func (machineWorker *worker) processReading(reading cnc.Reading) bool {
 				"machineId", machineWorker.machine.ID, "machine", machineWorker.machine.Name)
 		}
 		machineWorker.logWaitingForController(reading)
-		machineWorker.recordModeChange(now, model.ModeOffline)
+		machineWorker.recordModeChange(now, model.ModeOffline, reasonNoConnection, nil)
 		return false
 	}
 	machineWorker.lastConnectedReadingAt = now
@@ -392,7 +392,7 @@ func (machineWorker *worker) processReading(reading cnc.Reading) bool {
 		machineWorker.insertTelemetry(telemetryRows, now)
 		machineWorker.recordAlarmChanges(now, numbers, alarmMessage)
 	}
-	machineWorker.recordModeChange(now, decideMachineMode(machineStateFromReading(reading)))
+	machineWorker.recordModeFromReading(now, reading)
 	return true
 }
 
@@ -530,13 +530,15 @@ func (machineWorker *worker) recordAlarmChanges(now time.Time, numbers map[int]f
 	machineWorker.alarm, machineWorker.emergency = alarm, emergency
 }
 
-// recordModeChange opens a new mode period when the mode changed.
-func (machineWorker *worker) recordModeChange(at time.Time, mode int) {
+// recordModeChange opens a new mode period when the mode changed and logs why: reason is the
+// rule that decided it and inputs the NC values it was decided from (none for Offline).
+func (machineWorker *worker) recordModeChange(at time.Time, mode int, reason string, inputs []any) {
 	if mode == machineWorker.mode {
 		return
 	}
-	slog.Info("cnc: mode changed", "machineId", machineWorker.machine.ID, "machine", machineWorker.machine.Name,
-		"from", modeName(machineWorker.mode), "to", modeName(mode), "program", machineWorker.program)
+	attributes := []any{"machineId", machineWorker.machine.ID, "machine", machineWorker.machine.Name,
+		"from", modeName(machineWorker.mode), "to", modeName(mode), "reason", reason, "program", machineWorker.program}
+	slog.Info("cnc: mode changed", append(attributes, inputs...)...)
 	machineWorker.mode = mode
 	machineWorker.statusDirty = true
 	ctx, cancel := context.WithTimeout(context.Background(), writeTimeout)
@@ -595,7 +597,7 @@ func (machineWorker *worker) recordDisconnection(reason stopReason) {
 		machineWorker.recordEvent(model.EventStale, nil, fmt.Sprintf("no usable reading for %s", machineWorker.collector.config.Stale))
 	}
 	machineWorker.recordEvent(model.EventDisconnected, nil, "")
-	machineWorker.recordModeChange(now, model.ModeOffline)
+	machineWorker.recordModeChange(now, model.ModeOffline, reasonNoConnection, nil)
 	machineWorker.connectedSince = nil
 	machineWorker.saveLiveStatus(now)
 	machineWorker.connection = nil
