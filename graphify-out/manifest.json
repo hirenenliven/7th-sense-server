@@ -18,9 +18,9 @@
     "semantic_hash": "c881b9deed424c8932c328d2c51b50af"
   },
   "internal/config/config.go": {
-    "mtime": 1793160323.5458643,
-    "seen": 1793164164.1910808,
-    "ast_hash": "1ce3ba85fb90c9fc7f3bef9b9e79e9bd",
+    "mtime": 1793172286.0385647,
+    "seen": 1793172387.9593697,
+    "ast_hash": "68b21c75980a2e1767a02ef6738857db",
     "semantic_hash": ""
   },
   "internal/db/postgres.go": {
@@ -1218,9 +1218,9 @@
     "semantic_hash": "83e782660b9df6e3978298333b4f35a6"
   },
   ".claude/CLAUDE.md": {
-    "mtime": 1793098561.3319137,
-    "seen": 1793098584.962701,
-    "ast_hash": "17c4d2f05fac79b5171f5f4471a1c993",
+    "mtime": 1793172373.802938,
+    "seen": 1793172387.9597838,
+    "ast_hash": "40a1d3c32868afebfa05602f9bc72ffe",
     "semantic_hash": ""
   },
   "7th_server_skills.md.md": {
@@ -1386,9 +1386,9 @@
     "semantic_hash": ""
   },
   "internal/monitor/worker.go": {
-    "mtime": 1793098316.3740451,
-    "seen": 1793098372.601836,
-    "ast_hash": "679290cd59e1a22bfda44fc7d29961b5",
+    "mtime": 1793172305.041669,
+    "seen": 1793172387.9595642,
+    "ast_hash": "d63ae630e4ce681c3aec265e93b2947e",
     "semantic_hash": ""
   },
   "7th-sense-start.ps1": {
@@ -1416,9 +1416,9 @@
     "semantic_hash": ""
   },
   "docs/cnc-data-collection-flow.md": {
-    "mtime": 1793160365.0026655,
-    "seen": 1793164164.191498,
-    "ast_hash": "0475a0a62e257ba16d2f54be5f456c90",
+    "mtime": 1793172361.937697,
+    "seen": 1793172387.9597912,
+    "ast_hash": "d5b89b9e2be1036da7c6b8c5988d7718",
     "semantic_hash": ""
   },
   "internal/cnc/fields_test.go": {
@@ -1434,9 +1434,9 @@
     "semantic_hash": ""
   },
   "docs/setup-guide.txt": {
-    "mtime": 1793012016.241179,
-    "seen": 1793015324.1044116,
-    "ast_hash": "fa47d3da88007afe252ec6a663679c97",
+    "mtime": 1793172367.6874745,
+    "seen": 1793172387.9597926,
+    "ast_hash": "d171ae0d34d790d2df4e090ca87dfce7",
     "semantic_hash": ""
   },
   "internal/cert/generate.go": {
@@ -1515,6 +1515,12 @@
     "mtime": 1793102370.1446235,
     "seen": 1793164164.191266,
     "ast_hash": "505ff446a1ada6ad9c6742c035671f81",
+    "semantic_hash": ""
+  },
+  "internal/monitor/worker_test.go": {
+    "mtime": 1793172318.474929,
+    "seen": 1793172387.9595666,
+    "ast_hash": "1546a47a216c89f2a28761184c1082ef",
     "semantic_hash": ""
   }
 }

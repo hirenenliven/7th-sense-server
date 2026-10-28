@@ -32,8 +32,13 @@ type CNCConfig struct {
 	// working directory unless absolute).
 	LibDir  string
 	DLLName string
-	// Stale: no usable reading for this long means the connection is lost.
+	// Stale: no usable reading for this long, while the DLL's last word was "not connected" (or it
+	// sent nothing yet), means the connection is lost: the machine goes Offline and is reconnected.
 	Stale time.Duration
+	// Quiet: no callback at all for this long after a connected reading. The DLL stops calling
+	// back while nothing changes (a held or idle Siemens machine sends nothing), so quiet is not
+	// lost; after Quiet the connection is reopened in case the DLL thread hung, keeping the mode.
+	Quiet time.Duration
 	// MaxConnecting limits concurrent CNCConnect calls per collector.
 	MaxConnecting int
 	// StopTimeout bounds the collection's graceful stop.
@@ -83,6 +88,7 @@ func Load() Config {
 			LibDir:        getEnv("CNC_LIB_DIR", "Lib"),
 			DLLName:       getEnv("CNC_DLL_NAME", "FanucCncCommunication.dll"),
 			Stale:         time.Duration(getEnvInt("CNC_STALE_SEC", 30)) * time.Second,
+			Quiet:         time.Duration(getEnvInt("CNC_QUIET_SEC", 300)) * time.Second,
 			MaxConnecting: getEnvInt("CNC_MAX_CONNECTING", 20),
 			StopTimeout:   time.Duration(getEnvInt("CNC_STOP_TIMEOUT_SEC", 15)) * time.Second,
 			Machines:      getEnvMachineSelection("CNC_MACHINE_IDS"),

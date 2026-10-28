@@ -351,8 +351,14 @@ so the worker needs no locks for its own data.
 - **File:** `internal/monitor/worker.go`
 - **Functions:** `worker.collectReadings` (ticker), `worker.saveLiveStatus`
 - **What it does:**
-  1. If there was **no connected reading for `CNC_STALE_SEC`** (default 30 s), the connection is
-     treated as dead: leave the loop (`stopConnectionStale`) → step 17.
+  1. `checkConnectionLost`: the DLL stops calling back while nothing changes (a held or idle
+     machine sends nothing) and reports a lost controller with `IsConnected=0` readings, so silence
+     alone is not a lost connection.
+     - Last reading **not connected** (or none yet) and **no connected reading for `CNC_STALE_SEC`**
+       (default 30 s): the connection is dead (`stopConnectionStale`) → step 17, Offline.
+     - Last reading **connected** and **no callback at all for `CNC_QUIET_SEC`** (default 300 s):
+       the connection is reopened in case the DLL thread hung (`stopConnectionQuiet`) → step 17,
+       **mode kept** (no Offline gap for a held machine).
   2. Writes the `machine_live_status` row when something changed, or at least every 10 seconds
      (connected since, last seen, counters, last error, missing nodes).
   3. Every 10 seconds logs `cnc: reading rate` (`logReadingRate`): readings the DLL sent
@@ -367,8 +373,9 @@ so the worker needs no locks for its own data.
 - **Calls:** `Connection.Disconnect` → DLL `CNCdisconnect`, then the slot is freed (`releaseSlot`)
 - **What it does:**
   1. Disconnects. From this moment late callbacks from the DLL are ignored.
-  2. Stores a `stale` event (if it went stale) and a `disconnected` event.
-  3. Sets mode Offline and saves the live status.
+  2. Stores a `stale` event (if it went stale or quiet) and a `disconnected` event.
+  3. Sets mode Offline (not after a quiet connection: its mode is kept until the reconnect fails,
+     sends `IsConnected=0`, or decides a new mode) and saves the live status.
   4. Waits, then goes back to step 10 and stores a `reconnect` event ("attempt 2", …).
 - **Retry wait:** 1 s, 2 s, 4 s … up to **5 minutes**, with ±20 % random jitter so machines that
   failed together do not all retry at the same moment. The wait goes back to 1 s once a connection
@@ -462,7 +469,8 @@ Errors are always written, whatever the switch.
 | `CNC_SLOTS` | `300` | Most machines the server can connect (max 990) |
 | `CNC_LIB_DIR` | `Lib` | Folder with the DLL |
 | `CNC_DLL_NAME` | `FanucCncCommunication.dll` | DLL file name |
-| `CNC_STALE_SEC` | `30` | Seconds without data before a connection counts as dead |
+| `CNC_STALE_SEC` | `30` | Seconds without a connected reading, while the DLL says not connected, before a connection counts as dead (Offline) |
+| `CNC_QUIET_SEC` | `300` | Seconds without any callback after a connected reading before the connection is reopened (mode kept) |
 | `CNC_MAX_CONNECTING` | `20` | Connect calls allowed at the same time |
 | `CNC_STOP_TIMEOUT_SEC` | `15` | Longest wait for a clean stop |
 | `CNC_MACHINE_IDS` | `ALL` | `225,247` = connect only these machines (the others get no data, mode or status); `ALL` / empty = every active machine (steps 8, 18) |
@@ -495,7 +503,7 @@ Errors are always written, whatever the switch.
 | `dll_error` | The DLL reports a new error message | 14 |
 | `alarm_on` / `alarm_off` | Alarm number changes | 15 |
 | `emergency_on` / `emergency_off` | Emergency stop changes | 15 |
-| `stale` | No data for `CNC_STALE_SEC` | 17 |
+| `stale` | No connected data for `CNC_STALE_SEC`, or no callback for `CNC_QUIET_SEC` after a connected one (message says "mode kept") | 17 |
 | `disconnected` | A connection ended | 17 |
 | `reconnect` | A new connect attempt starts | 17 |
 

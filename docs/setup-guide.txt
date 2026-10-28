@@ -189,6 +189,7 @@ All commands are for Windows PowerShell, run from the project folder.
        CNC_DLL_NAME=FanucCncCommunication.dll
        CNC_LOG_VALUES=false         # true logs every changed value (analysis only, many lines)
        # CNC_STALE_SEC=30
+       # CNC_QUIET_SEC=300
        # CNC_MAX_CONNECTING=20
        # CNC_STOP_TIMEOUT_SEC=15
 

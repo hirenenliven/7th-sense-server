@@ -27,6 +27,7 @@ type stopReason int
 const (
 	stopRequested       stopReason = iota // the worker was stopped (collector stop, machine changed)
 	stopConnectionStale                   // no usable reading for CNC_STALE_SEC
+	stopConnectionQuiet                   // no callback for CNC_QUIET_SEC after a connected reading
 )
 
 // boundVariable is a configured variable and the snapshot field it is read from.
@@ -57,7 +58,8 @@ type worker struct {
 	alarmsKnown            bool
 	connectedSince         *time.Time
 	lastSeenAt             *time.Time
-	lastConnectedReadingAt time.Time // the stale check measures CNC_STALE_SEC from here
+	lastConnectedReadingAt time.Time // the stale and quiet checks measure from here
+	lastReadingConnected   bool      // the newest reading said the DLL reaches the controller
 	lastChangeAt           *time.Time
 	sampleAt               *time.Time
 	missingNodes           string
@@ -155,6 +157,8 @@ func (machineWorker *worker) runConnectionLoop(ctx context.Context) {
 				eventType = model.EventConfigError
 			}
 			machineWorker.recordEvent(eventType, &id, err.Error())
+			// A quiet reconnect kept the machine's mode; a failed connect ends it.
+			machineWorker.recordModeChange(time.Now(), model.ModeOffline, reasonNoConnection, nil)
 			continue
 		}
 		machineWorker.recordEvent(model.EventConnectOK, &id, fmt.Sprintf("connection %d (%s:%d, engine %d)",
@@ -164,7 +168,7 @@ func (machineWorker *worker) runConnectionLoop(ctx context.Context) {
 			"connectionId", id, "variables", len(machineWorker.variables))
 
 		reason, gotData := machineWorker.collectReadings(ctx, connection)
-		// DATA_COLLECTION_STEP_17: Disconnect, record the machine offline, then retry.
+		// DATA_COLLECTION_STEP_17: Disconnect, record the machine offline (not when quiet), then retry.
 		connection.Disconnect()
 		machineWorker.recordDisconnection(reason)
 		if gotData {
@@ -243,6 +247,7 @@ func (machineWorker *worker) collectReadings(ctx context.Context, connection *cn
 	machineWorker.connection = connection
 	machineWorker.alarmsKnown = false
 	machineWorker.lastConnectedReadingAt = time.Now()
+	machineWorker.lastReadingConnected = false
 	machineWorker.reportedError = ""
 	machineWorker.waitingLogged = false
 	machineWorker.startReadingRateWindow(time.Now(), 0) // a new connection's callbacks count from 0
@@ -274,10 +279,10 @@ func (machineWorker *worker) collectReadings(ctx context.Context, connection *cn
 				gotData = true
 			}
 		case now := <-ticker.C:
-			// DATA_COLLECTION_STEP_16: Drop a stale connection (no connected reading for
-			// CNC_STALE_SEC) and refresh machine_live_status when it changed or every 10 s.
-			if now.Sub(machineWorker.lastConnectedReadingAt) > machineWorker.collector.config.Stale {
-				return stopConnectionStale, gotData
+			// DATA_COLLECTION_STEP_16: Drop a lost connection (checkConnectionLost) and refresh
+			// machine_live_status when it changed or every 10 s.
+			if reason, lost := machineWorker.checkConnectionLost(now); lost {
+				return reason, gotData
 			}
 			if machineWorker.statusDirty || now.Sub(machineWorker.statusSavedAt) >= statusInterval {
 				machineWorker.saveLiveStatus(now)
@@ -287,6 +292,19 @@ func (machineWorker *worker) collectReadings(ctx context.Context, connection *cn
 			}
 		}
 	}
+}
+
+// checkConnectionLost reports whether the connection should be dropped at now and why. Silence
+// alone does not mean the controller is gone: the DLL stops calling back while nothing changes
+// (a held or idle machine), and it reports a lost controller with IsConnected=0 readings. So a
+// connection whose last reading was connected is dropped only after CNC_QUIET_SEC, and one that
+// never connected or reported the controller lost after CNC_STALE_SEC.
+func (machineWorker *worker) checkConnectionLost(now time.Time) (stopReason, bool) {
+	silence := now.Sub(machineWorker.lastConnectedReadingAt)
+	if machineWorker.lastReadingConnected {
+		return stopConnectionQuiet, silence > machineWorker.collector.config.Quiet
+	}
+	return stopConnectionStale, silence > machineWorker.collector.config.Stale
 }
 
 // processReading stores one reading: every numeric value is upserted into
@@ -306,6 +324,7 @@ func (machineWorker *worker) processReading(reading cnc.Reading) bool {
 		machineWorker.missingNodes = reading.MissingNodes
 		machineWorker.statusDirty = true
 	}
+	machineWorker.lastReadingConnected = reading.Connected
 	if !reading.Connected {
 		if machineWorker.connectedSince != nil {
 			machineWorker.connectedSince = nil
@@ -586,15 +605,23 @@ func (machineWorker *worker) saveLiveStatus(now time.Time) {
 	machineWorker.statusSavedAt = now
 }
 
-// recordDisconnection records the end of a connection: a stale event when it went stale, a
-// disconnected event, the Offline mode and the live status.
+// recordDisconnection records the end of a connection: a stale event when it went stale or
+// quiet, a disconnected event, the Offline mode and the live status. A quiet connection keeps its
+// mode: the controller was last seen connected, so the reconnect (or its failure, or an
+// IsConnected=0 reading) decides the next mode, and a held machine shows no Offline gaps.
 func (machineWorker *worker) recordDisconnection(reason stopReason) {
 	now := time.Now()
-	if reason == stopConnectionStale {
+	switch reason {
+	case stopConnectionStale:
 		machineWorker.recordEvent(model.EventStale, nil, fmt.Sprintf("no usable reading for %s", machineWorker.collector.config.Stale))
+	case stopConnectionQuiet:
+		machineWorker.recordEvent(model.EventStale, nil, fmt.Sprintf("no reading for %s after a connected one; reconnecting, mode kept",
+			machineWorker.collector.config.Quiet))
 	}
 	machineWorker.recordEvent(model.EventDisconnected, nil, "")
-	machineWorker.recordModeChange(now, model.ModeOffline, reasonNoConnection, nil)
+	if reason != stopConnectionQuiet {
+		machineWorker.recordModeChange(now, model.ModeOffline, reasonNoConnection, nil)
+	}
 	machineWorker.connectedSince = nil
 	machineWorker.saveLiveStatus(now)
 	machineWorker.connection = nil
