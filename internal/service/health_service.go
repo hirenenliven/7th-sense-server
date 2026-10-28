@@ -47,6 +47,16 @@ func (healthService *HealthService) GetMachineModeHistory(ctx context.Context, m
 	}, nil
 }
 
+// GetMachineModes returns every machine that is not deleted with the mode it is in now (the
+// mode chart page's machine list). The route is public, like GetMachineModeHistory.
+func (healthService *HealthService) GetMachineModes(ctx context.Context) (dto.MachineModesResponse, error) {
+	machines, err := healthService.telemetryService.GetMachineModeStatuses(ctx)
+	if err != nil {
+		return dto.MachineModesResponse{}, err
+	}
+	return dto.MachineModesResponse{At: time.Now(), Machines: machines}, nil
+}
+
 // modeTotals sums the periods per mode, in the order each mode first appears. Periods are
 // counted whole, so one that started before the window adds its full duration.
 func modeTotals(periods []model.MachineModePeriod) []dto.MachineModeTotal {

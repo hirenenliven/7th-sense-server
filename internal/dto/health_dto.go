@@ -17,6 +17,13 @@ type MachineModeTotal struct {
 	DurationSec int    `json:"durationSec"`
 }
 
+// MachineModesResponse is the response of GET /health/machines: every machine that is not
+// deleted with the mode it is in now, ordered by name. At is the server time it was read.
+type MachineModesResponse struct {
+	At       time.Time                 `json:"at"`
+	Machines []model.MachineModeStatus `json:"machines"`
+}
+
 // MachineModeHistoryResponse is the response of GET /health/machines/{id}/modes: the
 // machine's mode periods of the last MachineModeHistoryDays days, oldest first, and the
 // time per mode.

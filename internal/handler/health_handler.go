@@ -17,6 +17,17 @@ func NewHealthHandler(healthService *service.HealthService) *HealthHandler {
 	return &HealthHandler{service: healthService}
 }
 
+// GetMachineModes handles GET /api/v1/health/machines: every machine with the mode it is in
+// now. Public: no session needed.
+func (healthHandler *HealthHandler) GetMachineModes(writer http.ResponseWriter, request *http.Request) {
+	machines, err := healthHandler.service.GetMachineModes(request.Context())
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+	response.SendResponse(writer, request, response.Success, machines)
+}
+
 // GetMachineModeHistory handles GET /api/v1/health/machines/{id}/modes: the machine's mode
 // periods of the last 10 days and the time per mode. Public: no session needed.
 func (healthHandler *HealthHandler) GetMachineModeHistory(writer http.ResponseWriter, request *http.Request) {

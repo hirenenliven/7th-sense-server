@@ -131,6 +131,11 @@ func (telemetryService *MachineTelemetryService) ListenForConfigurationChanges(c
 		[]string{MachinesChangedChannel, CNCConfigChangedChannel}, ready, notify)
 }
 
+// GetMachineModeStatuses returns every machine that is not deleted with the mode it is in now.
+func (telemetryService *MachineTelemetryService) GetMachineModeStatuses(ctx context.Context) ([]model.MachineModeStatus, error) {
+	return telemetryService.telemetryRepository.FindMachineModeStatuses(ctx)
+}
+
 // GetModePeriods returns machine machineID's mode periods running at or after since, oldest first.
 func (telemetryService *MachineTelemetryService) GetModePeriods(ctx context.Context, machineID int64, since time.Time) ([]model.MachineModePeriod, error) {
 	return telemetryService.telemetryRepository.FindModePeriods(ctx, machineID, since)

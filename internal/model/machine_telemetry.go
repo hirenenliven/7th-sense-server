@@ -124,6 +124,22 @@ type MachineModePeriod struct {
 	DurationSec int        `db:"duration_sec" json:"durationSec"`
 }
 
+// MachineModeStatus is a machine and the mode it is in now: its open machine_mode_log period
+// (machines.mode_id when it has none). ModeID is nil for a machine never collected; ModeSince
+// and ModeDurationSec are nil without an open period.
+type MachineModeStatus struct {
+	MachineID       int64      `db:"machine_id" json:"machineId"`
+	MachineName     string     `db:"machine_name" json:"machineName"`
+	CustomerName    string     `db:"customer_name" json:"customerName"`
+	CompanyName     string     `db:"company_name" json:"companyName"`
+	ModeID          *int       `db:"mode_id" json:"modeId"`
+	ModeName        string     `db:"mode_name" json:"modeName"`
+	OnlineStatus    bool       `db:"online_status" json:"onlineStatus"`
+	ProgramName     string     `db:"program_name" json:"programName"`
+	ModeSince       *time.Time `db:"mode_since" json:"modeSince"`
+	ModeDurationSec *int       `db:"mode_duration_sec" json:"modeDurationSec"`
+}
+
 // MachineEvent is one row of machine_events. MachineID is nil for collector events.
 type MachineEvent struct {
 	MachineID *int64

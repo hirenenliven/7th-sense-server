@@ -4,7 +4,7 @@ package web
 import "embed"
 
 // ModeChart is the machine mode chart page (mode-chart/index.html and mode-chart.js), served
-// at /mode-chart/. It reads GET /api/v1/health/machines/{id}/modes.
+// at /mode-chart/. It reads GET /api/v1/health/machines and /api/v1/health/machines/{id}/modes.
 //
 //go:embed mode-chart
 var ModeChart embed.FS

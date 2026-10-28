@@ -386,6 +386,36 @@ func (telemetryRepository *MachineTelemetryRepository) MarkShardOffline(ctx cont
 	return nil
 }
 
+// FindMachineModeStatuses returns every machine that is not deleted with the mode it is in now,
+// ordered by name. The open machine_mode_log period (at most one per machine) gives the mode,
+// its start and program; machines.mode_id is used when there is none.
+func (telemetryRepository *MachineTelemetryRepository) FindMachineModeStatuses(ctx context.Context) ([]model.MachineModeStatus, error) {
+	query := `SELECT m.id AS machine_id, COALESCE(m.name, '') AS machine_name,
+			COALESCE(NULLIF(TRIM(CONCAT_WS(' ', u.first_name, u.last_name)), ''), u.username, '') AS customer_name,
+			COALESCE(cp.company_name, '') AS company_name,
+			COALESCE(l.mode_id, m.mode_id) AS mode_id, COALESCE(mm.name, '') AS mode_name,
+			COALESCE(m.online_status, false) AS online_status,
+			COALESCE(l.program_name, '') AS program_name, l.started_at AS mode_since,
+			EXTRACT(EPOCH FROM now() - l.started_at)::int AS mode_duration_sec
+		FROM machines m
+		LEFT JOIN machine_mode_log l ON l.machine_id = m.id AND l.ended_at IS NULL
+		LEFT JOIN machine_modes mm ON mm.id = COALESCE(l.mode_id, m.mode_id)
+		LEFT JOIN users u ON u.id = m.user_id
+		LEFT JOIN company_profiles cp ON cp.user_id = m.user_id AND cp.is_deleted = false
+		WHERE m.is_deleted = false
+		ORDER BY m.name, m.id`
+
+	rows, err := db.Execute(ctx, telemetryRepository.database, query)
+	if err != nil {
+		return nil, fmt.Errorf("find machine mode statuses: %w", err)
+	}
+	statuses, err := pgx.CollectRows(rows, pgx.RowToStructByName[model.MachineModeStatus])
+	if err != nil {
+		return nil, fmt.Errorf("find machine mode statuses: %w", err)
+	}
+	return statuses, nil
+}
+
 // FindModePeriods returns machine machineID's mode periods that were running at or after since,
 // oldest first. The open period (ended_at NULL) counts its duration up to now.
 func (telemetryRepository *MachineTelemetryRepository) FindModePeriods(ctx context.Context, machineID int64, since time.Time) ([]model.MachineModePeriod, error) {

@@ -1,9 +1,14 @@
-// Machine mode chart: reads GET /api/v1/health/machines/{id}/modes (public, no session) and
-// draws the mode periods as a timeline, one row per mode, with the list of periods below.
+// Machine mode dashboard: the left panel lists every machine grouped by its current mode
+// (GET /api/v1/health/machines), with a count per mode that filters the list. Selecting a machine
+// reads GET /api/v1/health/machines/{id}/modes (both public, no session) and draws its mode
+// periods as a timeline, one row per mode, with the list of periods below.
 (function () {
   "use strict";
 
   const API_PATH = "/api/v1/health/machines/";
+  const MACHINES_PATH = "/api/v1/health/machines";
+  const LIST_REFRESH_MS = 30 * 1000;
+  const NO_MODE = "none"; // group key of machines that have no mode yet
   const ALL_MODES_ROW = "All modes";
   const MINUTE_MS = 60 * 1000;
   const ZOOM_STEP = 2;
@@ -27,12 +32,19 @@
     13: { name: "Leave Planned Downtime", color: "#ca8a04" },
   };
   const ALWAYS_SHOWN_MODES = [2, 3, 4, 5, 6, 9, 7];
+  // Order of the mode groups in the machine list. The tiles of DASHBOARD_TILE_MODES always show;
+  // other modes get a tile only while a machine is in them.
+  const DASHBOARD_MODE_ORDER = [3, 4, 5, 6, 2, 1, 7, 8, 10, 11, 12, 13, 9];
+  const DASHBOARD_TILE_MODES = [3, 4, 5, 6, 9];
   const UNKNOWN_MODE_COLOR = "#9ca3af";
   const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
   const elements = {
-    machineId: document.getElementById("machine-id"),
-    load: document.getElementById("load"),
+    refresh: document.getElementById("refresh"),
+    updated: document.getElementById("updated"),
+    tiles: document.getElementById("tiles"),
+    search: document.getElementById("search"),
+    machineList: document.getElementById("machine-list"),
     range: document.getElementById("range"),
     zoomIn: document.getElementById("zoom-in"),
     zoomOut: document.getElementById("zoom-out"),
@@ -49,6 +61,9 @@
 
   const chart = echarts.init(elements.chart, null, { renderer: "canvas" });
   let modeHistory = null;
+  let machines = [];
+  let modeFilter = null; // a mode group key, or null for every machine
+  let selectedMachineId = null;
 
   function modeName(modeId, fallback) {
     return (MODES[modeId] && MODES[modeId].name) || fallback || "Mode " + modeId;
@@ -326,25 +341,185 @@
     });
   }
 
-  async function loadHistory() {
-    const machineId = Number(elements.machineId.value);
-    if (!Number.isInteger(machineId) || machineId <= 0) {
-      setStatus("Please enter a valid machine ID.", true);
+  // groupKey is the machine list group of a machine: its mode id, or NO_MODE.
+  function groupKey(machine) {
+    return machine.modeId != null ? String(machine.modeId) : NO_MODE;
+  }
+
+  function groupName(key) {
+    return key === NO_MODE ? "No data" : modeName(Number(key));
+  }
+
+  function groupColor(key) {
+    return key === NO_MODE ? UNKNOWN_MODE_COLOR : modeColor(Number(key));
+  }
+
+  // groupKeys lists the groups in dashboard order: the known modes, other modes, then NO_MODE.
+  function groupKeys(counts) {
+    const keys = DASHBOARD_MODE_ORDER.map(String);
+    Object.keys(counts).forEach(function (key) {
+      if (key !== NO_MODE && keys.indexOf(key) === -1) keys.push(key);
+    });
+    keys.push(NO_MODE);
+    return keys;
+  }
+
+  function countByGroup() {
+    const counts = {};
+    machines.forEach(function (machine) {
+      const key = groupKey(machine);
+      counts[key] = (counts[key] || 0) + 1;
+    });
+    return counts;
+  }
+
+  // tile is one mode count; a click shows only that mode's machines, a second click all again.
+  function tile(key, name, count, color) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "tile" + (modeFilter === key ? " active" : "") + (count ? "" : " empty");
+    button.style.setProperty("--tile-color", color);
+    button.title = key === null || modeFilter === key ? "Show every machine" : "Show only " + name;
+    const number = document.createElement("span");
+    number.className = "tile-count";
+    number.textContent = count;
+    const label = document.createElement("span");
+    label.className = "tile-name";
+    label.textContent = name;
+    button.append(number, label);
+    button.addEventListener("click", function () {
+      modeFilter = modeFilter === key ? null : key;
+      drawDashboard();
+    });
+    return button;
+  }
+
+  // drawTiles shows the number of machines per mode: always the main modes, others while used.
+  function drawTiles(counts) {
+    elements.tiles.replaceChildren(tile(null, "All machines", machines.length, "var(--accent)"));
+    groupKeys(counts).forEach(function (key) {
+      const count = counts[key] || 0;
+      if (count || DASHBOARD_TILE_MODES.indexOf(Number(key)) !== -1) {
+        elements.tiles.append(tile(key, groupName(key), count, groupColor(key)));
+      }
+    });
+  }
+
+  function matchesSearch(machine, text) {
+    if (!text) return true;
+    return [machine.machineName, machine.customerName, machine.companyName, String(machine.machineId)]
+      .some(function (value) { return value && value.toLowerCase().indexOf(text) !== -1; });
+  }
+
+  function machineButton(machine) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "machine" + (machine.machineId === selectedMachineId ? " selected" : "");
+    const swatch = document.createElement("span");
+    swatch.className = "swatch";
+    swatch.style.background = groupColor(groupKey(machine));
+    const text = document.createElement("span");
+    text.className = "machine-text";
+    const title = document.createElement("div");
+    title.className = "machine-title";
+    title.textContent = machine.machineName || "Machine " + machine.machineId;
+    const details = document.createElement("div");
+    details.className = "machine-sub";
+    details.textContent = ["#" + machine.machineId, machine.customerName, machine.programName]
+      .filter(Boolean).join(" · ");
+    text.append(title, details);
+    const since = document.createElement("span");
+    since.className = "machine-since";
+    since.textContent = machine.modeDurationSec != null ? formatDuration(machine.modeDurationSec) : "";
+    if (machine.modeSince) since.title = "In this mode since " + formatDateTime(new Date(machine.modeSince));
+    button.append(swatch, text, since);
+    button.addEventListener("click", function () { selectMachine(machine.machineId); });
+    return button;
+  }
+
+  // drawMachineList lists the machines that pass the tile filter and the search, grouped by mode.
+  function drawMachineList(counts) {
+    const text = elements.search.value.trim().toLowerCase();
+    const groups = {};
+    machines.forEach(function (machine) {
+      const key = groupKey(machine);
+      if ((modeFilter === null || modeFilter === key) && matchesSearch(machine, text)) {
+        (groups[key] = groups[key] || []).push(machine);
+      }
+    });
+
+    elements.machineList.replaceChildren();
+    groupKeys(counts).forEach(function (key) {
+      const members = groups[key];
+      if (!members) return;
+      const head = document.createElement("div");
+      head.className = "group-head";
+      const swatch = document.createElement("span");
+      swatch.className = "swatch";
+      swatch.style.background = groupColor(key);
+      const name = document.createElement("span");
+      name.textContent = groupName(key);
+      const count = document.createElement("span");
+      count.className = "group-count";
+      count.textContent = members.length;
+      head.append(swatch, name, count);
+      elements.machineList.append(head);
+      members.forEach(function (machine) { elements.machineList.append(machineButton(machine)); });
+    });
+
+    if (!elements.machineList.childElementCount) {
+      const empty = document.createElement("div");
+      empty.className = "list-empty";
+      empty.textContent = machines.length ? "No machine matches." : "No machines.";
+      elements.machineList.append(empty);
+    }
+  }
+
+  function drawDashboard() {
+    const counts = countByGroup();
+    drawTiles(counts);
+    drawMachineList(counts);
+  }
+
+  async function loadMachines() {
+    try {
+      const reply = await fetch(MACHINES_PATH);
+      const body = await reply.json();
+      if (!reply.ok || !body.success) {
+        throw new Error(body.message || "Request failed (" + reply.status + ")");
+      }
+      machines = body.data.machines || [];
+      elements.updated.textContent = "Updated " + formatTime(new Date()) +
+        " · refreshes every " + LIST_REFRESH_MS / 1000 + " s";
+    } catch (error) {
+      elements.updated.textContent = "Could not load machines: " + error.message;
       return;
     }
-    setStatus("Loading…");
+    drawDashboard();
+  }
+
+  // selectMachine shows machineId's chart and keeps it in the URL (?machineId=).
+  function selectMachine(machineId) {
+    selectedMachineId = machineId;
     const url = new URL(window.location);
     url.searchParams.set("machineId", machineId);
     window.history.replaceState(null, "", url);
+    drawDashboard();
+    loadHistory(machineId);
+  }
 
+  async function loadHistory(machineId) {
+    setStatus("Loading…");
     try {
       const reply = await fetch(API_PATH + machineId + "/modes");
       const body = await reply.json();
       if (!reply.ok || !body.success) {
         throw new Error(body.message || "Request failed (" + reply.status + ")");
       }
+      if (machineId !== selectedMachineId) return; // another machine was picked meanwhile
       modeHistory = body.data;
     } catch (error) {
+      if (machineId !== selectedMachineId) return;
       modeHistory = null;
       chart.clear();
       setStatus(error.message, true);
@@ -362,18 +537,20 @@
   chart.on("click", function (params) {
     if (modeHistory && params.value) showSelectedPeriod(modeHistory.periods[params.value[3]]);
   });
-  elements.load.addEventListener("click", loadHistory);
-  elements.machineId.addEventListener("keydown", function (event) {
-    if (event.key === "Enter") loadHistory();
+  elements.refresh.addEventListener("click", function () {
+    loadMachines();
+    if (selectedMachineId) loadHistory(selectedMachineId);
   });
+  elements.search.addEventListener("input", drawDashboard);
   elements.range.addEventListener("change", applyRange);
   elements.zoomIn.addEventListener("click", function () { zoom(1 / ZOOM_STEP); });
   elements.zoomOut.addEventListener("click", function () { zoom(ZOOM_STEP); });
   window.addEventListener("resize", function () { chart.resize(); });
 
-  const initialMachineId = new URLSearchParams(window.location.search).get("machineId");
-  if (initialMachineId) {
-    elements.machineId.value = initialMachineId;
-    loadHistory();
-  }
+  // The list refreshes on its own; the chart reloads on Refresh or when a machine is picked, so
+  // a zoomed chart is not reset under the reader.
+  loadMachines();
+  window.setInterval(loadMachines, LIST_REFRESH_MS);
+  const initialMachineId = Number(new URLSearchParams(window.location.search).get("machineId"));
+  if (Number.isInteger(initialMachineId) && initialMachineId > 0) selectMachine(initialMachineId);
 })();

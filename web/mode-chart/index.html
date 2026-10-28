@@ -3,23 +3,124 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Machine Mode Chart</title>
+  <title>Machine Mode Dashboard</title>
   <style>
     :root {
       --bg: #14171c;
       --panel: #1a1e24;
+      --panel-hover: #20252c;
       --border: #2a2f37;
       --text: #d7dbe0;
       --muted: #8b939e;
       --accent: #f28c28;
     }
     * { box-sizing: border-box; }
+    html, body { height: 100%; }
     body {
       margin: 0;
       background: var(--bg);
       color: var(--text);
       font: 14px/1.4 "Segoe UI", Roboto, Arial, sans-serif;
     }
+    input, select, button {
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 6px 10px;
+      font: inherit;
+    }
+    button { cursor: pointer; }
+    button:hover { border-color: var(--accent); }
+    .swatch { display: inline-block; flex: none; width: 6px; height: 18px; border-radius: 3px; }
+    .info { color: var(--muted); }
+    .info strong { color: var(--text); font-weight: 600; }
+
+    /* Layout: machine dashboard on the left, the selected machine's chart on the right. */
+    .layout { display: flex; min-height: 100vh; }
+    .sidebar {
+      flex: none;
+      width: 340px;
+      display: flex;
+      flex-direction: column;
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      height: 100vh;
+      position: sticky;
+      top: 0;
+    }
+    .main { flex: 1; min-width: 0; }
+
+    .sidebar-head { padding: 12px 14px 10px; border-bottom: 1px solid var(--border); }
+    .sidebar-title { display: flex; align-items: center; gap: 8px; }
+    .sidebar-title h1 { font-size: 16px; margin: 0; flex: 1; }
+    .updated { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .icon-button { padding: 4px 9px; }
+
+    /* Mode tiles: number of machines per mode; a click filters the list. */
+    .tiles {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      margin-top: 10px;
+    }
+    .tile {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
+      padding: 6px 8px;
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--tile-color, var(--muted));
+      border-radius: 4px;
+      background: var(--bg);
+      text-align: left;
+      min-width: 0;
+    }
+    .tile-count { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .tile-name { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+    .tile.active { border-color: var(--tile-color, var(--accent)); background: var(--panel-hover); }
+    .tile.empty .tile-count { color: var(--muted); }
+    .search { width: 100%; margin-top: 10px; }
+
+    .machine-list { flex: 1; overflow-y: auto; padding-bottom: 12px; }
+    .group-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px 6px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      position: sticky;
+      top: 0;
+      background: var(--panel);
+    }
+    .group-head .swatch { height: 12px; }
+    .group-count { margin-left: auto; font-variant-numeric: tabular-nums; }
+    .machine {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      padding: 8px 14px;
+      border: 0;
+      border-left: 3px solid transparent;
+      border-radius: 0;
+      background: none;
+      text-align: left;
+    }
+    .machine:hover { background: var(--panel-hover); }
+    .machine.selected { background: var(--panel-hover); border-left-color: var(--accent); }
+    .machine-text { flex: 1; min-width: 0; }
+    .machine-title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .machine-sub { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .machine-since { font-size: 12px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .list-empty { padding: 16px 14px; color: var(--muted); }
+
+    /* Selected machine */
     .toolbar {
       display: flex;
       flex-wrap: wrap;
@@ -29,23 +130,8 @@
       background: var(--panel);
       border-bottom: 1px solid var(--border);
     }
-    .toolbar label { color: var(--muted); }
-    input, select, button {
-      background: var(--bg);
-      color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      padding: 6px 10px;
-      font: inherit;
-    }
-    input[type="number"] { width: 110px; }
-    button { cursor: pointer; }
-    button:hover { border-color: var(--accent); }
-    button.primary { background: var(--accent); border-color: var(--accent); color: #111; font-weight: 600; }
     .divider { width: 1px; height: 24px; background: var(--border); }
     .machine-name { color: var(--accent); font-size: 18px; font-weight: 600; }
-    .info { color: var(--muted); }
-    .info strong { color: var(--text); font-weight: 600; }
     .selected-period {
       margin-left: auto;
       display: flex;
@@ -56,7 +142,6 @@
       border-radius: 4px;
       white-space: nowrap;
     }
-    .swatch { display: inline-block; width: 6px; height: 18px; border-radius: 3px; }
     .status { padding: 8px 16px; color: var(--muted); }
     .status.error { color: #f87171; }
     #chart { width: 100%; height: 520px; }
@@ -76,60 +161,81 @@
     table { width: 100%; border-collapse: collapse; }
     th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
     th { background: var(--panel); color: var(--muted); font-weight: 600; position: sticky; top: 0; }
-    tbody tr:hover { background: #20252c; }
+    tbody tr:hover { background: var(--panel-hover); }
     td.number { font-variant-numeric: tabular-nums; }
     .mode-cell { display: flex; align-items: center; gap: 8px; }
     .running { color: var(--accent); }
+
+    @media (max-width: 900px) {
+      .layout { flex-direction: column; }
+      .sidebar { width: auto; height: auto; position: static; border-right: 0; border-bottom: 1px solid var(--border); }
+      .machine-list { max-height: 45vh; }
+      #chart { height: 420px; }
+      .selected-period { margin-left: 0; white-space: normal; }
+    }
   </style>
 </head>
 <body>
-  <div class="toolbar">
-    <label for="machine-id">Machine ID</label>
-    <input id="machine-id" type="number" min="1" placeholder="e.g. 195">
-    <button id="load" class="primary">Load</button>
-    <div class="divider"></div>
-    <select id="range" aria-label="Time range">
-      <option value="30">Last 30 minutes</option>
-      <option value="60">Last 1 hour</option>
-      <option value="480">Last 8 hours</option>
-      <option value="1440">Last 24 hours</option>
-      <option value="4320">Last 3 days</option>
-      <option value="14400" selected>Last 10 days</option>
-    </select>
-    <button id="zoom-out" title="Zoom out">&minus;</button>
-    <button id="zoom-in" title="Zoom in">+</button>
-    <div class="divider"></div>
-    <span class="machine-name" id="machine-name">—</span>
-    <span class="info">Program Name: <strong id="program-name">—</strong></span>
-    <span class="info">Mode: <strong id="current-mode">—</strong></span>
-    <div class="selected-period" id="selected-period" hidden></div>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sidebar-head">
+        <div class="sidebar-title">
+          <h1>Machines</h1>
+          <button id="refresh" class="icon-button" title="Refresh now" aria-label="Refresh now">&#x21bb;</button>
+        </div>
+        <div class="updated" id="updated">Loading…</div>
+        <div class="tiles" id="tiles"></div>
+        <input id="search" class="search" type="search" placeholder="Search machine, customer or ID" aria-label="Search machines">
+      </div>
+      <div class="machine-list" id="machine-list"></div>
+    </aside>
+
+    <main class="main">
+      <div class="toolbar">
+        <span class="machine-name" id="machine-name">—</span>
+        <span class="info">Program Name: <strong id="program-name">—</strong></span>
+        <span class="info">Mode: <strong id="current-mode">—</strong></span>
+        <div class="divider"></div>
+        <select id="range" aria-label="Time range">
+          <option value="30">Last 30 minutes</option>
+          <option value="60">Last 1 hour</option>
+          <option value="480">Last 8 hours</option>
+          <option value="1440">Last 24 hours</option>
+          <option value="4320">Last 3 days</option>
+          <option value="14400" selected>Last 10 days</option>
+        </select>
+        <button id="zoom-out" title="Zoom out" aria-label="Zoom out">&minus;</button>
+        <button id="zoom-in" title="Zoom in" aria-label="Zoom in">+</button>
+        <div class="selected-period" id="selected-period" hidden></div>
+      </div>
+
+      <div class="status" id="status">Select a machine from the list.</div>
+      <div id="chart"></div>
+
+      <section>
+        <h2>Time per mode</h2>
+        <div class="totals" id="totals"></div>
+
+        <h2>Mode list <span class="info" id="period-count"></span></h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Mode ID</th>
+                <th>Mode</th>
+                <th>Program</th>
+                <th>Start</th>
+                <th>End</th>
+                <th>Duration</th>
+              </tr>
+            </thead>
+            <tbody id="period-rows"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
   </div>
-
-  <div class="status" id="status">Enter a machine ID and press Load.</div>
-  <div id="chart"></div>
-
-  <section>
-    <h2>Time per mode</h2>
-    <div class="totals" id="totals"></div>
-
-    <h2>Mode list <span class="info" id="period-count"></span></h2>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Mode ID</th>
-            <th>Mode</th>
-            <th>Program</th>
-            <th>Start</th>
-            <th>End</th>
-            <th>Duration</th>
-          </tr>
-        </thead>
-        <tbody id="period-rows"></tbody>
-      </table>
-    </div>
-  </section>
 
   <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
   <script src="mode-chart.js"></script>
