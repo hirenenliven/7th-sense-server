@@ -26,8 +26,6 @@ type Config struct {
 
 // CNCConfig holds the CNC_* settings of the data collection the API server runs in-process.
 type CNCConfig struct {
-	// Enabled makes the API server connect the machines and collect their data. false = API only.
-	Enabled bool
 	// Slots is the number of DLL callback pairs: the most machines the server can hold (max 990).
 	Slots int
 	// LibDir and DLLName locate the CNC DLL (LibDir is relative to the server binary or the
@@ -81,7 +79,6 @@ func Load() Config {
 		CookieSecure: getEnv("COOKIE_SECURE", "false") == "true",
 		UploadDir:    getEnv("UPLOAD_DIR", "uploads"),
 		CNC: CNCConfig{
-			Enabled:       getEnv("CNC_ENABLED", "true") == "true",
 			Slots:         getEnvInt("CNC_SLOTS", 300),
 			LibDir:        getEnv("CNC_LIB_DIR", "Lib"),
 			DLLName:       getEnv("CNC_DLL_NAME", "FanucCncCommunication.dll"),

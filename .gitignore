@@ -10,6 +10,10 @@ uploads/
 .vscode/
 7th_server_skills.md
 
+# OPC UA client certificates (generated for Siemens authentication)
+*.der
+*.pem
+
 # graphify: share the graph, not local/temporary files
 graphify-out/cache/
 graphify-out/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/

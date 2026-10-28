@@ -42,26 +42,16 @@ func NewSupervisor(cncConfig config.CNCConfig, dbPool *pgxpool.Pool) *Supervisor
 	return &Supervisor{config: cncConfig, dbPool: dbPool}
 }
 
-// ErrWrongBuild is returned by StartCNCDataCollection when CNC_ENABLED=true but the server is not a 32-bit build:
-// the server then does not start.
-var ErrWrongBuild = errors.New("cnc data collection needs a 32-bit build: start the server with " +
-	`.\run.ps1 or go tool air, or build it with .\build.ps1 (GOARCH=386); CNC_ENABLED=false serves the API only`)
-
 // StartCNCDataCollection loads the CNC DLL and starts the collector in a background goroutine,
-// then returns at once. It does nothing when CNC_ENABLED=false and returns ErrWrongBuild for a
-// build that cannot load the 32-bit DLL; when the DLL itself cannot be loaded the error is
-// logged and the API keeps running without collection.
+// then returns at once. If the build is not 32-bit or the DLL is missing, the error is logged and
+// the API keeps running without collection.
 func (supervisor *Supervisor) StartCNCDataCollection() error {
-	// DATA_COLLECTION_STEP_2: Check that collection is enabled (CNC_ENABLED).
-	// if !supervisor.config.Enabled {
-	// 	slog.Info("cnc data collection disabled (CNC_ENABLED=false)")
-	// 	return nil
-	// }
 	// DATA_COLLECTION_STEP_3: Load the CNC DLL and register its callback slots (one per machine).
 	driver, err := cnc.LoadDriver(supervisor.config)
 	if err != nil {
 		if errors.Is(err, cnc.ErrNotSupported) {
-			return ErrWrongBuild
+			slog.Warn("cnc data collection skipped: not a 32-bit build (build with GOARCH=386 for CNC collection)")
+			return nil
 		}
 		slog.Error("cnc data collection not started: cnc dll unavailable", "error", err)
 		return nil

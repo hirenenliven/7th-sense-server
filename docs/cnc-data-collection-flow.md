@@ -15,7 +15,7 @@ them and stores their data. Every step names the **file** and the **function** t
 - The server talks to the machines through a vendor DLL: `Lib\FanucCncCommunication.dll`.
   One DLL handles every controller type (Fanuc, Siemens, …).
 - The DLL is **32-bit**, so the server must be built with `GOARCH=386`
-  (`.\run.ps1`, `.\build.ps1` and `go tool air` do this).
+  (`.\run.ps1`, `.\build.ps1` and `go tool air` do this). 64-bit builds skip CNC collection gracefully.
 - Each machine gets its own **worker** (a goroutine). One machine failing never affects the others.
 
 ```
@@ -98,13 +98,7 @@ data. Steps 19–20 run at shutdown.
   4. Starts the HTTP server.
 - **Good to know:** if `StartCNCDataCollection` returns an error (wrong build), the server does not start.
 
-### Step 2 — Check that collection is enabled
-- **File:** `internal/collector/supervisor.go`
-- **Function:** `Supervisor.StartCNCDataCollection`
-- **What it does:** reads `CNC_ENABLED`. If it is `false`, it logs
-  `cnc data collection disabled` and returns. The API keeps working without collection.
-
-### Step 3 — Load the DLL
+### Step 2 — Load the DLL
 - **Files / functions:**
   - `internal/cnc/cnc.go` → `LoadDriver`
   - `internal/cnc/dll_windows_386.go` → `loadDLL`, `findLibDir`, `setDllDirectory`
@@ -120,15 +114,15 @@ data. Steps 19–20 run at shutdown.
 
   | Result | What the server does |
   |---|---|
-  | Build is not 32-bit (`cnc.ErrNotSupported`) | Returns `ErrWrongBuild` → **server does not start** |
-  | DLL file missing or broken | Logs `cnc dll unavailable` → API runs, **no collection** |
-  | OK | Continues to step 4 |
+  | Build is not 32-bit (`cnc.ErrNotSupported`) | Logs warning → API runs, **no collection** |
+  | DLL file missing or broken | Logs error → API runs, **no collection** |
+  | OK | Continues to step 3 |
 
 - **Why slots?** The DLL's callback does not say which machine sent the data. So every connected
   machine gets its own slot, and the slot knows its machine. Go allows only about 2,000 callbacks per
   process (2 per slot), so the maximum is 990 slots = 990 machines.
 
-### Step 4 — Run the collector in the background
+### Step 3 — Run the collector in the background
 - **File:** `internal/collector/supervisor.go`
 - **Functions:** `Supervisor.StartCNCDataCollection`, `Supervisor.runCollectorWithRetry`
 - **What it does:**
