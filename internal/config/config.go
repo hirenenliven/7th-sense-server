@@ -98,6 +98,7 @@ func Load() Config {
 				ModeChecks: getEnvBool("CNC_LOG_MODE_CHECKS", true),
 				Variables:  getEnvBool("CNC_LOG_VARIABLES", false),
 				Other:      getEnvBool("CNC_LOG_OTHER", true),
+				Snapshot:   getEnvBool("CNC_LOG_SNAPSHOT", false),
 			},
 			CertDir: getEnv("CNC_CERT_DIR", ""),
 		},
@@ -131,7 +132,7 @@ func getEnvBool(key string, fallback bool) bool {
 	return fallback
 }
 
-// CNCLogSettings switch the CNC logs on and off (CNC_LOG_EVENTS, CNC_LOG_MODES,
+// CNCLogSettings switch the CNC logs on and off (CNC_LOG_EVENTS, CNC_LOG_MODES, CNC_LOG_SNAPSHOT,
 // CNC_LOG_MODE_CHECKS, CNC_LOG_VARIABLES, CNC_LOG_OTHER); monitor/cnc_log.go writes them.
 // Errors are written whatever these say.
 type CNCLogSettings struct {
@@ -148,6 +149,9 @@ type CNCLogSettings struct {
 	// Other logs everything else: collector start / stop, connections, variables loaded,
 	// reading rate every 10 s per machine.
 	Other bool
+	// Snapshot logs the raw DLL snapshot status fields (mode, program, override, alarm, E-stop,
+	// operator message, …) whenever one changes; for analysing what a controller sends.
+	Snapshot bool
 }
 
 // AllMachines is the CNC_MACHINE_IDS value that selects every machine (as does empty).

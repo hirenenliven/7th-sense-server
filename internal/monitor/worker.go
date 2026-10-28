@@ -77,6 +77,9 @@ type worker struct {
 	// lastModeCheck is the NC state last logged by logModeCheck (cnc_log.go).
 	lastModeCheck *machineState
 
+	// lastSnapshot is the DLL status last logged by logSnapshot (cnc_log.go).
+	lastSnapshot *snapshotStatus
+
 	// The counters at the last reading rate log; logReadingRate reports the change since then.
 	rateLoggedAt  time.Time
 	rateCallbacks int64
@@ -250,6 +253,7 @@ func (machineWorker *worker) collectReadings(ctx context.Context, connection *cn
 	machineWorker.lastReadingConnected = false
 	machineWorker.reportedError = ""
 	machineWorker.waitingLogged = false
+	machineWorker.lastSnapshot = nil                    // the first reading of every connection is logged
 	machineWorker.startReadingRateWindow(time.Now(), 0) // a new connection's callbacks count from 0
 
 	ticker := time.NewTicker(tickInterval)
@@ -315,6 +319,7 @@ func (machineWorker *worker) checkConnectionLost(now time.Time) (stopReason, boo
 func (machineWorker *worker) processReading(reading cnc.Reading) bool {
 	// DATA_COLLECTION_STEP_15: Store the reading (change detection against the cached live values).
 	now := reading.ReceivedAt
+	machineWorker.logSnapshot(reading)
 	machineWorker.lastSeenAt = &now
 	if !reading.SampleAt.IsZero() {
 		sampleAt := reading.SampleAt

@@ -18,9 +18,9 @@
     "semantic_hash": "c881b9deed424c8932c328d2c51b50af"
   },
   "internal/config/config.go": {
-    "mtime": 1793172286.0385647,
-    "seen": 1793172387.9593697,
-    "ast_hash": "68b21c75980a2e1767a02ef6738857db",
+    "mtime": 1793181018.3534994,
+    "seen": 1793181084.821459,
+    "ast_hash": "c9365e178b70f43c7e297b1cfb8a87a7",
     "semantic_hash": ""
   },
   "internal/db/postgres.go": {
@@ -1218,9 +1218,9 @@
     "semantic_hash": "83e782660b9df6e3978298333b4f35a6"
   },
   ".claude/CLAUDE.md": {
-    "mtime": 1793177884.4830887,
-    "seen": 1793177892.9477715,
-    "ast_hash": "3fefcd276e05587fbbf8bc1a50f28d24",
+    "mtime": 1793181077.3870406,
+    "seen": 1793181084.821887,
+    "ast_hash": "7cfd8bd7420e70d56f88f695ffc615e7",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1332,9 +1332,9 @@
     "semantic_hash": ""
   },
   "internal/cnc/cnc.go": {
-    "mtime": 1792993755.6427774,
-    "seen": 1792999340.5362542,
-    "ast_hash": "285caaebdb219c3ff2d1fd3d9057175b",
+    "mtime": 1793181006.7453396,
+    "seen": 1793181084.8214436,
+    "ast_hash": "74959738fd600f45661034643f41f0d8",
     "semantic_hash": ""
   },
   "internal/cnc/dll_other.go": {
@@ -1344,9 +1344,9 @@
     "semantic_hash": ""
   },
   "internal/cnc/dll_windows_386.go": {
-    "mtime": 1792999144.6953838,
-    "seen": 1792999340.536258,
-    "ast_hash": "bfdcffd5ba18ce28e9dc4c06e9adcc2c",
+    "mtime": 1793181006.855757,
+    "seen": 1793181084.8214493,
+    "ast_hash": "9b1f38cb3f8b52f843540de5c5b417ba",
     "semantic_hash": ""
   },
   "internal/cnc/dll_windows_386_test.go": {
@@ -1380,9 +1380,9 @@
     "semantic_hash": ""
   },
   "internal/monitor/worker.go": {
-    "mtime": 1793172305.041669,
-    "seen": 1793172387.9595642,
-    "ast_hash": "d63ae630e4ce681c3aec265e93b2947e",
+    "mtime": 1793181069.6166506,
+    "seen": 1793181084.8216581,
+    "ast_hash": "0862ede3ee9779d1c63912ae3dbea68a",
     "semantic_hash": ""
   },
   "7th-sense-start.ps1": {
@@ -1500,9 +1500,9 @@
     "semantic_hash": ""
   },
   "internal/monitor/cnc_log.go": {
-    "mtime": 1793098561.3298855,
-    "seen": 1793098584.9624708,
-    "ast_hash": "462632f9a7c83aa88f8b430a98214ede",
+    "mtime": 1793181036.4001756,
+    "seen": 1793181084.8216467,
+    "ast_hash": "e9361953521f87b4e71b2f8d171d5222",
     "semantic_hash": ""
   },
   "internal/monitor/cnc_log_test.go": {

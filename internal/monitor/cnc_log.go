@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"7th-sense-server/internal/cnc"
 	"7th-sense-server/internal/config"
 	"7th-sense-server/internal/model"
 )
@@ -23,6 +24,7 @@ import (
 //	CNC_LOG_MODE_CHECKS=true   logTypeModeCheck: the mode the NC inputs decide, whenever they change
 //	CNC_LOG_VARIABLES=false    logTypeVariable: the changed values of each reading, one line
 //	CNC_LOG_OTHER=true         logTypeOther: start, stop, connections, reading rate, …
+//	CNC_LOG_SNAPSHOT=false     logTypeSnapshot: the raw DLL status fields, whenever one changes
 //
 // Every error is written, whatever the switches say.
 // A line about a machine starts with "[machine 225 VM14]" and has machineId and machine; every
@@ -36,6 +38,7 @@ const (
 	logTypeVariable  logType = "variable"
 	logTypeMode      logType = "mode"
 	logTypeModeCheck logType = "modeCheck"
+	logTypeSnapshot  logType = "snapshot"
 	logTypeOther     logType = "other"
 )
 
@@ -54,6 +57,8 @@ func isLogTypeOn(settings config.CNCLogSettings, kind logType, level slog.Level)
 		return settings.ModeChecks
 	case logTypeVariable:
 		return settings.Variables
+	case logTypeSnapshot:
+		return settings.Snapshot
 	}
 	return settings.Other
 }
@@ -106,7 +111,64 @@ func (collector *Collector) logCollectionSettings() {
 	// Written whatever CNC_LOG_OTHER says, so app.log always shows what is collected and logged.
 	slog.Info("cnc collector: settings", "logType", string(logTypeOther), "machines", machines,
 		"logEvents", logs.Events, "logModes", logs.Modes, "logModeChecks", logs.ModeChecks,
-		"logVariables", logs.Variables, "logOther", logs.Other)
+		"logVariables", logs.Variables, "logOther", logs.Other, "logSnapshot", logs.Snapshot)
+}
+
+// ---------------------------------------------------------------- snapshot (CNC_LOG_SNAPSHOT)
+
+// snapshotStatus is the part of a DLL reading the snapshot log compares: every status and
+// message field, raw as the DLL sends it. Positions, loads and speeds are left out: they change
+// on almost every reading.
+type snapshotStatus struct {
+	connected       bool
+	missingNodes    string
+	machineMode     float64
+	procStatus      float64
+	isEmergency     float64
+	feedOverride    float64
+	spindleOverride float64
+	alarmNo         float64
+	alarmMessage    string
+	programName     string
+	status          cnc.Status
+}
+
+func snapshotStatusOf(reading cnc.Reading) snapshotStatus {
+	return snapshotStatus{
+		connected:       reading.Connected,
+		missingNodes:    reading.MissingNodes,
+		machineMode:     reading.Values[cnc.FieldMachineMode].Number,
+		procStatus:      reading.Values[cnc.FieldProcStatus].Number,
+		isEmergency:     reading.Values[cnc.FieldIsEmergency].Number,
+		feedOverride:    reading.Values[cnc.FieldFeedOverride].Number,
+		spindleOverride: reading.Values[cnc.FieldSpindleOverride].Number,
+		alarmNo:         reading.Values[cnc.FieldAlarmNo].Number,
+		alarmMessage:    reading.Values[cnc.FieldAlarmMsg].Text,
+		programName:     reading.Values[cnc.FieldProgName].Text,
+		status:          reading.Status,
+	}
+}
+
+// logSnapshot logs a reading's raw status fields, with the DLL's field names, when they differ
+// from the last ones logged for the machine (the first reading of a connection is always logged).
+func (machineWorker *worker) logSnapshot(reading cnc.Reading) {
+	if !machineWorker.collector.config.Logs.Snapshot {
+		return
+	}
+	current := snapshotStatusOf(reading)
+	if machineWorker.lastSnapshot != nil && *machineWorker.lastSnapshot == current {
+		return
+	}
+	machineWorker.lastSnapshot = &current
+	machineWorker.log(logTypeSnapshot, slog.LevelInfo, "cnc: snapshot status",
+		"IsConnected", current.connected, "ResultStatus", current.status.ResultStatus,
+		"MachineMode", current.machineMode, "ProcStatus", current.procStatus, "IsEmergency", current.isEmergency,
+		"FeedRatePercetnage", current.feedOverride, "SpindeOverridePercentage", current.spindleOverride,
+		"CmdFeedOvr", current.status.CmdFeedOverride, "CmdSpOvr", current.status.CmdSpindleOverride,
+		"AlarmNo", current.alarmNo, "AlarmMsg", current.alarmMessage,
+		"OpMsgNo", current.status.OperatorMessageNo, "OpMsg", current.status.OperatorMessage,
+		"ActiveGCode", current.status.ActiveGCode, "ProgName", current.programName,
+		"missingNodes", current.missingNodes)
 }
 
 // ---------------------------------------------------------------- events (CNC_LOG_EVENTS)

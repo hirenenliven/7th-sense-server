@@ -282,6 +282,14 @@ func (callbackSlot *slot) onData(pointer uintptr) {
 	reading.Values[FieldProgName].Text = cstr(snapshot.ProgName[:])
 	reading.Values[FieldActiveProgPath].Text = cstr(snapshot.ActiveProgPath[:])
 	reading.Values[FieldAlarmMsg].Text = cstr(snapshot.AlarmMsg[:])
+	reading.Status = Status{
+		ResultStatus:       int(snapshot.ResultStatus),
+		OperatorMessageNo:  int(snapshot.OpMsgNo),
+		OperatorMessage:    cstr(snapshot.OpMsg[:]),
+		ActiveGCode:        cstr(snapshot.ActiveGCode[:]),
+		CmdFeedOverride:    cstr(snapshot.CmdFeedOvr[:]),
+		CmdSpindleOverride: cstr(snapshot.CmdSpOvr[:]),
+	}
 
 	connection.publishReading(reading)
 }

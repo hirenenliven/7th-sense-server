@@ -41,6 +41,19 @@ type Reading struct {
 	Connected    bool      // the DLL reaches the controller
 	MissingNodes string    // nodes the controller does not have
 	Values       [FieldCount]Value
+	Status       Status // snapshot fields no variable reads, for the CNC_LOG_SNAPSHOT log
+}
+
+// Status holds the snapshot's status and message fields that no variable reads. They are only
+// logged (CNC_LOG_SNAPSHOT) to see what the DLL sends a controller, e.g. whether a Siemens
+// PLC alarm arrives as an operator message.
+type Status struct {
+	ResultStatus       int
+	OperatorMessageNo  int    // OpMsgNo
+	OperatorMessage    string // OpMsg
+	ActiveGCode        string
+	CmdFeedOverride    string // CmdFeedOvr
+	CmdSpindleOverride string // CmdSpOvr
 }
 
 // Stats are a connection's counters since it was opened.
