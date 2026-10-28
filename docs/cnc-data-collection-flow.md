@@ -12,7 +12,7 @@ them and stores their data. Every step names the **file** and the **function** t
 
 - Data collection runs **inside the API server process**. There is no separate service.
   Starting the server also starts the collection.
-- The server talks to the machines through a vendor DLL: `Lib\FanucCncCommunication.dll`.
+- The server talks to the machines through a vendor DLL: `Lib\CncCommunication.dll`.
   One DLL handles every controller type (Fanuc, Siemens, …).
 - The DLL is **32-bit**, so the server must be built with `GOARCH=386`
   (`.\run.ps1`, `.\build.ps1` and `go tool air` do this). 64-bit builds skip CNC collection gracefully.
@@ -35,7 +35,7 @@ internal/cnc/cnc.go                Driver      ── Go wrapper around the DLL
 internal/cnc/dll_windows_386.go
         │
         ▼
-FanucCncCommunication.dll          Vendor DLL  ── talks to the real CNC controller
+CncCommunication.dll               Vendor DLL  ── talks to the real CNC controller
 
 Database access goes through:
 internal/service/machine_telemetry_service.go  →  internal/repository/machine_telemetry_repository.go
@@ -107,7 +107,7 @@ data. Steps 19–20 run at shutdown.
   1. Checks that the Go snapshot struct is exactly **34,440 bytes**, the same size as the DLL's C++ struct.
   2. Finds the `Lib` folder: first next to the `.exe`, then in the working directory (`findLibDir`).
   3. Tells Windows to look for the DLL's own dependencies in that folder (`setDllDirectory`).
-  4. Loads `FanucCncCommunication.dll` and finds two functions in it: `CNCConnect` and `CNCdisconnect`.
+  4. Loads `CncCommunication.dll` and finds two functions in it: `CNCConnect` and `CNCdisconnect`.
   5. Creates **callback slots**: `CNC_SLOTS` of them (default 300, max 990). Each slot is a pair of
      Go functions the DLL calls: one for data (`onData`), one for errors (`onError`).
 - **What can happen:**
@@ -468,7 +468,7 @@ Errors are always written, whatever the switch.
 | `CNC_ENABLED` | `true` | `false` = API only, no collection |
 | `CNC_SLOTS` | `300` | Most machines the server can connect (max 990) |
 | `CNC_LIB_DIR` | `Lib` | Folder with the DLL |
-| `CNC_DLL_NAME` | `FanucCncCommunication.dll` | DLL file name |
+| `CNC_DLL_NAME` | `CncCommunication.dll` | DLL file name |
 | `CNC_STALE_SEC` | `30` | Seconds without a connected reading, while the DLL says not connected, before a connection counts as dead (Offline) |
 | `CNC_QUIET_SEC` | `300` | Seconds without any callback after a connected reading before the connection is reopened (mode kept) |
 | `CNC_MAX_CONNECTING` | `20` | Connect calls allowed at the same time |

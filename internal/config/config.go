@@ -86,7 +86,7 @@ func Load() Config {
 		CNC: CNCConfig{
 			Slots:         getEnvInt("CNC_SLOTS", 300),
 			LibDir:        getEnv("CNC_LIB_DIR", "Lib"),
-			DLLName:       getEnv("CNC_DLL_NAME", "FanucCncCommunication.dll"),
+			DLLName:       getEnv("CNC_DLL_NAME", "CncCommunication.dll"),
 			Stale:         time.Duration(getEnvInt("CNC_STALE_SEC", 30)) * time.Second,
 			Quiet:         time.Duration(getEnvInt("CNC_QUIET_SEC", 300)) * time.Second,
 			MaxConnecting: getEnvInt("CNC_MAX_CONNECTING", 20),
