@@ -1218,16 +1218,10 @@
     "semantic_hash": "83e782660b9df6e3978298333b4f35a6"
   },
   ".claude/CLAUDE.md": {
-    "mtime": 1793172373.802938,
-    "seen": 1793172387.9597838,
-    "ast_hash": "40a1d3c32868afebfa05602f9bc72ffe",
+    "mtime": 1793177884.4830887,
+    "seen": 1793177892.9477715,
+    "ast_hash": "3fefcd276e05587fbbf8bc1a50f28d24",
     "semantic_hash": ""
-  },
-  "7th_server_skills.md.md": {
-    "mtime": 1792150240.1192653,
-    "seen": 1792495749.8697147,
-    "ast_hash": "c812c3ac169d453849afa23d1d7f4d02",
-    "semantic_hash": "c812c3ac169d453849afa23d1d7f4d02"
   },
   "README.md": {
     "mtime": 1791885151.1982987,
@@ -1398,21 +1392,21 @@
     "semantic_hash": ""
   },
   "internal/model/machine_telemetry.go": {
-    "mtime": 1793091359.9613883,
-    "seen": 1793091492.1605415,
-    "ast_hash": "3631137635ee4fa39159652efb131ed0",
+    "mtime": 1793177410.902463,
+    "seen": 1793177659.255649,
+    "ast_hash": "472566a1ace25c6b0d767c15c982e3d3",
     "semantic_hash": ""
   },
   "internal/repository/machine_telemetry_repository.go": {
-    "mtime": 1793091359.9590857,
-    "seen": 1793091492.1606128,
-    "ast_hash": "6236e9147c29eeacbf342695b1035fd1",
+    "mtime": 1793177411.0000212,
+    "seen": 1793177659.255726,
+    "ast_hash": "88d343b71f286e21eb744b8cbea6c7eb",
     "semantic_hash": ""
   },
   "internal/service/machine_telemetry_service.go": {
-    "mtime": 1793091359.960091,
-    "seen": 1793091492.1607306,
-    "ast_hash": "7590bba7573caff90a6cc5aa47bf9222",
+    "mtime": 1793177411.6936553,
+    "seen": 1793177659.255842,
+    "ast_hash": "671ec3a073258ec71f8119a9eace32a9",
     "semantic_hash": ""
   },
   "docs/cnc-data-collection-flow.md": {
@@ -1452,45 +1446,45 @@
     "semantic_hash": ""
   },
   "internal/dto/health_dto.go": {
-    "mtime": 1793091367.0387235,
-    "seen": 1793091492.1604114,
-    "ast_hash": "52d2e08a5acd406311d148201beb6025",
+    "mtime": 1793177412.1943483,
+    "seen": 1793177659.2555192,
+    "ast_hash": "62f46abbca464a1477f8afb8920ac462",
     "semantic_hash": ""
   },
   "internal/handler/health_handler.go": {
-    "mtime": 1793091858.1097903,
-    "seen": 1793092168.053719,
-    "ast_hash": "9a179bcddcc28837cb67ab3b7e58ee07",
+    "mtime": 1793177412.5240548,
+    "seen": 1793177659.2555716,
+    "ast_hash": "37c23944e1235a7ab697b93fc30f004b",
     "semantic_hash": ""
   },
   "internal/routes/health_routes.go": {
-    "mtime": 1793091858.04407,
-    "seen": 1793092168.053917,
-    "ast_hash": "042b26578ef45f0b05aaf8e9781c3650",
+    "mtime": 1793177412.722576,
+    "seen": 1793177659.2557745,
+    "ast_hash": "eff1759ef5a2f032ae26ff0f61452c2b",
     "semantic_hash": ""
   },
   "internal/service/health_service.go": {
-    "mtime": 1793091858.1097903,
-    "seen": 1793092168.053973,
-    "ast_hash": "6f371ba4f3a971b88d76d3d73ae26e69",
+    "mtime": 1793177411.8133028,
+    "seen": 1793177659.2558298,
+    "ast_hash": "0d155e3ea3822446917da17fff4172ba",
     "semantic_hash": ""
   },
   "web/mode-chart/mode-chart.js": {
-    "mtime": 1793092141.5372808,
-    "seen": 1793092168.054046,
-    "ast_hash": "213d81994aef2c7107d0328ad670ecd5",
+    "mtime": 1793177850.484246,
+    "seen": 1793177892.9477673,
+    "ast_hash": "31e7fa05fa0c39b6f518fc0a633c92b4",
     "semantic_hash": ""
   },
   "web/web.go": {
-    "mtime": 1793091857.9980514,
-    "seen": 1793092168.0540478,
-    "ast_hash": "87f3bcadb79b283bc1cfdc007c01f02c",
+    "mtime": 1793177570.0951066,
+    "seen": 1793177659.255904,
+    "ast_hash": "4157e5a44b26e41dc23b0f0895ba139f",
     "semantic_hash": ""
   },
   "web/mode-chart/index.html": {
-    "mtime": 1793092141.5933452,
-    "seen": 1793092168.0540602,
-    "ast_hash": "ab99369d2d9089af0ad41a1a4f968f4d",
+    "mtime": 1793177816.1824493,
+    "seen": 1793177892.9477813,
+    "ast_hash": "543708676c936fad4a9525a133834032",
     "semantic_hash": ""
   },
   "internal/monitor/machine_mode.go": {

@@ -10,9 +10,29 @@
   const LIST_REFRESH_MS = 30 * 1000;
   const NO_MODE = "none"; // group key of machines that have no mode yet
   const ALL_MODES_ROW = "All modes";
-  const MINUTE_MS = 60 * 1000;
+  const SECOND_MS = 1000;
+  const MINUTE_MS = 60 * SECOND_MS;
+  const HOUR_MS = 60 * MINUTE_MS;
+  const DAY_MS = 24 * HOUR_MS;
   const ZOOM_STEP = 2;
-  const MIN_SPAN_MS = MINUTE_MS;
+  // Zoom level buttons: each shows the chosen span of time on the chart.
+  const ZOOM_LEVELS = [
+    { label: "30s", title: "30 seconds", spanMs: 30 * SECOND_MS },
+    { label: "1m", title: "1 minute", spanMs: MINUTE_MS },
+    { label: "2m", title: "2 minutes", spanMs: 2 * MINUTE_MS },
+    { label: "5m", title: "5 minutes", spanMs: 5 * MINUTE_MS },
+    { label: "10m", title: "10 minutes", spanMs: 10 * MINUTE_MS },
+    { label: "30m", title: "30 minutes", spanMs: 30 * MINUTE_MS },
+    { label: "1h", title: "1 hour", spanMs: HOUR_MS },
+    { label: "3h", title: "3 hours", spanMs: 3 * HOUR_MS },
+    { label: "8h", title: "8 hours", spanMs: 8 * HOUR_MS },
+    { label: "24h", title: "24 hours", spanMs: DAY_MS },
+    { label: "3d", title: "3 days", spanMs: 3 * DAY_MS },
+    { label: "10d", title: "10 days", spanMs: 10 * DAY_MS },
+  ];
+  const DEFAULT_ZOOM_MS = 10 * DAY_MS; // a newly selected machine shows its whole history
+  const MIN_SPAN_MS = ZOOM_LEVELS[0].spanMs;
+  const ZOOM_MATCH_TOLERANCE = 0.01; // a view within 1 % of a level's span highlights that level
 
   // machine_modes ids. Rows always shown come first, as on the dashboard; the other modes get
   // a row only when the machine was in them.
@@ -45,7 +65,7 @@
     tiles: document.getElementById("tiles"),
     search: document.getElementById("search"),
     machineList: document.getElementById("machine-list"),
-    range: document.getElementById("range"),
+    zoomLevels: document.getElementById("zoom-levels"),
     zoomIn: document.getElementById("zoom-in"),
     zoomOut: document.getElementById("zoom-out"),
     machineName: document.getElementById("machine-name"),
@@ -197,7 +217,7 @@
           formatter: function (value) {
             const date = new Date(value);
             const span = currentSpan();
-            return span > 24 * 60 * MINUTE_MS ? date.getDate() + " " + MONTHS[date.getMonth()] + "\n" + formatTime(date) : formatTime(date);
+            return span > DAY_MS ? date.getDate() + " " + MONTHS[date.getMonth()] + "\n" + formatTime(date) : formatTime(date);
           },
         },
       },
@@ -222,42 +242,71 @@
       }],
     }, true);
 
-    applyRange();
+    showSpan(DEFAULT_ZOOM_MS, new Date(modeHistory.to).getTime());
+  }
+
+  // currentWindow is the time range the chart shows now, or null before a machine is drawn.
+  function currentWindow() {
+    const option = chart.getOption();
+    if (!option || !option.dataZoom || !option.dataZoom[0] || !modeHistory) return null;
+    const zoom = option.dataZoom[0];
+    const from = new Date(modeHistory.from).getTime();
+    const total = new Date(modeHistory.to).getTime() - from;
+    return {
+      start: zoom.startValue != null ? zoom.startValue : from + total * (zoom.start || 0) / 100,
+      end: zoom.endValue != null ? zoom.endValue : from + total * (zoom.end == null ? 100 : zoom.end) / 100,
+    };
   }
 
   function currentSpan() {
-    const option = chart.getOption();
-    if (!option || !option.dataZoom || !option.dataZoom[0] || !modeHistory) return 0;
-    const zoom = option.dataZoom[0];
-    if (zoom.startValue != null && zoom.endValue != null) return zoom.endValue - zoom.startValue;
-    const total = new Date(modeHistory.to) - new Date(modeHistory.from);
-    return total * ((zoom.end || 100) - (zoom.start || 0)) / 100;
+    const view = currentWindow();
+    return view ? view.end - view.start : 0;
   }
 
-  // applyRange zooms to the last N minutes chosen in the range list, ending at "to".
-  function applyRange() {
-    if (!modeHistory) return;
-    const to = new Date(modeHistory.to).getTime();
+  // showSpan shows spanMs of time ending at end, kept inside the history window.
+  function showSpan(spanMs, end) {
     const from = new Date(modeHistory.from).getTime();
-    const start = Math.max(from, to - Number(elements.range.value) * MINUTE_MS);
-    chart.dispatchAction({ type: "dataZoom", startValue: start, endValue: to });
+    const to = new Date(modeHistory.to).getTime();
+    const span = Math.min(to - from, Math.max(MIN_SPAN_MS, spanMs));
+    const newEnd = Math.min(to, Math.max(from + span, end));
+    chart.dispatchAction({ type: "dataZoom", startValue: newEnd - span, endValue: newEnd });
   }
 
+  // zoomToLevel shows a zoom level's span ending where the current view ends, so the levels
+  // zoom into the part being looked at (at first the latest data).
+  function zoomToLevel(spanMs) {
+    if (!modeHistory) return;
+    const view = currentWindow();
+    showSpan(spanMs, view ? view.end : new Date(modeHistory.to).getTime());
+  }
+
+  // zoom multiplies the shown span by factor around the middle of the view (the − / + buttons).
   function zoom(factor) {
-    if (!modeHistory) return;
-    const option = chart.getOption().dataZoom[0];
-    const from = new Date(modeHistory.from).getTime();
-    const to = new Date(modeHistory.to).getTime();
-    const total = to - from;
-    const start = option.startValue != null ? option.startValue : from + total * option.start / 100;
-    const end = option.endValue != null ? option.endValue : from + total * option.end / 100;
-    const center = (start + end) / 2;
-    const span = Math.min(total, Math.max(MIN_SPAN_MS, (end - start) * factor));
-    let newStart = center - span / 2;
-    let newEnd = center + span / 2;
-    if (newStart < from) { newEnd += from - newStart; newStart = from; }
-    if (newEnd > to) { newStart -= newEnd - to; newEnd = to; }
-    chart.dispatchAction({ type: "dataZoom", startValue: Math.max(from, newStart), endValue: newEnd });
+    const view = currentWindow();
+    if (!view) return;
+    const span = (view.end - view.start) * factor;
+    showSpan(span, (view.start + view.end) / 2 + span / 2);
+  }
+
+  function drawZoomLevels() {
+    ZOOM_LEVELS.forEach(function (level) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = level.label;
+      button.title = "Show " + level.title;
+      button.dataset.spanMs = level.spanMs;
+      button.addEventListener("click", function () { zoomToLevel(level.spanMs); });
+      elements.zoomLevels.append(button);
+    });
+  }
+
+  // markZoomLevel highlights the zoom level matching the shown span (none after a free zoom).
+  function markZoomLevel() {
+    const span = currentSpan();
+    elements.zoomLevels.querySelectorAll("button").forEach(function (button) {
+      const levelSpan = Number(button.dataset.spanMs);
+      button.classList.toggle("active", Math.abs(span - levelSpan) <= levelSpan * ZOOM_MATCH_TOLERANCE);
+    });
   }
 
   function showSelectedPeriod(period) {
@@ -542,13 +591,14 @@
     if (selectedMachineId) loadHistory(selectedMachineId);
   });
   elements.search.addEventListener("input", drawDashboard);
-  elements.range.addEventListener("change", applyRange);
+  chart.on("datazoom", markZoomLevel);
   elements.zoomIn.addEventListener("click", function () { zoom(1 / ZOOM_STEP); });
   elements.zoomOut.addEventListener("click", function () { zoom(ZOOM_STEP); });
   window.addEventListener("resize", function () { chart.resize(); });
 
   // The list refreshes on its own; the chart reloads on Refresh or when a machine is picked, so
   // a zoomed chart is not reset under the reader.
+  drawZoomLevels();
   loadMachines();
   window.setInterval(loadMachines, LIST_REFRESH_MS);
   const initialMachineId = Number(new URLSearchParams(window.location.search).get("machineId"));

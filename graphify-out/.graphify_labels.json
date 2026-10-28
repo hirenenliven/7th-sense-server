@@ -9,8 +9,6 @@
   "39": "Server API Domain Docs",
   "55": "CNC Event-Driven Data Flow",
   "61": "Sinumerik DLL Go Client (use case) (2)",
-  "62": "Context Propagation",
-  "63": "Idempotent PUT/DELETE",
   "65": "Go Module Root",
   "66": "Current User Middleware",
   "67": "Role Guard Middleware",
