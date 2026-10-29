@@ -1350,9 +1350,9 @@
     "semantic_hash": ""
   },
   "internal/cnc/dll_windows_386_test.go": {
-    "mtime": 1792746555.9600775,
-    "seen": 1792747692.0548608,
-    "ast_hash": "e7d6d2a8d7a6f4fdc3fde07089f5a103",
+    "mtime": 1793254913.5458827,
+    "seen": 1793254928.5125027,
+    "ast_hash": "65f57a43d5348f1cd6ffd8893ddae1f4",
     "semantic_hash": ""
   },
   "internal/cnc/fields.go": {
