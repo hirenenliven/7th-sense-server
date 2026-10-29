@@ -99,6 +99,7 @@ func Load() Config {
 				Variables:  getEnvBool("CNC_LOG_VARIABLES", false),
 				Other:      getEnvBool("CNC_LOG_OTHER", true),
 				Snapshot:   getEnvBool("CNC_LOG_SNAPSHOT", false),
+				Downtime:   getEnvBool("CNC_LOG_DOWNTIME", true),
 			},
 			CertDir: getEnv("CNC_CERT_DIR", ""),
 		},
@@ -133,7 +134,8 @@ func getEnvBool(key string, fallback bool) bool {
 }
 
 // CNCLogSettings switch the CNC logs on and off (CNC_LOG_EVENTS, CNC_LOG_MODES, CNC_LOG_SNAPSHOT,
-// CNC_LOG_MODE_CHECKS, CNC_LOG_VARIABLES, CNC_LOG_OTHER); monitor/cnc_log.go writes them.
+// CNC_LOG_MODE_CHECKS, CNC_LOG_VARIABLES, CNC_LOG_OTHER, CNC_LOG_DOWNTIME); monitor/cnc_log.go
+// writes them.
 // Errors are written whatever these say.
 type CNCLogSettings struct {
 	// Events logs machine events: connect, disconnect, alarms.
@@ -152,6 +154,9 @@ type CNCLogSettings struct {
 	// Snapshot logs the raw DLL snapshot status fields (mode, program, override, alarm, E-stop,
 	// operator message, …) whenever one changes; for analysing what a controller sends.
 	Snapshot bool
+	// Downtime logs the inputs of the Downtime rule (machine type, alarm, E-stop, program
+	// status) and whether they make the machine Downtime, whenever one of them changes.
+	Downtime bool
 }
 
 // AllMachines is the CNC_MACHINE_IDS value that selects every machine (as does empty).

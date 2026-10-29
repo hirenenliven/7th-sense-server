@@ -25,6 +25,8 @@ import (
 //	CNC_LOG_VARIABLES=false    logTypeVariable: the changed values of each reading, one line
 //	CNC_LOG_OTHER=true         logTypeOther: start, stop, connections, reading rate, …
 //	CNC_LOG_SNAPSHOT=false     logTypeSnapshot: the raw DLL status fields, whenever one changes
+//	CNC_LOG_DOWNTIME=true      logTypeDowntime: the Downtime inputs (machine type, alarm, E-stop,
+//	                          program status) and whether the machine is Downtime, whenever one changes
 //
 // Every error is written, whatever the switches say.
 // A line about a machine starts with "[machine 225 VM14]" and has machineId and machine; every
@@ -39,6 +41,7 @@ const (
 	logTypeMode      logType = "mode"
 	logTypeModeCheck logType = "modeCheck"
 	logTypeSnapshot  logType = "snapshot"
+	logTypeDowntime  logType = "downtime"
 	logTypeOther     logType = "other"
 )
 
@@ -59,6 +62,8 @@ func isLogTypeOn(settings config.CNCLogSettings, kind logType, level slog.Level)
 		return settings.Variables
 	case logTypeSnapshot:
 		return settings.Snapshot
+	case logTypeDowntime:
+		return settings.Downtime
 	}
 	return settings.Other
 }
@@ -111,7 +116,8 @@ func (collector *Collector) logCollectionSettings() {
 	// Written whatever CNC_LOG_OTHER says, so app.log always shows what is collected and logged.
 	slog.Info("cnc collector: settings", "logType", string(logTypeOther), "machines", machines,
 		"logEvents", logs.Events, "logModes", logs.Modes, "logModeChecks", logs.ModeChecks,
-		"logVariables", logs.Variables, "logOther", logs.Other, "logSnapshot", logs.Snapshot)
+		"logVariables", logs.Variables, "logOther", logs.Other, "logSnapshot", logs.Snapshot,
+		"logDowntime", logs.Downtime)
 }
 
 // ---------------------------------------------------------------- snapshot (CNC_LOG_SNAPSHOT)
@@ -215,6 +221,65 @@ func (machineWorker *worker) logModeCheck(state machineState, mode int, reason s
 		"modeChanges", mode != machineWorker.mode, "reason", reason}
 	machineWorker.log(logTypeModeCheck, slog.LevelInfo, "cnc: mode check "+modeName(mode),
 		append(attributes, state.logAttributes()...)...)
+}
+
+// ---------------------------------------------------------------- downtime (CNC_LOG_DOWNTIME)
+
+// engineNames name the CNC engines (controllers.cnc_engine) for the log.
+var engineNames = map[int]string{
+	model.EngineSimulator: "Simulator", model.EngineFanuc: "Fanuc", model.EngineSiemens: "Siemens",
+	model.EngineSyntec: "Syntec", model.EngineMitsubishi: "Mitsubishi",
+}
+
+// engineName names a machine's CNC engine; nil is "none".
+func engineName(engine *int) string {
+	if engine == nil {
+		return "none"
+	}
+	if name, found := engineNames[*engine]; found {
+		return name
+	}
+	return fmt.Sprintf("unknown(%d)", *engine)
+}
+
+// downtimeCheck is what the Downtime rule (alarm active and no program running) is decided
+// from, with the decision; logDowntimeCheck compares it with the last one logged.
+type downtimeCheck struct {
+	alarmNumber  int
+	alarmMessage string
+	emergency    bool
+	procStatus   int
+	program      programState
+	mode         int
+}
+
+// logDowntimeCheck logs, when it differs from the last one logged for the machine, whether the
+// machine is Downtime and why: its machine type, alarm, E-stop and program status. The decided
+// mode is added because a machine that is not Downtime may still be Hold or Idle.
+func (machineWorker *worker) logDowntimeCheck(state machineState, mode int, reason string) {
+	if !machineWorker.collector.config.Logs.Downtime {
+		return
+	}
+	current := downtimeCheck{
+		alarmNumber: state.alarmNumber, alarmMessage: state.alarmMessage, emergency: state.emergency,
+		procStatus: state.procStatus, program: state.program, mode: mode,
+	}
+	if machineWorker.lastDowntimeCheck != nil && *machineWorker.lastDowntimeCheck == current {
+		return
+	}
+	machineWorker.lastDowntimeCheck = &current
+	isDowntime := mode == model.ModeDowntime
+	machineWorker.log(logTypeDowntime, slog.LevelInfo, fmt.Sprintf("cnc: downtime check downtime=%t", isDowntime),
+		"machineType", engineName(machineWorker.machine.CNCEngine),
+		"downtime", isDowntime,
+		"alarmActive", state.isAlarmActive(),
+		"alarmNo", state.alarmNumber,
+		"alarmMsg", state.alarmMessage,
+		"emergency", state.emergency,
+		"programRunning", state.isRunning(),
+		"procStatus", fmt.Sprintf("%d (%s)", state.procStatus, programStateNames[state.program]),
+		"mode", modeName(mode),
+		"reason", reason)
 }
 
 // ---------------------------------------------------------------- variables (CNC_LOG_VARIABLES)

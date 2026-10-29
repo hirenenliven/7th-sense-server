@@ -80,6 +80,9 @@ type worker struct {
 	// lastSnapshot is the DLL status last logged by logSnapshot (cnc_log.go).
 	lastSnapshot *snapshotStatus
 
+	// lastDowntimeCheck is the Downtime decision last logged by logDowntimeCheck (cnc_log.go).
+	lastDowntimeCheck *downtimeCheck
+
 	// The counters at the last reading rate log; logReadingRate reports the change since then.
 	rateLoggedAt  time.Time
 	rateCallbacks int64
@@ -254,6 +257,7 @@ func (machineWorker *worker) collectReadings(ctx context.Context, connection *cn
 	machineWorker.reportedError = ""
 	machineWorker.waitingLogged = false
 	machineWorker.lastSnapshot = nil                    // the first reading of every connection is logged
+	machineWorker.lastDowntimeCheck = nil               // and so is its first Downtime check
 	machineWorker.startReadingRateWindow(time.Now(), 0) // a new connection's callbacks count from 0
 
 	ticker := time.NewTicker(tickInterval)

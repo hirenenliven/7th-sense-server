@@ -74,8 +74,8 @@ var channelStateNames = map[channelState]string{
 
 var opModeNames = map[int]string{0: "JOG", 1: "MDA", opModeAuto: "AUTO"}
 
-// machineState is the NC state the mode is decided from. procStatus, alarmNumber and
-// emergency keep the raw values for the log.
+// machineState is the NC state the mode is decided from. procStatus, alarmNumber, alarmMessage
+// and emergency keep the raw values for the log.
 type machineState struct {
 	connected    bool
 	opMode       int
@@ -84,6 +84,7 @@ type machineState struct {
 	channel      channelState
 	feedOverride float64 // %
 	alarmNumber  int
+	alarmMessage string
 	emergency    bool
 	programName  string
 }
@@ -126,6 +127,7 @@ func machineStateFromReading(reading cnc.Reading) machineState {
 		channel:      channelUnknown,
 		feedOverride: reading.Values[cnc.FieldFeedOverride].Number,
 		alarmNumber:  int(reading.Values[cnc.FieldAlarmNo].Number),
+		alarmMessage: reading.Values[cnc.FieldAlarmMsg].Text,
 		emergency:    reading.Values[cnc.FieldIsEmergency].Number != 0,
 		programName:  reading.Values[cnc.FieldProgName].Text,
 	}
@@ -209,5 +211,6 @@ func (machineWorker *worker) recordModeFromReading(at time.Time, reading cnc.Rea
 	state := machineStateFromReading(reading)
 	mode, reason := decideMachineMode(state)
 	machineWorker.logModeCheck(state, mode, reason)
+	machineWorker.logDowntimeCheck(state, mode, reason)
 	machineWorker.recordModeChange(at, mode, reason, state.logAttributes())
 }
