@@ -58,11 +58,11 @@ var autoOpModes = map[int]int{
 //
 //	Fanuc    0 Reset; 3 START -> running; 1 Stop, 2 HOLD (feed hold), 4 MSTR (tool retract /
 //	         manual start, not cutting the program) -> held
-//	Siemens  0 Reset; 2 Active, 3 Waiting (tool change, M function, dwell) -> running;
-//	         1 Stop, 4 Interrupted -> held
+//	Siemens  0 Reset; 2 Active -> running (as Fanuc START); 1 Stop, 3 Waiting (as Fanuc HOLD),
+//	         4 Interrupted -> held
 var programStatesByEngine = map[int]map[int]programState{
 	model.EngineFanuc:   {0: programReset, 1: programHeld, 2: programHeld, 3: programRunning, 4: programHeld},
-	model.EngineSiemens: {0: programReset, 1: programHeld, 2: programRunning, 3: programRunning, 4: programHeld},
+	model.EngineSiemens: {0: programReset, 1: programHeld, 2: programRunning, 3: programHeld, 4: programHeld},
 }
 
 // numberingEngine is the engine whose numbering a machine's MachineMode / ProcStatus are read
@@ -89,7 +89,7 @@ type machineState struct {
 	programName  string
 }
 
-// isRunning reports whether a program is running (Fanuc START, Siemens Active or Waiting).
+// isRunning reports whether a program is running (Fanuc START, Siemens Active).
 func (state machineState) isRunning() bool {
 	return state.program == programRunning
 }
@@ -203,7 +203,7 @@ func decideMachineMode(state machineState) modeDecision {
 			state.alarmConditions())}
 }
 
-// holdReason returns why a program is held (Fanuc Stop / HOLD / MSTR, Siemens Stop /
+// holdReason returns why a program is held (Fanuc Stop / HOLD / MSTR, Siemens Stop / Waiting /
 // Interrupted, or running but not cutting: feed override 0, an alarm, or not in AUTO) with the
 // inputs that show it, or "" when it is not held.
 func holdReason(state machineState) (string, []any) {

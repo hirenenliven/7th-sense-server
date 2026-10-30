@@ -45,7 +45,7 @@ func TestDecideMachineMode(t *testing.T) {
 		{"fanuc alarm, Reset", &fanuc, ncReading(1, 0, 120, 100, false), model.ModeDowntime, "alarm active, no program running"},
 		{"fanuc E-stop, HOLD", &fanuc, ncReading(1, 2, 120, 0, true), model.ModeDowntime, "alarm active, no program running"},
 		{"siemens AUTO Active", &siemens, ncReading(2, 2, 100, 0, false), model.ModeInProduction, "AUTO, program running, feed override > 0, no alarm"},
-		{"siemens AUTO Waiting", &siemens, ncReading(2, 3, 100, 0, false), model.ModeInProduction, "AUTO, program running, feed override > 0, no alarm"},
+		{"siemens AUTO Waiting", &siemens, ncReading(2, 3, 100, 0, false), model.ModeHold, "program held"},
 		{"siemens Stop", &siemens, ncReading(2, 1, 100, 0, false), model.ModeHold, "program held"},
 		{"siemens Interrupted", &siemens, ncReading(2, 4, 100, 0, false), model.ModeHold, "program held"},
 		{"siemens MDA Active", &siemens, ncReading(1, 2, 100, 0, false), model.ModeHold, "program running, not in AUTO"},

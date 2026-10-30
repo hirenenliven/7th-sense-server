@@ -1218,9 +1218,9 @@
     "semantic_hash": "83e782660b9df6e3978298333b4f35a6"
   },
   ".claude/CLAUDE.md": {
-    "mtime": 1793342700.0791867,
-    "seen": 1793342719.8265057,
-    "ast_hash": "59497f197486656b8844a79e7274e71f",
+    "mtime": 1793343923.3014982,
+    "seen": 1793343951.3961203,
+    "ast_hash": "be9be7582d849e781fd5e50686e6827a",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1470,9 +1470,9 @@
     "semantic_hash": ""
   },
   "web/mode-chart/mode-chart.js": {
-    "mtime": 1793177850.484246,
-    "seen": 1793177892.9477673,
-    "ast_hash": "31e7fa05fa0c39b6f518fc0a633c92b4",
+    "mtime": 1793343006.5147681,
+    "seen": 1793343033.3764417,
+    "ast_hash": "5a4194d2bc1d84c284e28f9e7ac15346",
     "semantic_hash": ""
   },
   "web/web.go": {
@@ -1488,15 +1488,15 @@
     "semantic_hash": ""
   },
   "internal/monitor/machine_mode.go": {
-    "mtime": 1793342637.4645858,
-    "seen": 1793342719.8262486,
-    "ast_hash": "f18e2f034ab1dfb6b005a7ad19bc527d",
+    "mtime": 1793343923.2988672,
+    "seen": 1793343951.3957806,
+    "ast_hash": "aa076f3b13a7a8729bca69e11b4ee99c",
     "semantic_hash": ""
   },
   "internal/monitor/machine_mode_test.go": {
-    "mtime": 1793342671.019279,
-    "seen": 1793342719.826251,
-    "ast_hash": "890bb889663037623ad7938f205b8180",
+    "mtime": 1793343923.2998884,
+    "seen": 1793343951.395783,
+    "ast_hash": "e22b9c25b52baa276c419784aaeabbca",
     "semantic_hash": ""
   },
   "internal/monitor/cnc_log.go": {

@@ -1,7 +1,7 @@
 # Graph Report - 7th-sense-server  (2026-10-30)
 
 ## Corpus Check
-- 252 files · ~131,888 words
+- 252 files · ~131,906 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 4 file(s) not represented in the graph (top: (none) 3, .toml 1)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `530b1736`
+- Built from commit: `ca1b57dc`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -132,11 +132,11 @@
   docs/CncCommunication.dll — API & Integration Guide (Go Client).pdf → .claude/CLAUDE.md
 - `Snapshot Fields (positions, spindle, feed, program, tool, alarms)` --conceptually_related_to--> `Machines API (/machines)`  [AMBIGUOUS]
   docs/CncCommunication.dll — API & Integration Guide (Go Client).pdf → .claude/CLAUDE.md
+- `2. All steps at a glance` --references--> `LoadDriver()`  [INFERRED]
+  docs/cnc-data-collection-flow.md → internal/cnc/cnc.go
 - `Step 15 — Store the reading` --references--> `machineStateFromReading()`  [INFERRED]
   docs/cnc-data-collection-flow.md → internal/monitor/machine_mode.go
 - `Step 15 — Store the reading` --references--> `programStateFromProcStatus()`  [INFERRED]
-  docs/cnc-data-collection-flow.md → internal/monitor/machine_mode.go
-- `Step 15 — Store the reading` --references--> `decideMachineMode()`  [INFERRED]
   docs/cnc-data-collection-flow.md → internal/monitor/machine_mode.go
 
 ## Import Cycles
@@ -490,17 +490,17 @@ Nodes (3): mapLocationError(), NewLocationRepository(), LocationRepository
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `NewError()` connect `NewError` to `HTTP Handlers Layer`, `testing.T`, `MachineService`, `UserLineService`, `.checkReferences`, `Execute`, `UserShopService`, `UserLineService`, `UserLocationService`, `UserService`, `Product`, `HTTP Handlers Layer (2)`, `user_access_test.go`, `UserCountryService`, `ControllerService`, `UserProfileRepository`, `PartService`, `run`, `HolidayService`, `.validate`, `decodeAndValidate`, `BrandService`, `AuthUser`, `MachineModelService`, `validText`, `AuthService`, `.Create`, `.validate`, `.validate`, `UserCellService`, `toUserCityResponseError`, `AuthUser`, `Category`, `.accessFor`, `.Generate`, `.validate`, `.Validate`, `Role`, `.UploadDrawing`?**
-  _High betweenness centrality (0.058) - this node is a cross-community bridge._
+  _High betweenness centrality (0.079) - this node is a cross-community bridge._
 - **What connects `hello`, `7th-sense-server`, `Siemens default ports: 4840 (native NCU) / 4841 (custom)` to the rest of the system?**
   _28 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `HTTP Handlers Layer` be split into smaller, more focused modules?**
   _Cohesion score 0.09157894736842105 - nodes in this community are weakly interconnected._
-- **Why does `Execute()` connect `Execute` to `Querier`, `MachineService`, `UserLineService`, `Execute`, `Integration & DTO Tests (2)`, `UserShopService`, `UserLineService`, `Address`, `UserLocationService`, `add_superadmin_raw.go`, `Product`, `IdleReasonRepository`, `UserCountryService`, `ControllerService`, `PartService`, `run`, `HolidayService`, `config.go`, `Collector`, `BrandService`, `AuthUser`, `MachineModelService`, `AuthService`, `ProductionScheduleRepository`, `MachineTelemetryRepository`, `.flush`, `.validate`, `UserCellService`, `toUserCityResponseError`, `AuthUser`, `Category`, `UserRepository`, `ClienteleRepository`, `time.Time`, `Role`, `AuthRepository`, `LocationRepository`?**
-  _High betweenness centrality (0.021) - this node is a cross-community bridge._
+- **Why does `SendResponse()` connect `HTTP Handlers Layer` to `Route Registration & Guards`, `UserRepository`, `decodeAndValidate`, `net/http.ResponseWriter`, `AuthHandler`, `HTTP Handlers Layer (2)`, `user_access_test.go`, `AuthService`?**
+  _High betweenness centrality (0.028) - this node is a cross-community bridge._
 - **Should `testing.T` be split into smaller, more focused modules?**
   _Cohesion score 0.06447368421052632 - nodes in this community are weakly interconnected._
-- **Why does `SendResponse()` connect `HTTP Handlers Layer` to `Route Registration & Guards`, `UserRepository`, `decodeAndValidate`, `net/http.ResponseWriter`, `AuthHandler`, `HTTP Handlers Layer (2)`, `user_access_test.go`, `AuthService`?**
-  _High betweenness centrality (0.018) - this node is a cross-community bridge._
+- **Why does `MonitoredMachine` connect `Collector` to `.collectReadings`, `MachineTelemetryRepository`, `.flush`, `Integration & DTO Tests (2)`, `Connection`?**
+  _High betweenness centrality (0.024) - this node is a cross-community bridge._
 
 ### Low-confidence Hints
 _AMBIGUOUS edges — the extractor was unsure. Verify before acting on these._
