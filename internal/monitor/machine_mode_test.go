@@ -1,6 +1,7 @@
 package monitor
 
 import (
+	"slices"
 	"testing"
 
 	"7th-sense-server/internal/cnc"
@@ -37,8 +38,10 @@ func TestDecideMachineMode(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if got, reason := decideMachineMode(test.state); got != test.want || reason == "" {
-				t.Errorf("decideMachineMode = %s (%q), want %s", modeName(got), reason, modeName(test.want))
+			decision := decideMachineMode(test.state)
+			if decision.mode != test.want || decision.reason == "" || len(decision.conditions) == 0 {
+				t.Errorf("decideMachineMode = %s (%q, %v), want %s", modeName(decision.mode), decision.reason,
+					decision.conditions, modeName(test.want))
 			}
 		})
 	}
@@ -65,5 +68,20 @@ func TestMachineStateFromReading(t *testing.T) {
 func TestMachineStateFromReadingWithoutEngine(t *testing.T) {
 	if state := machineStateFromReading(nil, cnc.Reading{}); state.engine != engineNone {
 		t.Errorf("engine = %d, want engineNone", state.engine)
+	}
+}
+
+// Only the inputs a rule checks are logged: a feed override of 0 holds a running program, so
+// the Hold line shows the program and the feed override, not the alarm or the opMode.
+func TestDecideMachineModeConditions(t *testing.T) {
+	state := machineState{engine: model.EngineSiemens, connected: true, opMode: opModeAuto,
+		procStatus: procStatusActive, program: programRunning, feedOverride: 0}
+	decision := decideMachineMode(state)
+	want := []any{"procStatus", "2 (Active)", "programState", "running", "feedOverride", 0.0}
+	if decision.mode != model.ModeHold || !slices.Equal(decision.conditions, want) {
+		t.Errorf("decideMachineMode = %s %v, want Hold %v", modeName(decision.mode), decision.conditions, want)
+	}
+	if offline := decideMachineMode(machineState{}); !slices.Equal(offline.conditions, []any{"connected", false}) {
+		t.Errorf("offline conditions = %v", offline.conditions)
 	}
 }

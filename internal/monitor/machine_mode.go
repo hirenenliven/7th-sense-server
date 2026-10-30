@@ -2,6 +2,7 @@ package monitor
 
 import (
 	"fmt"
+	"slices"
 	"time"
 
 	"7th-sense-server/internal/cnc"
@@ -17,16 +18,17 @@ import (
 //
 //	opMode       MachineMode         /Bag/State/opMode (0 JOG, 1 MDA, 2 AUTO)
 //	program      ProcStatus          /Channel/State/acProg (see programStateFromProcStatus)
-//
-// opMode and program are read with the Siemens numbering for every engine; Fanuc numbers both
-// differently (nc_status.go), which the logs show by name.
 //	chanStatus   (not in the snapshot; channelUnknown until the DLL sends it)
 //	feedRateOvr  FeedRatePercetnage  feed override, %
 //	alarmActive  AlarmNo ≠ 0 or IsEmergency (E-stop raises alarm 3000 as well)
 //
-// With CNC_LOG_MODES=true every mode change is logged with these inputs and the rule that
-// matched, and so is every change of the inputs (cnc_log.go), so a mode can be checked against
-// the HMI.
+// opMode and program are read with the Siemens numbering for every engine; Fanuc numbers both
+// differently (nc_status.go), which the logs show by name.
+//
+// With CNC_LOG_MODES=true every mode change is logged with the final mode first, the rule that
+// matched and only the inputs that rule checks (modeDecision.conditions); CNC_LOG_MODE_CHECKS
+// logs the same whenever those inputs change (cnc_log.go), so a mode can be checked against the
+// HMI.
 
 // opModeAuto is opMode AUTO; JOG (0) and MDA (1) are manual modes.
 const opModeAuto = 2
@@ -101,20 +103,41 @@ func (state machineState) isAlarmActive() bool {
 	return state.alarmNumber != 0 || state.emergency
 }
 
-// logAttributes are the NC inputs of the decision, for "cnc: mode changed". opMode and
-// procStatus are named the way the machine's engine numbers them; programState is what the
-// rules read from procStatus.
-func (state machineState) logAttributes() []any {
-	return []any{
-		"opMode", fmt.Sprintf("%d (%s)", state.opMode, opModeName(state.engine, state.opMode)),
-		"procStatus", state.procStatusText(),
-		"programState", programStateNames[state.program],
-		"chanStatus", channelStateNames[state.channel],
-		"feedOverride", state.feedOverride,
-		"alarmNo", state.alarmNumber,
-		"emergency", state.emergency,
-		"ncProgram", state.programName,
-	}
+// modeDecision is the mode a reading decides: the machine_modes id, the rule that matched and
+// conditions, the log attributes of only the inputs that rule checks.
+type modeDecision struct {
+	mode       int
+	reason     string
+	conditions []any
+}
+
+// offlineDecision is the decision for a machine the DLL does not reach (no reading, a failed
+// connect or an IsConnected=0 reading).
+var offlineDecision = modeDecision{
+	mode: model.ModeOffline, reason: reasonNoConnection, conditions: []any{"connected", false},
+}
+
+// The condition attributes of the mode rules. opMode and procStatus are named the way the
+// machine's engine numbers them; programState is what the rules read from procStatus.
+
+func (state machineState) opModeCondition() []any {
+	return []any{"opMode", fmt.Sprintf("%d (%s)", state.opMode, opModeName(state.engine, state.opMode))}
+}
+
+func (state machineState) programConditions() []any {
+	return []any{"procStatus", state.procStatusText(), "programState", programStateNames[state.program]}
+}
+
+func (state machineState) channelCondition() []any {
+	return []any{"chanStatus", channelStateNames[state.channel]}
+}
+
+func (state machineState) feedOverrideCondition() []any {
+	return []any{"feedOverride", state.feedOverride}
+}
+
+func (state machineState) alarmConditions() []any {
+	return []any{"alarmNo", state.alarmNumber, "emergency", state.emergency}
 }
 
 // procStatusText is the raw ProcStatus with its name for the machine's engine, e.g. "3 (START)".
@@ -157,8 +180,8 @@ func programStateFromProcStatus(procStatus int) programState {
 	return programReset
 }
 
-// decideMachineMode returns the machine_modes id of state and the rule that decided it.
-// First match wins:
+// decideMachineMode returns the mode state decides, with the rule that decided it and the
+// inputs that rule checks. First match wins:
 //
 //	Offline (9)        no NC connection
 //	Downtime (6)       alarm active and no program running (an alarm stopped machining)
@@ -168,21 +191,25 @@ func programStateFromProcStatus(procStatus int) programState {
 //	Idle (5)           anything else: reset, program not running, manual JOG
 //
 // An unknown channel state does not decide anything: In Production does not wait for it and
-// Hold is not caused by it.
-func decideMachineMode(state machineState) (int, string) {
+// Hold is not caused by it, so it is not logged either.
+func decideMachineMode(state machineState) modeDecision {
 	running := state.isRunning()
 	switch {
 	case !state.connected:
-		return model.ModeOffline, reasonNoConnection
+		return offlineDecision
 	case state.isAlarmActive() && !running:
-		return model.ModeDowntime, "alarm active, no program running"
+		return modeDecision{model.ModeDowntime, "alarm active, no program running",
+			slices.Concat(state.alarmConditions(), state.programConditions())}
 	case isInProduction(state):
-		return model.ModeInProduction, "AUTO, program running, feed override > 0, no alarm"
+		return modeDecision{model.ModeInProduction, "AUTO, program running, feed override > 0, no alarm",
+			slices.Concat(state.opModeCondition(), state.programConditions(), state.feedOverrideCondition(),
+				state.alarmConditions())}
 	}
-	if reason := holdReason(state); reason != "" {
-		return model.ModeHold, reason
+	if reason, conditions := holdReason(state); reason != "" {
+		return modeDecision{model.ModeHold, reason, conditions}
 	}
-	return model.ModeIdle, "no program running"
+	return modeDecision{model.ModeIdle, "no program running",
+		slices.Concat(state.programConditions(), state.alarmConditions())}
 }
 
 // isInProduction reports whether the machine is cutting in AUTO without anything holding it.
@@ -193,32 +220,33 @@ func isInProduction(state machineState) bool {
 }
 
 // holdReason returns why a program is held (stopped or interrupted, or running but not moving:
-// feed override 0, an alarm, or not in AUTO), or "" when it is not held.
-func holdReason(state machineState) string {
+// feed override 0, an alarm, or not in AUTO) with the inputs that show it, or "" when it is not
+// held.
+func holdReason(state machineState) (string, []any) {
 	switch {
 	case state.program == programInterrupted:
-		return "program interrupted"
+		return "program interrupted", state.programConditions()
 	case state.program == programStopped:
-		return "program stopped"
+		return "program stopped", state.programConditions()
 	case state.channel == channelInterrupted:
-		return "channel interrupted"
+		return "channel interrupted", state.channelCondition()
 	case !state.isRunning():
-		return ""
+		return "", nil
 	case state.feedOverride <= 0:
-		return "program running, feed override ≤ 0"
+		return "program running, feed override ≤ 0", slices.Concat(state.programConditions(), state.feedOverrideCondition())
 	case state.isAlarmActive():
-		return "program running, alarm active"
+		return "program running, alarm active", slices.Concat(state.programConditions(), state.alarmConditions())
 	case state.opMode != opModeAuto:
-		return "program running, not in AUTO"
+		return "program running, not in AUTO", slices.Concat(state.programConditions(), state.opModeCondition())
 	}
-	return ""
+	return "", nil
 }
 
 // recordModeFromReading decides the mode of a connected reading and records it when it changed.
 func (machineWorker *worker) recordModeFromReading(at time.Time, reading cnc.Reading) {
 	state := machineStateFromReading(machineWorker.machine.CNCEngine, reading)
-	mode, reason := decideMachineMode(state)
-	machineWorker.logModeCheck(state, mode, reason)
-	machineWorker.logDowntimeCheck(state, mode, reason)
-	machineWorker.recordModeChange(at, mode, reason, state.logAttributes())
+	decision := decideMachineMode(state)
+	machineWorker.logModeCheck(decision)
+	machineWorker.logDowntimeCheck(state, decision.mode, decision.reason)
+	machineWorker.recordModeChange(at, decision)
 }

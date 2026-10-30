@@ -206,28 +206,33 @@ func (machineWorker *worker) logMachineEvent(eventType string, code *int, messag
 
 // ---------------------------------------------------------------- modes (CNC_LOG_MODES, CNC_LOG_MODE_CHECKS)
 
-// logModeChange logs that the machine's mode changes to mode: the rule that decided it and
-// the NC inputs it was decided from (none for Offline).
-func (machineWorker *worker) logModeChange(mode int, reason string, inputs []any) {
-	from, to := modeName(machineWorker.mode), modeName(mode)
-	attributes := []any{"from", from, "to", to, "reason", reason, "program", machineWorker.program}
-	machineWorker.log(logTypeMode, slog.LevelInfo, fmt.Sprintf("cnc: mode changed %s -> %s", from, to),
-		append(attributes, inputs...)...)
+// logModeChange logs the machine's final mode once it changes, mode first:
+// "[machine …] cnc: mode In Production (from Hold)", then the rule that matched and only the
+// inputs that rule checks (decision.conditions).
+func (machineWorker *worker) logModeChange(decision modeDecision) {
+	mode, from := modeName(decision.mode), modeName(machineWorker.mode)
+	attributes := []any{"mode", mode, "from", from, "reason", decision.reason}
+	machineWorker.log(logTypeMode, slog.LevelInfo, fmt.Sprintf("cnc: mode %s (from %s)", mode, from),
+		append(attributes, decision.conditions...)...)
 }
 
-// logModeCheck logs the NC inputs of a reading with the mode they decide, when the inputs
-// differ from the last ones logged (not on every reading), so a mode can be compared with the
-// HMI even while it does not change.
-func (machineWorker *worker) logModeCheck(state machineState, mode int, reason string) {
-	if !machineWorker.collector.config.Logs.ModeChecks ||
-		(machineWorker.lastModeCheck != nil && *machineWorker.lastModeCheck == state) {
+// logModeCheck logs the mode a reading decides, mode first, with the rule and its inputs,
+// whenever the decision or those inputs differ from the last ones logged (not on every
+// reading), so a mode can be compared with the HMI even while it does not change.
+func (machineWorker *worker) logModeCheck(decision modeDecision) {
+	if !machineWorker.collector.config.Logs.ModeChecks {
 		return
 	}
-	machineWorker.lastModeCheck = &state
-	attributes := []any{"decided", modeName(mode), "current", modeName(machineWorker.mode),
-		"modeChanges", mode != machineWorker.mode, "reason", reason}
-	machineWorker.log(logTypeModeCheck, slog.LevelInfo, "cnc: mode check "+modeName(mode),
-		append(attributes, state.logAttributes()...)...)
+	key := fmt.Sprint(decision.mode, decision.reason, decision.conditions)
+	if key == machineWorker.lastModeCheck {
+		return
+	}
+	machineWorker.lastModeCheck = key
+	mode := modeName(decision.mode)
+	attributes := []any{"mode", mode, "current", modeName(machineWorker.mode),
+		"modeChanges", decision.mode != machineWorker.mode, "reason", decision.reason}
+	machineWorker.log(logTypeModeCheck, slog.LevelInfo, "cnc: mode check "+mode,
+		append(attributes, decision.conditions...)...)
 }
 
 // ---------------------------------------------------------------- downtime (CNC_LOG_DOWNTIME)

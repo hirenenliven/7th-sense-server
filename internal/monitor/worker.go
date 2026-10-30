@@ -74,8 +74,9 @@ type worker struct {
 
 	liveValues map[int]model.LiveValue // cache of current live values by variable_id
 
-	// lastModeCheck is the NC state last logged by logModeCheck (cnc_log.go).
-	lastModeCheck *machineState
+	// lastModeCheck is the decision last logged by logModeCheck (cnc_log.go): mode, rule and
+	// condition values.
+	lastModeCheck string
 
 	// lastSnapshot is the DLL status last logged by logSnapshot (cnc_log.go).
 	lastSnapshot *snapshotStatus
@@ -164,7 +165,7 @@ func (machineWorker *worker) runConnectionLoop(ctx context.Context) {
 			}
 			machineWorker.recordEvent(eventType, &id, err.Error())
 			// A quiet reconnect kept the machine's mode; a failed connect ends it.
-			machineWorker.recordModeChange(time.Now(), model.ModeOffline, reasonNoConnection, nil)
+			machineWorker.recordModeChange(time.Now(), offlineDecision)
 			continue
 		}
 		machineWorker.recordEvent(model.EventConnectOK, &id, fmt.Sprintf("connection %d (%s:%d, engine %d)",
@@ -341,7 +342,7 @@ func (machineWorker *worker) processReading(reading cnc.Reading) bool {
 			machineWorker.log(logTypeOther, slog.LevelWarn, "cnc: controller data stopped (the DLL reports it lost the controller)")
 		}
 		machineWorker.logWaitingForController(reading)
-		machineWorker.recordModeChange(now, model.ModeOffline, reasonNoConnection, nil)
+		machineWorker.recordModeChange(now, offlineDecision)
 		return false
 	}
 	machineWorker.lastConnectedReadingAt = now
@@ -556,14 +557,14 @@ func (machineWorker *worker) recordAlarmChanges(now time.Time, numbers map[int]f
 	machineWorker.alarm, machineWorker.emergency = alarm, emergency
 }
 
-// recordModeChange opens a new mode period when the mode changed and logs why (CNC_LOG_MODES):
-// reason is the rule that decided it and inputs the NC values it was decided from (none for
-// Offline).
-func (machineWorker *worker) recordModeChange(at time.Time, mode int, reason string, inputs []any) {
+// recordModeChange opens a new mode period when decision changes the mode and logs it
+// (CNC_LOG_MODES): the final mode, the rule that decided it and the inputs that rule checks.
+func (machineWorker *worker) recordModeChange(at time.Time, decision modeDecision) {
+	mode := decision.mode
 	if mode == machineWorker.mode {
 		return
 	}
-	machineWorker.logModeChange(mode, reason, inputs)
+	machineWorker.logModeChange(decision)
 	machineWorker.mode = mode
 	machineWorker.statusDirty = true
 	ctx, cancel := context.WithTimeout(context.Background(), writeTimeout)
@@ -629,7 +630,7 @@ func (machineWorker *worker) recordDisconnection(reason stopReason) {
 	}
 	machineWorker.recordEvent(model.EventDisconnected, nil, "")
 	if reason != stopConnectionQuiet {
-		machineWorker.recordModeChange(now, model.ModeOffline, reasonNoConnection, nil)
+		machineWorker.recordModeChange(now, offlineDecision)
 	}
 	machineWorker.connectedSince = nil
 	machineWorker.saveLiveStatus(now)
