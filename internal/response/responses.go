@@ -44,6 +44,8 @@ var (
 	SelectMachine = newResponse(http.StatusBadRequest, "Please select machine")
 	// MachineCycleNotFound: the cycle does not exist or its machine is not one the user may read.
 	MachineCycleNotFound = newResponse(http.StatusNotFound, "Machine cycle not found")
+	// MachineCycleRunning: the machine already has a running cycle (one at a time per machine).
+	MachineCycleRunning = newResponse(http.StatusConflict, "The machine already has a running cycle")
 
 	// Authentication and authorization responses
 	InvalidCredentials   = newResponse(http.StatusUnauthorized, "Invalid username or password")

@@ -383,6 +383,11 @@ func (machineWorker *worker) openCycle(current cycleReading, openedByLoop bool) 
 		StartedAt: current.at, PartCountStart: &current.partCount,
 	})
 	if err != nil {
+		// One running cycle per machine (machine_cycles_open_key): a close that could not be
+		// saved left the old one running, so it is loaded again and closed by the rules.
+		if errors.Is(err, response.MachineCycleRunning) {
+			tracker.loaded = false
+		}
 		machineWorker.log(logTypeCycle, slog.LevelError, "cnc: open cycle", "program", current.programName, "error", err)
 		return
 	}

@@ -220,6 +220,8 @@ func toMachineCycleResponseError(err error) error {
 	switch {
 	case errors.Is(err, repository.ErrNotFound):
 		return response.MachineCycleNotFound
+	case errors.Is(err, repository.ErrDuplicateCycle):
+		return response.MachineCycleRunning
 	default:
 		return err
 	}
