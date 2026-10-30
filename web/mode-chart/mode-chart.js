@@ -30,7 +30,7 @@
     { label: "3d", title: "3 days", spanMs: 3 * DAY_MS },
     { label: "10d", title: "10 days", spanMs: 10 * DAY_MS },
   ];
-  const DEFAULT_ZOOM_MS = 10 * DAY_MS; // a newly selected machine shows its whole history
+  const DEFAULT_ZOOM_MS = 5 * MINUTE_MS; // a newly selected machine shows its latest 5 minutes (the "5m" level)
   const MIN_SPAN_MS = ZOOM_LEVELS[0].spanMs;
   const ZOOM_MATCH_TOLERANCE = 0.01; // a view within 1 % of a level's span highlights that level
 
