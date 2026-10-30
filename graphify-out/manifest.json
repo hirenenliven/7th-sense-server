@@ -1218,9 +1218,9 @@
     "semantic_hash": "83e782660b9df6e3978298333b4f35a6"
   },
   ".claude/CLAUDE.md": {
-    "mtime": 1793338815.675943,
-    "seen": 1793338824.0143013,
-    "ast_hash": "1e122066c32d46126a442ffe32bab29f",
+    "mtime": 1793342700.0791867,
+    "seen": 1793342719.8265057,
+    "ast_hash": "59497f197486656b8844a79e7274e71f",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1488,15 +1488,15 @@
     "semantic_hash": ""
   },
   "internal/monitor/machine_mode.go": {
-    "mtime": 1793338741.0145423,
-    "seen": 1793338824.0140772,
-    "ast_hash": "cabbd06e138d318311f4ca61189fa517",
+    "mtime": 1793342637.4645858,
+    "seen": 1793342719.8262486,
+    "ast_hash": "f18e2f034ab1dfb6b005a7ad19bc527d",
     "semantic_hash": ""
   },
   "internal/monitor/machine_mode_test.go": {
-    "mtime": 1793338764.3033178,
-    "seen": 1793338824.014079,
-    "ast_hash": "8d349b8e9d94667abcfbb3a05c05049e",
+    "mtime": 1793342671.019279,
+    "seen": 1793342719.826251,
+    "ast_hash": "890bb889663037623ad7938f205b8180",
     "semantic_hash": ""
   },
   "internal/monitor/cnc_log.go": {
@@ -1518,9 +1518,9 @@
     "semantic_hash": ""
   },
   "internal/monitor/nc_status.go": {
-    "mtime": 1793337274.865244,
-    "seen": 1793337421.3654137,
-    "ast_hash": "c348c25250b200f855ba1689b25e01ec",
+    "mtime": 1793342643.342828,
+    "seen": 1793342719.8262527,
+    "ast_hash": "855f3c1721eb6e0373a75e9a75680d0f",
     "semantic_hash": ""
   },
   "internal/monitor/nc_status_test.go": {

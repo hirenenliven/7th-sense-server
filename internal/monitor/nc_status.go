@@ -15,8 +15,8 @@ import (
 //	Siemens  0 JOG, 1 MDA, 2 AUTO                 0 Reset, 1 Stop, 2 Active, 3 Waiting, 4 Interrupted
 //	         (/Bag/State/opMode)                  (/Channel/State/acProg)
 //
-// These names are for the logs. The mode rules (machine_mode.go) still read every engine's
-// values with the Siemens numbering; the per-engine rules are a separate change.
+// These names are for the logs. The mode rules read the same numbering per engine in
+// machine_mode.go (autoOpModes, programStatesByEngine).
 
 // engineNone is machineState.engine of a machine whose controller has no cnc_engine.
 const engineNone = -1
