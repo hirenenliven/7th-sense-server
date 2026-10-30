@@ -74,6 +74,9 @@ type worker struct {
 
 	liveValues map[int]model.LiveValue // cache of current live values by variable_id
 
+	// cycles follows the machine's part program cycles (machine_cycle.go).
+	cycles cycleTracker
+
 	// lastModeCheck is the decision last logged by logModeCheck (cnc_log.go): mode, rule and
 	// condition values.
 	lastModeCheck string
@@ -101,6 +104,7 @@ func newMachineWorker(collector *Collector, machine model.MonitoredMachine, canc
 		cancel:                  cancel,
 		done:                    make(chan struct{}),
 		mode:                    model.ModeOffline, // the collector starts every machine offline
+		cycles:                  cycleTracker{mode: model.ModeOffline},
 	}
 }
 
@@ -137,6 +141,11 @@ func (machineWorker *worker) runConnectionLoop(ctx context.Context) {
 		<-ctx.Done()
 		return
 	}
+
+	// A cycle a previous run left open is picked up before the first reading, while the mode
+	// log still holds the Offline period the collector opened at start (retried on a reading
+	// when the database cannot be read now).
+	machineWorker.loadOpenCycle()
 
 	retry := backoff{max: 5 * time.Minute}
 	for attempt := 0; ctx.Err() == nil; attempt++ {
@@ -288,8 +297,9 @@ func (machineWorker *worker) collectReadings(ctx context.Context, connection *cn
 				gotData = true
 			}
 		case now := <-ticker.C:
-			// DATA_COLLECTION_STEP_16: Drop a lost connection (checkConnectionLost) and refresh
-			// machine_live_status when it changed or every 10 s.
+			// DATA_COLLECTION_STEP_16: Drop a lost connection (checkConnectionLost), refresh
+			// machine_live_status when it changed or every 10 s, and checkpoint / time out the
+			// open cycle (checkCycle).
 			if reason, lost := machineWorker.checkConnectionLost(now); lost {
 				return reason, gotData
 			}
@@ -299,6 +309,7 @@ func (machineWorker *worker) collectReadings(ctx context.Context, connection *cn
 			if now.Sub(machineWorker.rateLoggedAt) >= rateInterval {
 				machineWorker.logReadingRate(now, connection.Stats())
 			}
+			machineWorker.checkCycle(now)
 		}
 	}
 }
@@ -319,8 +330,8 @@ func (machineWorker *worker) checkConnectionLost(now time.Time) (stopReason, boo
 // processReading stores one reading: every numeric value is upserted into
 // machine_variable_values, only the values that changed are inserted into machine_telementry,
 // and when something changed the alarm events are worked out. Text variables are not stored.
-// The mode is decided on every connected reading (machine_mode.go). It returns whether the
-// controller was connected.
+// The cycle (machine_cycle.go) and the mode (machine_mode.go) are followed on every connected
+// reading. It returns whether the controller was connected.
 func (machineWorker *worker) processReading(reading cnc.Reading) bool {
 	// DATA_COLLECTION_STEP_15: Store the reading (change detection against the cached live values).
 	now := reading.ReceivedAt
@@ -420,6 +431,9 @@ func (machineWorker *worker) processReading(reading cnc.Reading) bool {
 		machineWorker.insertTelemetry(telemetryRows, now)
 		machineWorker.recordAlarmChanges(now, numbers, alarmMessage)
 	}
+	// The cycle goes first: after Offline it must still see the machine as offline, to end a
+	// cycle reset meanwhile when the machine went offline.
+	machineWorker.followCycle(reading)
 	machineWorker.recordModeFromReading(now, reading)
 	return true
 }
@@ -566,6 +580,7 @@ func (machineWorker *worker) recordModeChange(at time.Time, decision modeDecisio
 	}
 	machineWorker.logModeChange(decision)
 	machineWorker.mode = mode
+	machineWorker.cycles.changeMode(at, mode)
 	machineWorker.statusDirty = true
 	ctx, cancel := context.WithTimeout(context.Background(), writeTimeout)
 	defer cancel()
@@ -632,6 +647,8 @@ func (machineWorker *worker) recordDisconnection(reason stopReason) {
 	if reason != stopConnectionQuiet {
 		machineWorker.recordModeChange(now, offlineDecision)
 	}
+	// The cycle stays open; its seconds are written so a stop loses nothing
+	machineWorker.saveCycleProgress(now)
 	machineWorker.connectedSince = nil
 	machineWorker.saveLiveStatus(now)
 	machineWorker.connection = nil

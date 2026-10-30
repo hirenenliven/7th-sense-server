@@ -27,6 +27,7 @@ import (
 //	CNC_LOG_SNAPSHOT=false     logTypeSnapshot: the raw DLL status fields, whenever one changes
 //	CNC_LOG_DOWNTIME=true      logTypeDowntime: the Downtime inputs (machine type, alarm, E-stop,
 //	                          program status) and whether the machine is Downtime, whenever one changes
+//	CNC_LOG_CYCLES=true        logTypeCycle: each cycle opened, closed or restored (machine_cycle.go)
 //
 // Every error is written, whatever the switches say.
 // A line about a machine starts with "[machine 225 VM14]" and has machineId and machine; every
@@ -42,6 +43,7 @@ const (
 	logTypeModeCheck logType = "modeCheck"
 	logTypeSnapshot  logType = "snapshot"
 	logTypeDowntime  logType = "downtime"
+	logTypeCycle     logType = "cycle"
 	logTypeOther     logType = "other"
 )
 
@@ -64,6 +66,8 @@ func isLogTypeOn(settings config.CNCLogSettings, kind logType, level slog.Level)
 		return settings.Snapshot
 	case logTypeDowntime:
 		return settings.Downtime
+	case logTypeCycle:
+		return settings.Cycles
 	}
 	return settings.Other
 }
@@ -117,7 +121,7 @@ func (collector *Collector) logCollectionSettings() {
 	slog.Info("cnc collector: settings", "logType", string(logTypeOther), "machines", machines,
 		"logEvents", logs.Events, "logModes", logs.Modes, "logModeChecks", logs.ModeChecks,
 		"logVariables", logs.Variables, "logOther", logs.Other, "logSnapshot", logs.Snapshot,
-		"logDowntime", logs.Downtime)
+		"logDowntime", logs.Downtime, "logCycles", logs.Cycles, "cycleMaxDuration", collector.config.CycleMaxDuration.String())
 }
 
 // ---------------------------------------------------------------- snapshot (CNC_LOG_SNAPSHOT)

@@ -40,6 +40,10 @@ var (
 	TryAgain          = newResponse(http.StatusBadRequest, "Something went wrong, Please try again later")
 	// MachineNotFound: the machine does not exist, is deleted or is not active.
 	MachineNotFound = newResponse(http.StatusNotFound, "Machine not found")
+	// SelectMachine: a request that needs a machine names none.
+	SelectMachine = newResponse(http.StatusBadRequest, "Please select machine")
+	// MachineCycleNotFound: the cycle does not exist or its machine is not one the user may read.
+	MachineCycleNotFound = newResponse(http.StatusNotFound, "Machine cycle not found")
 
 	// Authentication and authorization responses
 	InvalidCredentials   = newResponse(http.StatusUnauthorized, "Invalid username or password")

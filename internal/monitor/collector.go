@@ -26,6 +26,7 @@ import (
 type Collector struct {
 	config         config.CNCConfig
 	service        *service.MachineTelemetryService
+	cycleService   *service.MachineCycleService // opens, updates and closes machine_cycles
 	driver         *cnc.Driver
 	shard          int
 	shards         int
@@ -37,10 +38,12 @@ type Collector struct {
 }
 
 // NewCollector creates a Collector for shard of shards.
-func NewCollector(cncConfig config.CNCConfig, telemetryService *service.MachineTelemetryService, driver *cnc.Driver, shard, shards int) *Collector {
+func NewCollector(cncConfig config.CNCConfig, telemetryService *service.MachineTelemetryService,
+	cycleService *service.MachineCycleService, driver *cnc.Driver, shard, shards int) *Collector {
 	return &Collector{
 		config:         cncConfig,
 		service:        telemetryService,
+		cycleService:   cycleService,
 		driver:         driver,
 		shard:          shard,
 		shards:         shards,

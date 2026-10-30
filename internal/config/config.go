@@ -43,6 +43,9 @@ type CNCConfig struct {
 	MaxConnecting int
 	// StopTimeout bounds the collection's graceful stop.
 	StopTimeout time.Duration
+	// CycleMaxDuration: a cycle open this long is closed as unfinished (timeout), so a machine
+	// left in Hold for days does not distort the reports.
+	CycleMaxDuration time.Duration
 	// Machines (CNC_MACHINE_IDS) are the machines the server connects: "225,247" only these, the
 	// others are not connected (no data, mode or status) — for analysing a few machines; "ALL" or
 	// empty every active machine.
@@ -84,14 +87,15 @@ func Load() Config {
 		CookieSecure: getEnv("COOKIE_SECURE", "false") == "true",
 		UploadDir:    getEnv("UPLOAD_DIR", "uploads"),
 		CNC: CNCConfig{
-			Slots:         getEnvInt("CNC_SLOTS", 300),
-			LibDir:        getEnv("CNC_LIB_DIR", "Lib"),
-			DLLName:       getEnv("CNC_DLL_NAME", "CncCommunication.dll"),
-			Stale:         time.Duration(getEnvInt("CNC_STALE_SEC", 30)) * time.Second,
-			Quiet:         time.Duration(getEnvInt("CNC_QUIET_SEC", 300)) * time.Second,
-			MaxConnecting: getEnvInt("CNC_MAX_CONNECTING", 20),
-			StopTimeout:   time.Duration(getEnvInt("CNC_STOP_TIMEOUT_SEC", 15)) * time.Second,
-			Machines:      getEnvMachineSelection("CNC_MACHINE_IDS"),
+			Slots:            getEnvInt("CNC_SLOTS", 300),
+			LibDir:           getEnv("CNC_LIB_DIR", "Lib"),
+			DLLName:          getEnv("CNC_DLL_NAME", "CncCommunication.dll"),
+			Stale:            time.Duration(getEnvInt("CNC_STALE_SEC", 30)) * time.Second,
+			Quiet:            time.Duration(getEnvInt("CNC_QUIET_SEC", 300)) * time.Second,
+			MaxConnecting:    getEnvInt("CNC_MAX_CONNECTING", 20),
+			StopTimeout:      time.Duration(getEnvInt("CNC_STOP_TIMEOUT_SEC", 15)) * time.Second,
+			CycleMaxDuration: time.Duration(getEnvInt("CNC_CYCLE_MAX_HOURS", 24)) * time.Hour,
+			Machines:         getEnvMachineSelection("CNC_MACHINE_IDS"),
 			Logs: CNCLogSettings{
 				Events:     getEnvBool("CNC_LOG_EVENTS", true),
 				Modes:      getEnvBool("CNC_LOG_MODES", true),
@@ -100,6 +104,7 @@ func Load() Config {
 				Other:      getEnvBool("CNC_LOG_OTHER", true),
 				Snapshot:   getEnvBool("CNC_LOG_SNAPSHOT", false),
 				Downtime:   getEnvBool("CNC_LOG_DOWNTIME", true),
+				Cycles:     getEnvBool("CNC_LOG_CYCLES", true),
 			},
 			CertDir: getEnv("CNC_CERT_DIR", ""),
 		},
@@ -157,6 +162,8 @@ type CNCLogSettings struct {
 	// Downtime logs the inputs of the Downtime rule (machine type, alarm, E-stop, program
 	// status) and whether they make the machine Downtime, whenever one of them changes.
 	Downtime bool
+	// Cycles logs each cycle opened, closed and restored, with its seconds per mode and parts.
+	Cycles bool
 }
 
 // AllMachines is the CNC_MACHINE_IDS value that selects every machine (as does empty).

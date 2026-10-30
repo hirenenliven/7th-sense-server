@@ -37,4 +37,6 @@ var (
 	ErrDuplicateWeekOff = errors.New("duplicate week off")
 	// ErrDuplicateLicenceKey is returned when a licence key is already saved.
 	ErrDuplicateLicenceKey = errors.New("duplicate licence key")
+	// ErrDuplicateCycle is returned when the machine already has a running cycle.
+	ErrDuplicateCycle = errors.New("duplicate running cycle")
 )

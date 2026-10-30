@@ -31,15 +31,17 @@ const (
 // Supervisor runs the collector in the server process and restarts it when it cannot start
 // (for example the database is not ready yet).
 type Supervisor struct {
-	config config.CNCConfig
-	dbPool *pgxpool.Pool
-	cancel context.CancelFunc
-	wg     sync.WaitGroup
+	config       config.CNCConfig
+	dbPool       *pgxpool.Pool
+	cycleService *service.MachineCycleService
+	cancel       context.CancelFunc
+	wg           sync.WaitGroup
 }
 
-// NewSupervisor creates a Supervisor for cncConfig that stores through dbPool.
-func NewSupervisor(cncConfig config.CNCConfig, dbPool *pgxpool.Pool) *Supervisor {
-	return &Supervisor{config: cncConfig, dbPool: dbPool}
+// NewSupervisor creates a Supervisor for cncConfig that stores through dbPool; the collector
+// writes machine cycles through cycleService.
+func NewSupervisor(cncConfig config.CNCConfig, dbPool *pgxpool.Pool, cycleService *service.MachineCycleService) *Supervisor {
+	return &Supervisor{config: cncConfig, dbPool: dbPool, cycleService: cycleService}
 }
 
 // StartCNCDataCollection loads the CNC DLL and starts the collector in a background goroutine,
@@ -105,7 +107,8 @@ func (supervisor *Supervisor) Stop() {
 func (supervisor *Supervisor) runCollectorWithRetry(ctx context.Context, telemetryService *service.MachineTelemetryService, driver *cnc.Driver) {
 	retryWait := time.Second
 	for ctx.Err() == nil {
-		collector := monitor.NewCollector(supervisor.config, telemetryService, driver, collectorShard, collectorShardCount)
+		collector := monitor.NewCollector(supervisor.config, telemetryService, supervisor.cycleService, driver,
+			collectorShard, collectorShardCount)
 		err := collector.RunCollection(ctx)
 		if ctx.Err() != nil {
 			return

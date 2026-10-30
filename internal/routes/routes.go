@@ -46,6 +46,8 @@ type Handlers struct {
 	Role           *handler.RoleHandler
 	// Health serves /health/machines/{id}/modes (mode history of a machine)
 	Health *handler.HealthHandler
+	// MachineCycle serves /machine-cycles (cycles the CNC collector recorded; read only)
+	MachineCycle *handler.MachineCycleHandler
 }
 
 // New builds the main router with all routes and global middleware.
@@ -169,5 +171,8 @@ func registerV1Routes(router *http.ServeMux, handlers Handlers) {
 	}
 	if handlers.Role != nil {
 		registerRoleRoutes(router, v1Prefix, handlers.Role)
+	}
+	if handlers.MachineCycle != nil {
+		registerMachineCycleRoutes(router, v1Prefix, handlers.MachineCycle)
 	}
 }

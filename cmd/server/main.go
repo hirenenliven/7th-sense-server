@@ -80,6 +80,8 @@ func run() error {
 		machineModelService, brandService, controllerService, userLineService)
 	telemetryService := service.NewMachineTelemetryService(dbPool, telemetryRepository)
 	healthService := service.NewHealthService(machineService, telemetryService)
+	// Cycles are written by the CNC collector and read through the API with machine access
+	cycleService := service.NewMachineCycleService(repository.NewMachineCycleRepository(dbPool), machineService)
 	roleService := service.NewRoleService(repository.NewRoleRepository(dbPool))
 	clienteleService := service.NewClienteleService(repository.NewClienteleRepository(dbPool), repository.NewUserRepository(dbPool))
 	// A part checks its customer, clientele and applicable machines; drawings are files under UPLOAD_DIR
@@ -119,6 +121,7 @@ func run() error {
 		UserSupervisor: handler.NewUserSupervisorHandler(userSupervisorService),
 		Role:           handler.NewRoleHandler(roleService),
 		Health:         handler.NewHealthHandler(healthService),
+		MachineCycle:   handler.NewMachineCycleHandler(cycleService),
 	}, middleware.Authenticate(authService))
 
 	server := &http.Server{
@@ -132,7 +135,7 @@ func run() error {
 	// collectors manages CNC data collection from machines: loads the 32-bit CNC DLL, runs the collector
 	// in a background goroutine, handles restarts on failure, and gracefully stops on shutdown.
 	// Needed because collection runs inside this API server process (no separate service).
-	collectors := collector.NewSupervisor(appConfig.CNC, dbPool)
+	collectors := collector.NewSupervisor(appConfig.CNC, dbPool, cycleService)
 
 	// CNC data collection runs inside this process: starting the server connects the machines
 	// (CNC_ENABLED, needs a GOARCH=386 build for the 32-bit DLL; docs/cnc-telemetry-collector-plan.md)
