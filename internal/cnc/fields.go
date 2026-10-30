@@ -28,6 +28,8 @@ const (
 	FieldToolNumber
 	FieldAlarmNo
 	FieldAlarmMsg
+	FieldTimerMinute // NC timer, whole minutes (which timer the DLL fills is not documented)
+	FieldTimerMsec   // NC timer, milliseconds past TimerMinute
 
 	// Axis positions take AxisCount fields each, axis 1 first: "MachPos[0]" … "MachPos[4]".
 	FieldMachPos
@@ -63,6 +65,8 @@ func buildFieldNames() [FieldCount]string {
 		FieldToolNumber:        "ToolNumber",
 		FieldAlarmNo:           "AlarmNo",
 		FieldAlarmMsg:          "AlarmMsg",
+		FieldTimerMinute:       "TimerMinute",
+		FieldTimerMsec:         "TimerMsec",
 	}
 	for axis := range AxisCount {
 		names[FieldMachPos+axis] = fmt.Sprintf("MachPos[%d]", axis)

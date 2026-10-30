@@ -269,6 +269,8 @@ func (callbackSlot *slot) onData(pointer uintptr) {
 		FieldAxisLoadZ:         float64(snapshot.AxisLoadZPercetnage),
 		FieldToolNumber:        float64(snapshot.ToolNumber),
 		FieldAlarmNo:           float64(snapshot.AlarmNo),
+		FieldTimerMinute:       float64(snapshot.TimerMinute),
+		FieldTimerMsec:         float64(snapshot.TimerMsec),
 	}
 	for field, number := range numbers {
 		reading.Values[field].Number = number

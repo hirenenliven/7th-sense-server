@@ -157,6 +157,9 @@ func snapshotStatusOf(reading cnc.Reading) snapshotStatus {
 
 // logSnapshot logs a reading's raw status fields, with the DLL's field names, when they differ
 // from the last ones logged for the machine (the first reading of a connection is always logged).
+// MachineMode and ProcStatus are also named for the machine's engine. The NC timer
+// (TimerMinute, TimerMsec) is logged with them but not compared: it counts on every reading
+// while a program runs.
 func (machineWorker *worker) logSnapshot(reading cnc.Reading) {
 	if !machineWorker.collector.config.Logs.Snapshot {
 		return
@@ -166,9 +169,13 @@ func (machineWorker *worker) logSnapshot(reading cnc.Reading) {
 		return
 	}
 	machineWorker.lastSnapshot = &current
+	engine := engineOf(machineWorker.machine.CNCEngine)
 	machineWorker.log(logTypeSnapshot, slog.LevelInfo, "cnc: snapshot status",
 		"IsConnected", current.connected, "ResultStatus", current.status.ResultStatus,
-		"MachineMode", current.machineMode, "ProcStatus", current.procStatus, "IsEmergency", current.isEmergency,
+		"MachineMode", current.machineMode, "machineModeName", opModeName(engine, int(current.machineMode)),
+		"ProcStatus", current.procStatus, "procStatusName", procStatusName(engine, int(current.procStatus)),
+		"IsEmergency", current.isEmergency,
+		"TimerMinute", reading.Values[cnc.FieldTimerMinute].Number, "TimerMsec", reading.Values[cnc.FieldTimerMsec].Number,
 		"FeedRatePercetnage", current.feedOverride, "SpindeOverridePercentage", current.spindleOverride,
 		"CmdFeedOvr", current.status.CmdFeedOverride, "CmdSpOvr", current.status.CmdSpindleOverride,
 		"AlarmNo", current.alarmNo, "AlarmMsg", current.alarmMessage,
@@ -277,7 +284,8 @@ func (machineWorker *worker) logDowntimeCheck(state machineState, mode int, reas
 		"alarmMsg", state.alarmMessage,
 		"emergency", state.emergency,
 		"programRunning", state.isRunning(),
-		"procStatus", fmt.Sprintf("%d (%s)", state.procStatus, programStateNames[state.program]),
+		"procStatus", state.procStatusText(),
+		"programState", programStateNames[state.program],
 		"mode", modeName(mode),
 		"reason", reason)
 }

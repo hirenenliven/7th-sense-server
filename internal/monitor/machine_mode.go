@@ -17,6 +17,9 @@ import (
 //
 //	opMode       MachineMode         /Bag/State/opMode (0 JOG, 1 MDA, 2 AUTO)
 //	program      ProcStatus          /Channel/State/acProg (see programStateFromProcStatus)
+//
+// opMode and program are read with the Siemens numbering for every engine; Fanuc numbers both
+// differently (nc_status.go), which the logs show by name.
 //	chanStatus   (not in the snapshot; channelUnknown until the DLL sends it)
 //	feedRateOvr  FeedRatePercetnage  feed override, %
 //	alarmActive  AlarmNo ≠ 0 or IsEmergency (E-stop raises alarm 3000 as well)
@@ -72,11 +75,10 @@ var channelStateNames = map[channelState]string{
 	channelUnknown: "unknown", channelReset: "reset", channelInterrupted: "interrupted", channelActive: "active",
 }
 
-var opModeNames = map[int]string{0: "JOG", 1: "MDA", opModeAuto: "AUTO"}
-
-// machineState is the NC state the mode is decided from. procStatus, alarmNumber, alarmMessage
-// and emergency keep the raw values for the log.
+// machineState is the NC state the mode is decided from. engine, procStatus, alarmNumber,
+// alarmMessage and emergency keep the raw values for the log.
 type machineState struct {
+	engine       int // controllers.cnc_engine, engineNone when not set
 	connected    bool
 	opMode       int
 	procStatus   int
@@ -99,15 +101,14 @@ func (state machineState) isAlarmActive() bool {
 	return state.alarmNumber != 0 || state.emergency
 }
 
-// logAttributes are the NC inputs of the decision, for "cnc: mode changed".
+// logAttributes are the NC inputs of the decision, for "cnc: mode changed". opMode and
+// procStatus are named the way the machine's engine numbers them; programState is what the
+// rules read from procStatus.
 func (state machineState) logAttributes() []any {
-	opMode := opModeNames[state.opMode]
-	if opMode == "" {
-		opMode = fmt.Sprintf("unknown(%d)", state.opMode)
-	}
 	return []any{
-		"opMode", opMode,
-		"procStatus", fmt.Sprintf("%d (%s)", state.procStatus, programStateNames[state.program]),
+		"opMode", fmt.Sprintf("%d (%s)", state.opMode, opModeName(state.engine, state.opMode)),
+		"procStatus", state.procStatusText(),
+		"programState", programStateNames[state.program],
 		"chanStatus", channelStateNames[state.channel],
 		"feedOverride", state.feedOverride,
 		"alarmNo", state.alarmNumber,
@@ -116,10 +117,17 @@ func (state machineState) logAttributes() []any {
 	}
 }
 
-// machineStateFromReading reads the NC state from a DLL reading.
-func machineStateFromReading(reading cnc.Reading) machineState {
+// procStatusText is the raw ProcStatus with its name for the machine's engine, e.g. "3 (START)".
+func (state machineState) procStatusText() string {
+	return fmt.Sprintf("%d (%s)", state.procStatus, procStatusName(state.engine, state.procStatus))
+}
+
+// machineStateFromReading reads the NC state from a DLL reading of a machine with engine
+// (controllers.cnc_engine, nil when not set).
+func machineStateFromReading(engine *int, reading cnc.Reading) machineState {
 	procStatus := int(reading.Values[cnc.FieldProcStatus].Number)
 	return machineState{
+		engine:       engineOf(engine),
 		connected:    reading.Connected,
 		opMode:       int(reading.Values[cnc.FieldMachineMode].Number),
 		procStatus:   procStatus,
@@ -208,7 +216,7 @@ func holdReason(state machineState) string {
 
 // recordModeFromReading decides the mode of a connected reading and records it when it changed.
 func (machineWorker *worker) recordModeFromReading(at time.Time, reading cnc.Reading) {
-	state := machineStateFromReading(reading)
+	state := machineStateFromReading(machineWorker.machine.CNCEngine, reading)
 	mode, reason := decideMachineMode(state)
 	machineWorker.logModeCheck(state, mode, reason)
 	machineWorker.logDowntimeCheck(state, mode, reason)

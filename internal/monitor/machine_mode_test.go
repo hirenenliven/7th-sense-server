@@ -53,10 +53,17 @@ func TestMachineStateFromReading(t *testing.T) {
 	reading.Values[cnc.FieldIsEmergency].Number = 1
 	reading.Values[cnc.FieldProgName].Text = "PART.MPF"
 
-	state := machineStateFromReading(reading)
-	want := machineState{connected: true, opMode: opModeAuto, procStatus: procStatusWaiting, program: programWaiting,
+	siemens := model.EngineSiemens
+	state := machineStateFromReading(&siemens, reading)
+	want := machineState{engine: model.EngineSiemens, connected: true, opMode: opModeAuto, procStatus: procStatusWaiting, program: programWaiting,
 		channel: channelUnknown, feedOverride: 80, emergency: true, programName: "PART.MPF"}
 	if state != want {
 		t.Errorf("machineStateFromReading = %+v, want %+v", state, want)
+	}
+}
+
+func TestMachineStateFromReadingWithoutEngine(t *testing.T) {
+	if state := machineStateFromReading(nil, cnc.Reading{}); state.engine != engineNone {
+		t.Errorf("engine = %d, want engineNone", state.engine)
 	}
 }
