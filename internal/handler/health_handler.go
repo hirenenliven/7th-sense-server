@@ -9,12 +9,14 @@ import (
 
 // HealthHandler serves the verification endpoints of CNC data collection.
 type HealthHandler struct {
-	service *service.HealthService
+	service      *service.HealthService
+	cycleService *service.MachineCycleService
 }
 
-// NewHealthHandler creates a HealthHandler that uses healthService.
-func NewHealthHandler(healthService *service.HealthService) *HealthHandler {
-	return &HealthHandler{service: healthService}
+// NewHealthHandler creates a HealthHandler that uses healthService, and cycleService for the
+// machine cycles.
+func NewHealthHandler(healthService *service.HealthService, cycleService *service.MachineCycleService) *HealthHandler {
+	return &HealthHandler{service: healthService, cycleService: cycleService}
 }
 
 // GetMachineModes handles GET /api/v1/health/machines: every machine with the mode it is in
@@ -43,4 +45,21 @@ func (healthHandler *HealthHandler) GetMachineModeHistory(writer http.ResponseWr
 		return
 	}
 	response.SendResponse(writer, request, response.Success, history)
+}
+
+// GetMachineCycleHistory handles GET /api/v1/health/machines/{id}/cycles: the machine's cycles
+// of the last 24 hours with their totals. Public: no session needed.
+func (healthHandler *HealthHandler) GetMachineCycleHistory(writer http.ResponseWriter, request *http.Request) {
+	machineID, err := pathID(request)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+
+	cycles, err := healthHandler.cycleService.GetMachineCycleHistory(request.Context(), machineID)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+	response.SendResponse(writer, request, response.Success, cycles)
 }

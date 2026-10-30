@@ -12,6 +12,10 @@ import (
 // MachineCycleMaxDays is the longest date range GET /machine-cycles reads at once.
 const MachineCycleMaxDays = 31
 
+// MachineCycleHistoryHours is how many hours back GET /health/machines/{id}/cycles reads (the
+// mode chart page). Shorter than the mode history: a machine can run thousands of cycles a day.
+const MachineCycleHistoryHours = 24
+
 // MachineCycleListRequest is the query of GET /machine-cycles: the machine and the days its
 // cycles started on, From … To (YYYY-MM-DD, both included). An empty To is today, an empty
 // From is To.

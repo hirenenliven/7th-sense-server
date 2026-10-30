@@ -120,7 +120,7 @@ func run() error {
 		UserCell:       handler.NewUserCellHandler(userCellService),
 		UserSupervisor: handler.NewUserSupervisorHandler(userSupervisorService),
 		Role:           handler.NewRoleHandler(roleService),
-		Health:         handler.NewHealthHandler(healthService),
+		Health:         handler.NewHealthHandler(healthService, cycleService),
 		MachineCycle:   handler.NewMachineCycleHandler(cycleService),
 	}, middleware.Authenticate(authService))
 

@@ -37,6 +37,23 @@ func (cycleService *MachineCycleService) GetAll(ctx context.Context, actor model
 		return dto.MachineCyclesResponse{}, err
 	}
 	from, to := listRequest.Range(time.Now())
+	return cycleService.cyclesBetween(ctx, machine, from, to)
+}
+
+// GetMachineCycleHistory returns machine machineID's cycles that started in the last
+// dto.MachineCycleHistoryHours hours, with their totals (the mode chart page). The route is
+// public, so every machine that is not deleted can be read (an empty scope); others answer 404.
+func (cycleService *MachineCycleService) GetMachineCycleHistory(ctx context.Context, machineID int64) (dto.MachineCyclesResponse, error) {
+	machine, err := cycleService.machineService.find(ctx, model.MachineScope{}, machineID)
+	if err != nil {
+		return dto.MachineCyclesResponse{}, err
+	}
+	to := time.Now()
+	return cycleService.cyclesBetween(ctx, machine, to.Add(-dto.MachineCycleHistoryHours*time.Hour), to)
+}
+
+// cyclesBetween returns machine's cycles that started in from … to, with their totals.
+func (cycleService *MachineCycleService) cyclesBetween(ctx context.Context, machine model.Machine, from, to time.Time) (dto.MachineCyclesResponse, error) {
 	cycles, err := cycleService.cycleRepository.FindAll(ctx, machine.ID, from, to)
 	if err != nil {
 		return dto.MachineCyclesResponse{}, err

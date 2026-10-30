@@ -192,11 +192,45 @@
     .mode-cell { display: flex; align-items: center; gap: 8px; }
     .running { color: var(--accent); }
 
+    /* Cycles: one run of the part program. */
+    .section-help { color: var(--muted); margin: -4px 0 12px; max-width: 900px; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; }
+    .card {
+      padding: 10px 12px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--card-color, var(--border));
+      border-radius: 4px;
+      min-width: 0;
+    }
+    .card-label { font-size: 12px; color: var(--muted); }
+    .card-value { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 2px; }
+    .card-note { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .time-split { margin-top: 12px; }
+    .split-bar { display: flex; height: 22px; border-radius: 4px; overflow: hidden; background: var(--panel); border: 1px solid var(--border); }
+    .split-bar span { min-width: 2px; }
+    .split-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 6px; font-size: 13px; }
+    .split-legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .split-legend .swatch { height: 12px; }
+    #cycle-chart { width: 100%; height: 300px; margin-top: 8px; }
+    .badge {
+      display: inline-block;
+      padding: 1px 8px;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #111;
+      background: var(--badge-color, var(--muted));
+    }
+    tr.clickable { cursor: pointer; }
+    .table-note { color: var(--muted); font-size: 12px; margin-top: 6px; }
+
     @media (max-width: 900px) {
       .layout { flex-direction: column; }
       .sidebar { width: auto; height: auto; position: static; border-right: 0; border-bottom: 1px solid var(--border); }
       .machine-list { max-height: 45vh; }
       #chart { height: 420px; }
+      #cycle-chart { height: 260px; }
       .selected-period { margin-left: 0; white-space: normal; }
     }
   </style>
@@ -221,6 +255,7 @@
         <span class="machine-name" id="machine-name">—</span>
         <span class="info">Program Name: <strong id="program-name">—</strong></span>
         <span class="info">Mode: <strong id="current-mode">—</strong></span>
+        <span class="info">Cycle: <strong id="current-cycle">—</strong></span>
         <div class="divider"></div>
         <button id="zoom-out" title="Zoom out" aria-label="Zoom out">&minus;</button>
         <button id="zoom-in" title="Zoom in" aria-label="Zoom in">+</button>
@@ -235,6 +270,41 @@
       <div id="chart"></div>
 
       <section>
+        <h2>Cycles <span class="info">(last 24 hours)</span></h2>
+        <p class="section-help">A cycle is one run of the part program: it starts when the program starts and ends when the
+          part is finished (or the run is stopped). The <strong>Cycles</strong> row of the chart above shows each cycle;
+          click a cycle in the chart or the table to zoom to it.</p>
+        <div class="status" id="cycle-status" hidden></div>
+        <div class="cards" id="cycle-cards"></div>
+        <div class="time-split" id="cycle-split"></div>
+        <div id="cycle-chart"></div>
+
+        <h2>Cycle list <span class="info" id="cycle-count"></span></h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Cycle</th>
+                <th>Status</th>
+                <th>Ended because</th>
+                <th>Program</th>
+                <th>Job / Part</th>
+                <th>Start</th>
+                <th>End</th>
+                <th>Cycle time</th>
+                <th>In production</th>
+                <th>Hold</th>
+                <th>Downtime</th>
+                <th>Offline</th>
+                <th>Loading before</th>
+                <th>Parts</th>
+              </tr>
+            </thead>
+            <tbody id="cycle-rows"></tbody>
+          </table>
+        </div>
+        <div class="table-note" id="cycle-note"></div>
+
         <h2>Time per mode</h2>
         <div class="totals" id="totals"></div>
 
