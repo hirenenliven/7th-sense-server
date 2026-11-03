@@ -83,12 +83,13 @@ func (cycleService *MachineCycleService) GetByID(ctx context.Context, actor mode
 // summarizeCycles adds up cycles; the average cycle counts completed cycles only.
 func summarizeCycles(cycles []model.MachineCycle) dto.MachineCycleSummary {
 	summary := dto.MachineCycleSummary{CycleCount: len(cycles)}
-	completedSec := 0
+	completedSec, completedProductionSec := 0, 0
 	for _, cycle := range cycles {
 		switch cycle.Status {
 		case model.CycleCompleted:
 			summary.CompletedCount++
 			completedSec += cycle.DurationSec
+			completedProductionSec += cycle.ProductionSec
 		case model.CycleUnfinished:
 			summary.UnfinishedCount++
 		default:
@@ -102,6 +103,7 @@ func summarizeCycles(cycles []model.MachineCycle) dto.MachineCycleSummary {
 	}
 	if summary.CompletedCount > 0 {
 		summary.AverageCycleSec = completedSec / summary.CompletedCount
+		summary.AverageProductionSec = completedProductionSec / summary.CompletedCount
 	}
 	return summary
 }

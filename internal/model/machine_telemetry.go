@@ -24,6 +24,12 @@ const (
 	EngineMitsubishi = 4
 )
 
+// OpModeNamesByEngine names a MachineMode (opMode) value the way each engine numbers it.
+var OpModeNamesByEngine = map[int]map[int]string{
+	EngineFanuc:   {0: "MDI", 1: "AUTO", 3: "EDIT", 5: "JOG", 9: "REF"},
+	EngineSiemens: {0: "JOG", 1: "MDA", 2: "AUTO"},
+}
+
 // Machine event types (machine_events.event_type).
 const (
 	EventCollectorStart = "collector_start"

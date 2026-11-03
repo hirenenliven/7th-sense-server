@@ -21,11 +21,6 @@ import (
 // engineNone is machineState.engine of a machine whose controller has no cnc_engine.
 const engineNone = -1
 
-var opModeNamesByEngine = map[int]map[int]string{
-	model.EngineFanuc:   {0: "MDI", 1: "AUTO", 3: "EDIT", 5: "JOG", 9: "REF"},
-	model.EngineSiemens: {0: "JOG", 1: "MDA", 2: "AUTO"},
-}
-
 var procStatusNamesByEngine = map[int]map[int]string{
 	model.EngineFanuc:   {0: "Reset", 1: "Stop", 2: "HOLD", 3: "START", 4: "MSTR"},
 	model.EngineSiemens: {0: "Reset", 1: "Stop", 2: "Active", 3: "Waiting", 4: "Interrupted"},
@@ -42,7 +37,7 @@ func engineOf(engine *int) int {
 // opModeName names a MachineMode value the way engine numbers it, e.g. "AUTO"; a value the
 // engine's list does not have is "unknown(<value>)".
 func opModeName(engine, opMode int) string {
-	return ncStatusName(opModeNamesByEngine, engine, opMode)
+	return ncStatusName(model.OpModeNamesByEngine, engine, opMode)
 }
 
 // procStatusName names a ProcStatus value the way engine numbers it, e.g. "START" on Fanuc

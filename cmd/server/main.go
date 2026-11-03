@@ -122,6 +122,8 @@ func run() error {
 		Role:           handler.NewRoleHandler(roleService),
 		Health:         handler.NewHealthHandler(healthService, cycleService),
 		MachineCycle:   handler.NewMachineCycleHandler(cycleService),
+		Dashboard: handler.NewDashboardHandler(service.NewDashboardService(machineService, telemetryService,
+			cycleService, repository.NewShiftRepository(dbPool))),
 	}, middleware.Authenticate(authService))
 
 	server := &http.Server{

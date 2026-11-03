@@ -64,18 +64,21 @@ func (listRequest *MachineCycleListRequest) Range(now time.Time) (from, to time.
 }
 
 // MachineCycleSummary adds up the cycles of a GET /machine-cycles response.
-// AverageCycleSec is the mean length of the completed cycles (0 when there is none).
+// AverageCycleSec is the mean length of the completed cycles and AverageProductionSec their mean
+// In Production time (0 when there is none); a cycle held or offline part of the way is longer
+// than its production time.
 type MachineCycleSummary struct {
-	CycleCount      int `json:"cycleCount"`
-	CompletedCount  int `json:"completedCount"`
-	UnfinishedCount int `json:"unfinishedCount"`
-	RunningCount    int `json:"runningCount"`
-	PartsMade       int `json:"partsMade"`
-	ProductionSec   int `json:"productionSec"`
-	HoldSec         int `json:"holdSec"`
-	DowntimeSec     int `json:"downtimeSec"`
-	OfflineSec      int `json:"offlineSec"`
-	AverageCycleSec int `json:"averageCycleSec"`
+	CycleCount           int `json:"cycleCount"`
+	CompletedCount       int `json:"completedCount"`
+	UnfinishedCount      int `json:"unfinishedCount"`
+	RunningCount         int `json:"runningCount"`
+	PartsMade            int `json:"partsMade"`
+	ProductionSec        int `json:"productionSec"`
+	HoldSec              int `json:"holdSec"`
+	DowntimeSec          int `json:"downtimeSec"`
+	OfflineSec           int `json:"offlineSec"`
+	AverageCycleSec      int `json:"averageCycleSec"`
+	AverageProductionSec int `json:"averageProductionSec"`
 }
 
 // MachineCyclesResponse is the response of GET /machine-cycles: the machine's cycles that

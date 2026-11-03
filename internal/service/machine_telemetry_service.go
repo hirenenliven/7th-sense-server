@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -134,6 +135,22 @@ func (telemetryService *MachineTelemetryService) ListenForConfigurationChanges(c
 // GetMachineModeStatuses returns every machine that is not deleted with the mode it is in now.
 func (telemetryService *MachineTelemetryService) GetMachineModeStatuses(ctx context.Context) ([]model.MachineModeStatus, error) {
 	return telemetryService.telemetryRepository.FindMachineModeStatuses(ctx)
+}
+
+// GetOpModeName returns the machine's current operation mode by name ("AUTO", "JOG", …), "" when
+// it was never read.
+func (telemetryService *MachineTelemetryService) GetOpModeName(ctx context.Context, machineID int64) (string, error) {
+	value, engine, err := telemetryService.telemetryRepository.FindOpMode(ctx, machineID)
+	if err != nil || value == nil {
+		return "", err
+	}
+	opMode := int(*value)
+	if engine != nil {
+		if name, found := model.OpModeNamesByEngine[*engine][opMode]; found {
+			return name, nil
+		}
+	}
+	return fmt.Sprintf("Mode %d", opMode), nil
 }
 
 // GetModePeriods returns machine machineID's mode periods running at or after since, oldest first.

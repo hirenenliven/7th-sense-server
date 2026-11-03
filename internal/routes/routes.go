@@ -48,6 +48,8 @@ type Handlers struct {
 	Health *handler.HealthHandler
 	// MachineCycle serves /machine-cycles (cycles the CNC collector recorded; read only)
 	MachineCycle *handler.MachineCycleHandler
+	// Dashboard serves the page-wise charts /productivity/... and /machine-health/...
+	Dashboard *handler.DashboardHandler
 }
 
 // New builds the main router with all routes and global middleware.
@@ -174,5 +176,8 @@ func registerV1Routes(router *http.ServeMux, handlers Handlers) {
 	}
 	if handlers.MachineCycle != nil {
 		registerMachineCycleRoutes(router, v1Prefix, handlers.MachineCycle)
+	}
+	if handlers.Dashboard != nil {
+		registerDashboardRoutes(router, v1Prefix, handlers.Dashboard)
 	}
 }

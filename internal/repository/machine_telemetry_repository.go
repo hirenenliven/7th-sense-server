@@ -418,6 +418,32 @@ func (telemetryRepository *MachineTelemetryRepository) FindMachineModeStatuses(c
 
 // FindModePeriods returns machine machineID's mode periods that were running at or after since,
 // oldest first. The open period (ended_at NULL) counts its duration up to now.
+// FindOpMode returns machine machineID's latest opMode value (cnc_variables code 'opMode') and
+// its controller's cnc_engine; either is nil when unknown.
+func (telemetryRepository *MachineTelemetryRepository) FindOpMode(ctx context.Context, machineID int64) (*float64, *int, error) {
+	query := `SELECT v.value, c.cnc_engine::int
+		FROM machines m
+		LEFT JOIN controllers c ON c.id = m.controller_id AND c.is_deleted = false
+		LEFT JOIN cnc_variables cv ON cv.code = 'opMode'
+		LEFT JOIN machine_variable_values v ON v.machine_id = m.id AND v.variable_id = cv.id
+		WHERE m.id = $1
+		LIMIT 1`
+
+	rows, err := db.Execute(ctx, telemetryRepository.database, query, machineID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("find op mode: %w", err)
+	}
+	defer rows.Close()
+	var value *float64
+	var engine *int
+	if rows.Next() {
+		if err := rows.Scan(&value, &engine); err != nil {
+			return nil, nil, fmt.Errorf("find op mode: %w", err)
+		}
+	}
+	return value, engine, rows.Err()
+}
+
 func (telemetryRepository *MachineTelemetryRepository) FindModePeriods(ctx context.Context, machineID int64, since time.Time) ([]model.MachineModePeriod, error) {
 	query := `SELECT l.id, l.mode_id, COALESCE(mm.name, '') AS mode_name,
 			COALESCE(l.program_name, '') AS program_name, l.started_at, l.ended_at,
