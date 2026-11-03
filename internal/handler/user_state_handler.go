@@ -21,6 +21,22 @@ func NewUserStateHandler(userStateService *service.UserStateService) *UserStateH
 }
 
 // GetAll handles GET /api/v1/user-state[?userCountryId=<id>][&userId=<id>].
+//
+// @Summary      Get user states
+// @Description  Returns the user's states. A non-nil userCountryID keeps only that country's states.
+// @Description
+// @Description  Used by pages: States, Cities
+// @Tags         Organization
+// @ID           getUserStates
+// @Produce      json
+// @Security     cookieAuth
+// @Param        userCountryId query int false "User country id"
+// @Param        userId query int false "Customer / company user id (superadmin only)"
+// @Success      200 {object} response.Envelope{data=[]model.UserState}
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/user-state [get]
 func (userStateHandler *UserStateHandler) GetAll(writer http.ResponseWriter, request *http.Request) {
 	userID, err := listUserID(request)
 	if err != nil {
@@ -63,6 +79,25 @@ func (userStateHandler *UserStateHandler) GetByID(writer http.ResponseWriter, re
 }
 
 // Create handles POST /api/v1/user-state[?userId=<id>].
+//
+// @Summary      Create user state
+// @Description  Adds a state for userID under one of the user's countries.
+// @Description  Roles: superadmin only (others get 403).
+// @Description
+// @Description  Used by pages: States
+// @Tags         Organization
+// @ID           createUserState
+// @Accept       json
+// @Produce      json
+// @Security     cookieAuth
+// @Param        userId query int false "Customer / company user id (superadmin only)"
+// @Param        request body dto.CreateUserStateRequest true "Request body"
+// @Success      201 {object} response.Envelope{data=model.UserState}
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      403 {object} response.Envelope "Role not allowed"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/user-state [post]
 func (userStateHandler *UserStateHandler) Create(writer http.ResponseWriter, request *http.Request) {
 	userID, err := targetUserID(request)
 	if err != nil {
@@ -85,6 +120,25 @@ func (userStateHandler *UserStateHandler) Create(writer http.ResponseWriter, req
 }
 
 // Delete handles DELETE /api/v1/user-state/{id}[?userId=<id>].
+//
+// @Summary      Delete user state
+// @Description  Soft-deletes the state. A state that still has cities is kept: its cities must be deleted first.
+// @Description  Roles: superadmin only (others get 403).
+// @Description
+// @Description  Used by pages: States
+// @Tags         Organization
+// @ID           deleteUserState
+// @Produce      json
+// @Security     cookieAuth
+// @Param        id path int true "Id"
+// @Param        userId query int false "Customer / company user id (superadmin only)"
+// @Success      200 {object} response.Envelope
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      403 {object} response.Envelope "Role not allowed"
+// @Failure      404 {object} response.Envelope "Not found"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/user-state/{id} [delete]
 func (userStateHandler *UserStateHandler) Delete(writer http.ResponseWriter, request *http.Request) {
 	userID, err := targetUserID(request)
 	if err != nil {

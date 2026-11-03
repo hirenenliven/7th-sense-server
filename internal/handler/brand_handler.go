@@ -19,6 +19,19 @@ func NewBrandHandler(brandService *service.BrandService) *BrandHandler {
 }
 
 // GetAll handles GET /api/v1/brands.
+//
+// @Summary      Get brands
+// @Description  GetAll handles GET /api/v1/brands.
+// @Description
+// @Description  Used by pages: Add / edit machine, Controllers
+// @Tags         Machine catalog
+// @ID           getBrands
+// @Produce      json
+// @Security     cookieAuth
+// @Success      200 {object} response.Envelope{data=[]model.Brand}
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/brands [get]
 func (brandHandler *BrandHandler) GetAll(writer http.ResponseWriter, request *http.Request) {
 	brands, err := brandHandler.service.GetAll(request.Context())
 	if err != nil {

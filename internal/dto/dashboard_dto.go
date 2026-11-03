@@ -59,21 +59,40 @@ func (dashboardRequest *DashboardRequest) cycleRequest() MachineCycleListRequest
 	return listRequest
 }
 
+// The Productivity and Machine Health charts return only what their page draws. Each row type
+// below is filled by one constructor: to add or drop a field, change the struct and that
+// constructor (and the client chart that reads it).
+
 // ModeTimelineResponse is the response of GET /productivity/mode-timeline: the machine's mode
 // periods of one day or of the last minutes, clipped to From … To (the open period has no EndedAt
 // and runs up to ServerTime), the program it runs now (its latest period's) and its operation mode.
 type ModeTimelineResponse struct {
-	MachineID     int64                     `json:"machineId"`
-	MachineName   string                    `json:"machineName"`
-	CurrentModeID *int64                    `json:"currentModeId"`
-	OnlineStatus  bool                      `json:"onlineStatus"`
-	ProgramName   string                    `json:"programName"`
-	OpMode        string                    `json:"opMode"`
-	From          time.Time                 `json:"from"`
-	To            time.Time                 `json:"to"`
-	ServerTime    time.Time                 `json:"serverTime"`
-	Periods       []model.MachineModePeriod `json:"periods"`
-	Totals        []MachineModeTotal        `json:"totals"`
+	ProgramName string           `json:"programName"`
+	OpMode      string           `json:"opMode"`
+	From        time.Time        `json:"from"`
+	To          time.Time        `json:"to"`
+	ServerTime  time.Time        `json:"serverTime"`
+	Periods     []TimelinePeriod `json:"periods"`
+}
+
+// TimelinePeriod is one bar of the mode Gantt chart.
+type TimelinePeriod struct {
+	ID        int64      `json:"id"`
+	ModeID    int        `json:"modeId"`
+	ModeName  string     `json:"modeName"`
+	StartedAt time.Time  `json:"startedAt"`
+	EndedAt   *time.Time `json:"endedAt"`
+}
+
+// NewTimelinePeriod returns the chart fields of period.
+func NewTimelinePeriod(period model.MachineModePeriod) TimelinePeriod {
+	return TimelinePeriod{
+		ID:        period.ID,
+		ModeID:    period.ModeID,
+		ModeName:  period.ModeName,
+		StartedAt: period.StartedAt,
+		EndedAt:   period.EndedAt,
+	}
 }
 
 // OEERow is one day of GET /productivity/oee, averaged over the machines (percent). Performance,
@@ -106,12 +125,55 @@ type CycleCountRow struct {
 // completed cycles of the day (in the shifts and program picked), the totals of every cycle
 // started then, and the programs it ran that day.
 type FinishCyclesResponse struct {
-	MachineID      int64                `json:"machineId"`
-	Date           string               `json:"date"`
-	Cycles         []model.MachineCycle `json:"cycles"`
-	Summary        MachineCycleSummary  `json:"summary"`
-	LastFinishedAt *time.Time           `json:"lastFinishedAt"`
-	Programs       []string             `json:"programs"`
+	Cycles         []FinishedCycle     `json:"cycles"`
+	Summary        FinishCyclesSummary `json:"summary"`
+	LastFinishedAt *time.Time          `json:"lastFinishedAt"`
+	Programs       []string            `json:"programs"`
+}
+
+// FinishedCycle is one bar of the Finish Cycle Summary: when it finished, its program, its length
+// and its seconds per machine mode.
+type FinishedCycle struct {
+	EndedAt       *time.Time `json:"endedAt"`
+	ProgramName   string     `json:"programName"`
+	DurationSec   int        `json:"durationSec"`
+	ProductionSec int        `json:"productionSec"`
+	HoldSec       int        `json:"holdSec"`
+	DowntimeSec   int        `json:"downtimeSec"`
+	OfflineSec    int        `json:"offlineSec"`
+}
+
+// NewFinishedCycle returns the chart fields of cycle.
+func NewFinishedCycle(cycle model.MachineCycle) FinishedCycle {
+	return FinishedCycle{
+		EndedAt:       cycle.EndedAt,
+		ProgramName:   cycle.ProgramName,
+		DurationSec:   cycle.DurationSec,
+		ProductionSec: cycle.ProductionSec,
+		HoldSec:       cycle.HoldSec,
+		DowntimeSec:   cycle.DowntimeSec,
+		OfflineSec:    cycle.OfflineSec,
+	}
+}
+
+// FinishCyclesSummary is the day's totals behind the Productivity KPI tiles.
+type FinishCyclesSummary struct {
+	CycleCount           int `json:"cycleCount"`
+	CompletedCount       int `json:"completedCount"`
+	UnfinishedCount      int `json:"unfinishedCount"`
+	AverageCycleSec      int `json:"averageCycleSec"`
+	AverageProductionSec int `json:"averageProductionSec"`
+}
+
+// NewFinishCyclesSummary returns the KPI fields of summary.
+func NewFinishCyclesSummary(summary MachineCycleSummary) FinishCyclesSummary {
+	return FinishCyclesSummary{
+		CycleCount:           summary.CycleCount,
+		CompletedCount:       summary.CompletedCount,
+		UnfinishedCount:      summary.UnfinishedCount,
+		AverageCycleSec:      summary.AverageCycleSec,
+		AverageProductionSec: summary.AverageProductionSec,
+	}
 }
 
 // MachineTimeRow is one day of GET /machine-health/machine-time-by-day: hours per mode group

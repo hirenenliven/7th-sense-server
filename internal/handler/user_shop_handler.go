@@ -21,6 +21,22 @@ func NewUserShopHandler(userShopService *service.UserShopService) *UserShopHandl
 }
 
 // GetAll handles GET /api/v1/user-shop[?userLocationId=<id>][&userId=<id>].
+//
+// @Summary      Get user shops
+// @Description  Returns the user's shops. A non-nil userLocationID keeps only that location's shops.
+// @Description
+// @Description  Used by pages: Shops, Lines
+// @Tags         Organization
+// @ID           getUserShops
+// @Produce      json
+// @Security     cookieAuth
+// @Param        userLocationId query int false "User location id"
+// @Param        userId query int false "Customer / company user id (superadmin only)"
+// @Success      200 {object} response.Envelope{data=[]model.UserShop}
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/user-shop [get]
 func (userShopHandler *UserShopHandler) GetAll(writer http.ResponseWriter, request *http.Request) {
 	userID, err := listUserID(request)
 	if err != nil {
@@ -63,6 +79,25 @@ func (userShopHandler *UserShopHandler) GetByID(writer http.ResponseWriter, requ
 }
 
 // Create handles POST /api/v1/user-shop[?userId=<id>].
+//
+// @Summary      Create user shop
+// @Description  Adds a shop for userID under one of the user's locations.
+// @Description  Roles: superadmin, customer, admin (others get 403).
+// @Description
+// @Description  Used by pages: Shops
+// @Tags         Organization
+// @ID           createUserShop
+// @Accept       json
+// @Produce      json
+// @Security     cookieAuth
+// @Param        userId query int false "Customer / company user id (superadmin only)"
+// @Param        request body dto.CreateUserShopRequest true "Request body"
+// @Success      201 {object} response.Envelope{data=model.UserShop}
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      403 {object} response.Envelope "Role not allowed"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/user-shop [post]
 func (userShopHandler *UserShopHandler) Create(writer http.ResponseWriter, request *http.Request) {
 	userID, err := targetUserID(request)
 	if err != nil {
@@ -85,6 +120,27 @@ func (userShopHandler *UserShopHandler) Create(writer http.ResponseWriter, reque
 }
 
 // Update handles PUT /api/v1/user-shop/{id}[?userId=<id>].
+//
+// @Summary      Update user shop
+// @Description  Renames the shop and moves it under another of the user's locations.
+// @Description  Roles: superadmin, customer, admin (others get 403).
+// @Description
+// @Description  Used by pages: Shops
+// @Tags         Organization
+// @ID           updateUserShop
+// @Accept       json
+// @Produce      json
+// @Security     cookieAuth
+// @Param        id path int true "Id"
+// @Param        userId query int false "Customer / company user id (superadmin only)"
+// @Param        request body dto.UpdateUserShopRequest true "Request body"
+// @Success      200 {object} response.Envelope{data=model.UserShop}
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      403 {object} response.Envelope "Role not allowed"
+// @Failure      404 {object} response.Envelope "Not found"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/user-shop/{id} [put]
 func (userShopHandler *UserShopHandler) Update(writer http.ResponseWriter, request *http.Request) {
 	userID, err := targetUserID(request)
 	if err != nil {
@@ -112,6 +168,25 @@ func (userShopHandler *UserShopHandler) Update(writer http.ResponseWriter, reque
 }
 
 // Delete handles DELETE /api/v1/user-shop/{id}[?userId=<id>].
+//
+// @Summary      Delete user shop
+// @Description  Soft-deletes the shop. A shop that still has lines is kept: its lines must be deleted first.
+// @Description  Roles: superadmin, customer, admin (others get 403).
+// @Description
+// @Description  Used by pages: Shops
+// @Tags         Organization
+// @ID           deleteUserShop
+// @Produce      json
+// @Security     cookieAuth
+// @Param        id path int true "Id"
+// @Param        userId query int false "Customer / company user id (superadmin only)"
+// @Success      200 {object} response.Envelope
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      403 {object} response.Envelope "Role not allowed"
+// @Failure      404 {object} response.Envelope "Not found"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/user-shop/{id} [delete]
 func (userShopHandler *UserShopHandler) Delete(writer http.ResponseWriter, request *http.Request) {
 	userID, err := targetUserID(request)
 	if err != nil {

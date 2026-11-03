@@ -21,6 +21,21 @@ func NewUserCountryHandler(userCountryService *service.UserCountryService) *User
 }
 
 // GetAll handles GET /api/v1/user-country[?userId=<id>].
+//
+// @Summary      Get user countries
+// @Description  Returns the user's countries.
+// @Description
+// @Description  Used by pages: Countries, States
+// @Tags         Organization
+// @ID           getUserCountries
+// @Produce      json
+// @Security     cookieAuth
+// @Param        userId query int false "Customer / company user id (superadmin only)"
+// @Success      200 {object} response.Envelope{data=[]model.UserCountry}
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/user-country [get]
 func (userCountryHandler *UserCountryHandler) GetAll(writer http.ResponseWriter, request *http.Request) {
 	userID, err := listUserID(request)
 	if err != nil {
@@ -58,6 +73,26 @@ func (userCountryHandler *UserCountryHandler) GetByID(writer http.ResponseWriter
 }
 
 // Create handles POST /api/v1/user-country[?userId=<id>].
+//
+// @Summary      Create user country
+// @Description  Adds a country for userID.
+// @Description  Roles: superadmin only (others get 403).
+// @Description  Validation: Please enter valid name.
+// @Description
+// @Description  Used by pages: Countries
+// @Tags         Organization
+// @ID           createUserCountry
+// @Accept       json
+// @Produce      json
+// @Security     cookieAuth
+// @Param        userId query int false "Customer / company user id (superadmin only)"
+// @Param        request body dto.CreateUserCountryRequest true "Request body"
+// @Success      201 {object} response.Envelope{data=model.UserCountry}
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      403 {object} response.Envelope "Role not allowed"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/user-country [post]
 func (userCountryHandler *UserCountryHandler) Create(writer http.ResponseWriter, request *http.Request) {
 	userID, err := targetUserID(request)
 	if err != nil {
@@ -80,6 +115,25 @@ func (userCountryHandler *UserCountryHandler) Create(writer http.ResponseWriter,
 }
 
 // Delete handles DELETE /api/v1/user-country/{id}[?userId=<id>].
+//
+// @Summary      Delete user country
+// @Description  Soft-deletes the country. A country that still has states is kept: its states must be deleted first.
+// @Description  Roles: superadmin only (others get 403).
+// @Description
+// @Description  Used by pages: Countries
+// @Tags         Organization
+// @ID           deleteUserCountry
+// @Produce      json
+// @Security     cookieAuth
+// @Param        id path int true "Id"
+// @Param        userId query int false "Customer / company user id (superadmin only)"
+// @Success      200 {object} response.Envelope
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      403 {object} response.Envelope "Role not allowed"
+// @Failure      404 {object} response.Envelope "Not found"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/user-country/{id} [delete]
 func (userCountryHandler *UserCountryHandler) Delete(writer http.ResponseWriter, request *http.Request) {
 	userID, err := targetUserID(request)
 	if err != nil {

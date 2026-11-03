@@ -73,7 +73,7 @@ func (dashboardService *DashboardService) GetModeTimeline(ctx context.Context, a
 		programName = periods[len(periods)-1].ProgramName
 	}
 
-	clipped := []model.MachineModePeriod{}
+	clipped := []dto.TimelinePeriod{}
 	for _, period := range periods {
 		start, end := periodSpan(period, now)
 		start, end = maxTime(start, from), minTime(end, to)
@@ -84,15 +84,11 @@ func (dashboardService *DashboardService) GetModeTimeline(ctx context.Context, a
 		if period.EndedAt != nil || end.Before(now) {
 			period.EndedAt = &end
 		}
-		period.DurationSec = int(end.Sub(start).Seconds())
-		clipped = append(clipped, period)
+		clipped = append(clipped, dto.NewTimelinePeriod(period))
 	}
 
 	return dto.ModeTimelineResponse{
-		MachineID: machine.ID, MachineName: machine.Name, CurrentModeID: machine.ModeID,
-		OnlineStatus: machine.OnlineStatus, ProgramName: programName, OpMode: opMode,
-		From: from, To: to, ServerTime: now,
-		Periods: clipped, Totals: modeTotals(clipped),
+		ProgramName: programName, OpMode: opMode, From: from, To: to, ServerTime: now, Periods: clipped,
 	}, nil
 }
 
@@ -216,20 +212,20 @@ func (dashboardService *DashboardService) GetFinishCycles(ctx context.Context, a
 		}
 	}
 	picked := cyclesIn(cycles, windows, dashboardRequest.Program)
-	completed := []model.MachineCycle{}
+	completed := []dto.FinishedCycle{}
 	var lastFinishedAt *time.Time
 	for _, cycle := range picked {
 		if cycle.Status != model.CycleCompleted {
 			continue
 		}
-		completed = append(completed, cycle)
+		completed = append(completed, dto.NewFinishedCycle(cycle))
 		if lastFinishedAt == nil || cycle.EndedAt.After(*lastFinishedAt) {
 			lastFinishedAt = cycle.EndedAt
 		}
 	}
 	return dto.FinishCyclesResponse{
-		MachineID: machine.ID, Date: day.Format(shiftDateLayout), Cycles: completed,
-		Summary: summarizeCycles(picked), LastFinishedAt: lastFinishedAt, Programs: sortedKeys(programs),
+		Cycles: completed, Summary: dto.NewFinishCyclesSummary(summarizeCycles(picked)),
+		LastFinishedAt: lastFinishedAt, Programs: sortedKeys(programs),
 	}, nil
 }
 

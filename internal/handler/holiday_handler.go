@@ -21,6 +21,21 @@ func NewHolidayHandler(holidayService *service.HolidayService) *HolidayHandler {
 }
 
 // GetAll handles GET /api/v1/holidays[?userId=<customer id>].
+//
+// @Summary      Get holidays
+// @Description  Returns the holidays and week offs the user may read. A non-nil customerID keeps only that customer's.
+// @Description
+// @Description  Used by pages: Holidays / week off
+// @Tags         Holidays
+// @ID           getHolidays
+// @Produce      json
+// @Security     cookieAuth
+// @Param        userId query int false "User id"
+// @Success      200 {object} response.Envelope{data=[]model.Holiday}
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/holidays [get]
 func (holidayHandler *HolidayHandler) GetAll(writer http.ResponseWriter, request *http.Request) {
 	actor, err := currentUser(request)
 	if err != nil {
@@ -68,6 +83,24 @@ func (holidayHandler *HolidayHandler) GetByID(writer http.ResponseWriter, reques
 }
 
 // Create handles POST /api/v1/holidays.
+//
+// @Summary      Create holiday
+// @Description  Adds a holiday or week off. A customer or admin (the logged-in user) adds it to their own company, whatever customer the request names; the superadmin to the customer named.
+// @Description  Roles: superadmin, customer, admin (others get 403).
+// @Description
+// @Description  Used by pages: Holidays / week off
+// @Tags         Holidays
+// @ID           createHoliday
+// @Accept       json
+// @Produce      json
+// @Security     cookieAuth
+// @Param        request body dto.CreateHolidayRequest true "Request body"
+// @Success      201 {object} response.Envelope{data=model.Holiday}
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      403 {object} response.Envelope "Role not allowed"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/holidays [post]
 func (holidayHandler *HolidayHandler) Create(writer http.ResponseWriter, request *http.Request) {
 	actor, err := currentUser(request)
 	if err != nil {
@@ -90,6 +123,27 @@ func (holidayHandler *HolidayHandler) Create(writer http.ResponseWriter, request
 }
 
 // Update handles PUT /api/v1/holidays/{id}.
+//
+// @Summary      Update holiday
+// @Description  Replaces the holiday (it may change between holiday and week off). A blank status keeps the saved one.
+// @Description  Roles: superadmin, customer, admin (others get 403).
+// @Description  Validation: Please enter valid status.
+// @Description
+// @Description  Used by pages: Holidays / week off
+// @Tags         Holidays
+// @ID           updateHoliday
+// @Accept       json
+// @Produce      json
+// @Security     cookieAuth
+// @Param        id path int true "Id"
+// @Param        request body dto.UpdateHolidayRequest true "Request body"
+// @Success      200 {object} response.Envelope{data=model.Holiday}
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      403 {object} response.Envelope "Role not allowed"
+// @Failure      404 {object} response.Envelope "Not found"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/holidays/{id} [put]
 func (holidayHandler *HolidayHandler) Update(writer http.ResponseWriter, request *http.Request) {
 	actor, err := currentUser(request)
 	if err != nil {
@@ -117,6 +171,24 @@ func (holidayHandler *HolidayHandler) Update(writer http.ResponseWriter, request
 }
 
 // Delete handles DELETE /api/v1/holidays/{id}.
+//
+// @Summary      Delete holiday
+// @Description  Soft-deletes the holiday. A customer or admin (the logged-in user) deletes only their company's ("Holiday not found" for others).
+// @Description  Roles: superadmin, customer, admin (others get 403).
+// @Description
+// @Description  Used by pages: Holidays / week off
+// @Tags         Holidays
+// @ID           deleteHoliday
+// @Produce      json
+// @Security     cookieAuth
+// @Param        id path int true "Id"
+// @Success      200 {object} response.Envelope
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      403 {object} response.Envelope "Role not allowed"
+// @Failure      404 {object} response.Envelope "Not found"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/holidays/{id} [delete]
 func (holidayHandler *HolidayHandler) Delete(writer http.ResponseWriter, request *http.Request) {
 	actor, err := currentUser(request)
 	if err != nil {

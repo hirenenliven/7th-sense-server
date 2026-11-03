@@ -24,3 +24,5 @@ graphify-out/cost.json
 # Add these patterns to .gitignore
 graphify-out/*.stale
 graphify-out/.rebuild.lock
+# API docs build output (go generate ./docs/api)
+docs/api/.build/

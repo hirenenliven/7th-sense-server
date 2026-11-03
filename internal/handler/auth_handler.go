@@ -27,6 +27,24 @@ func NewAuthHandler(authService *service.AuthService, secureCookie bool) *AuthHa
 
 // Login handles POST /api/v1/auth/login: checks the credentials, sets the
 // session cookie and returns the user.
+//
+// @Summary      Login
+// @Description  Checks the credentials and starts a session. deviceInfo (the browser's user agent) is stored with the session for auditing.
+// @Description  Validation: Invalid username or password; Please enter username; Please enter password.
+// @Description
+// @Description  Used by pages: Login
+// @Tags         Auth
+// @ID           login
+// @Accept       json
+// @Produce      json
+// @Param        request body dto.LoginRequest true "Request body"
+// @Success      200 {object} response.Envelope{data=object}
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Invalid username or password"
+// @Failure      403 {object} response.Envelope "Account inactive"
+// @Failure      429 {object} response.Envelope "Too many login attempts"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/auth/login [post]
 func (authHandler *AuthHandler) Login(writer http.ResponseWriter, request *http.Request) {
 	var loginRequest dto.LoginRequest
 	if err := decodeAndValidate(writer, request, &loginRequest); err != nil {
@@ -52,6 +70,18 @@ func (authHandler *AuthHandler) Login(writer http.ResponseWriter, request *http.
 
 // Logout handles POST /api/v1/auth/logout: ends the session and clears the
 // cookie. It succeeds without a session, so it is safe to call twice.
+//
+// @Summary      Logout
+// @Description  Ends the session of token. An unknown or empty token is not an error.
+// @Description
+// @Description  Used by pages: App shell (session, logout, theme)
+// @Tags         Auth
+// @ID           logout
+// @Produce      json
+// @Success      200 {object} response.Envelope
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/auth/logout [post]
 func (authHandler *AuthHandler) Logout(writer http.ResponseWriter, request *http.Request) {
 	if cookie, err := request.Cookie(middleware.SessionCookieName); err == nil {
 		if err := authHandler.service.Logout(request.Context(), cookie.Value); err != nil {

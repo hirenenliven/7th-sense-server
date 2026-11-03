@@ -21,6 +21,22 @@ func NewUserSupervisorHandler(userSupervisorService *service.UserSupervisorServi
 }
 
 // GetAll handles GET /api/v1/user-supervisor[?userCellId=<id>][&userId=<id>].
+//
+// @Summary      Get user supervisors
+// @Description  Returns the user's supervisors. A non-nil userCellID keeps only that cell's supervisors.
+// @Description
+// @Description  Used by pages: Supervisors
+// @Tags         Organization
+// @ID           getUserSupervisors
+// @Produce      json
+// @Security     cookieAuth
+// @Param        userCellId query int false "User cell id"
+// @Param        userId query int false "Customer / company user id (superadmin only)"
+// @Success      200 {object} response.Envelope{data=[]model.UserSupervisor}
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/user-supervisor [get]
 func (userSupervisorHandler *UserSupervisorHandler) GetAll(writer http.ResponseWriter, request *http.Request) {
 	userID, err := listUserID(request)
 	if err != nil {
@@ -63,6 +79,25 @@ func (userSupervisorHandler *UserSupervisorHandler) GetByID(writer http.Response
 }
 
 // Create handles POST /api/v1/user-supervisor[?userId=<id>].
+//
+// @Summary      Create user supervisor
+// @Description  Adds a supervisor for userID under one of the user's cells.
+// @Description  Roles: superadmin, customer, admin (others get 403).
+// @Description
+// @Description  Used by pages: Supervisors
+// @Tags         Organization
+// @ID           createUserSupervisor
+// @Accept       json
+// @Produce      json
+// @Security     cookieAuth
+// @Param        userId query int false "Customer / company user id (superadmin only)"
+// @Param        request body dto.CreateUserSupervisorRequest true "Request body"
+// @Success      201 {object} response.Envelope{data=model.UserSupervisor}
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      403 {object} response.Envelope "Role not allowed"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/user-supervisor [post]
 func (userSupervisorHandler *UserSupervisorHandler) Create(writer http.ResponseWriter, request *http.Request) {
 	userID, err := targetUserID(request)
 	if err != nil {
@@ -85,6 +120,27 @@ func (userSupervisorHandler *UserSupervisorHandler) Create(writer http.ResponseW
 }
 
 // Update handles PUT /api/v1/user-supervisor/{id}[?userId=<id>].
+//
+// @Summary      Update user supervisor
+// @Description  Renames the supervisor and moves it under another of the user's cells.
+// @Description  Roles: superadmin, customer, admin (others get 403).
+// @Description
+// @Description  Used by pages: Supervisors
+// @Tags         Organization
+// @ID           updateUserSupervisor
+// @Accept       json
+// @Produce      json
+// @Security     cookieAuth
+// @Param        id path int true "Id"
+// @Param        userId query int false "Customer / company user id (superadmin only)"
+// @Param        request body dto.UpdateUserSupervisorRequest true "Request body"
+// @Success      200 {object} response.Envelope{data=model.UserSupervisor}
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      403 {object} response.Envelope "Role not allowed"
+// @Failure      404 {object} response.Envelope "Not found"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/user-supervisor/{id} [put]
 func (userSupervisorHandler *UserSupervisorHandler) Update(writer http.ResponseWriter, request *http.Request) {
 	userID, err := targetUserID(request)
 	if err != nil {
@@ -112,6 +168,25 @@ func (userSupervisorHandler *UserSupervisorHandler) Update(writer http.ResponseW
 }
 
 // Delete handles DELETE /api/v1/user-supervisor/{id}[?userId=<id>].
+//
+// @Summary      Delete user supervisor
+// @Description  Soft-deletes the supervisor.
+// @Description  Roles: superadmin, customer, admin (others get 403).
+// @Description
+// @Description  Used by pages: Supervisors
+// @Tags         Organization
+// @ID           deleteUserSupervisor
+// @Produce      json
+// @Security     cookieAuth
+// @Param        id path int true "Id"
+// @Param        userId query int false "Customer / company user id (superadmin only)"
+// @Success      200 {object} response.Envelope
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      403 {object} response.Envelope "Role not allowed"
+// @Failure      404 {object} response.Envelope "Not found"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/user-supervisor/{id} [delete]
 func (userSupervisorHandler *UserSupervisorHandler) Delete(writer http.ResponseWriter, request *http.Request) {
 	userID, err := targetUserID(request)
 	if err != nil {

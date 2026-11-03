@@ -21,6 +21,21 @@ func NewShiftHandler(shiftService *service.ShiftService) *ShiftHandler {
 }
 
 // GetAll handles GET /api/v1/shifts[?userId=<customer id>].
+//
+// @Summary      Get shifts
+// @Description  Returns the shifts the user may read, each with its breaks. A non-nil customerID keeps only that customer's shifts.
+// @Description
+// @Description  Used by pages: Productivity, Add / edit production schedule, Shifts, Breaks
+// @Tags         Shifts
+// @ID           getShifts
+// @Produce      json
+// @Security     cookieAuth
+// @Param        userId query int false "User id"
+// @Success      200 {object} response.Envelope{data=[]model.Shift}
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/shifts [get]
 func (shiftHandler *ShiftHandler) GetAll(writer http.ResponseWriter, request *http.Request) {
 	actor, err := currentUser(request)
 	if err != nil {
@@ -68,6 +83,24 @@ func (shiftHandler *ShiftHandler) GetByID(writer http.ResponseWriter, request *h
 }
 
 // Create handles POST /api/v1/shifts.
+//
+// @Summary      Create shift
+// @Description  Adds a shift with its breaks. A customer or admin (the logged-in user) adds it to their own company, whatever customer the request names; the superadmin to the customer named.
+// @Description  Roles: superadmin, customer, admin (others get 403).
+// @Description
+// @Description  Used by pages: Shifts
+// @Tags         Shifts
+// @ID           createShift
+// @Accept       json
+// @Produce      json
+// @Security     cookieAuth
+// @Param        request body dto.CreateShiftRequest true "Request body"
+// @Success      201 {object} response.Envelope{data=model.Shift}
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      403 {object} response.Envelope "Role not allowed"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/shifts [post]
 func (shiftHandler *ShiftHandler) Create(writer http.ResponseWriter, request *http.Request) {
 	actor, err := currentUser(request)
 	if err != nil {
@@ -90,6 +123,27 @@ func (shiftHandler *ShiftHandler) Create(writer http.ResponseWriter, request *ht
 }
 
 // Update handles PUT /api/v1/shifts/{id}.
+//
+// @Summary      Update shift
+// @Description  Replaces the shift and its breaks: breaks left out are released (no shift). A blank status keeps the saved one.
+// @Description  Roles: superadmin, customer, admin (others get 403).
+// @Description  Validation: Please enter valid status.
+// @Description
+// @Description  Used by pages: Shifts
+// @Tags         Shifts
+// @ID           updateShift
+// @Accept       json
+// @Produce      json
+// @Security     cookieAuth
+// @Param        id path int true "Id"
+// @Param        request body dto.UpdateShiftRequest true "Request body"
+// @Success      200 {object} response.Envelope{data=model.Shift}
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      403 {object} response.Envelope "Role not allowed"
+// @Failure      404 {object} response.Envelope "Not found"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/shifts/{id} [put]
 func (shiftHandler *ShiftHandler) Update(writer http.ResponseWriter, request *http.Request) {
 	actor, err := currentUser(request)
 	if err != nil {
@@ -117,6 +171,24 @@ func (shiftHandler *ShiftHandler) Update(writer http.ResponseWriter, request *ht
 }
 
 // Delete handles DELETE /api/v1/shifts/{id}.
+//
+// @Summary      Delete shift
+// @Description  Soft-deletes the shift and releases its breaks (they stay in the customer's list without a shift). A customer or admin (the logged-in user) deletes only their company's shifts ("Shift not found" for others).
+// @Description  Roles: superadmin, customer, admin (others get 403).
+// @Description
+// @Description  Used by pages: Shifts
+// @Tags         Shifts
+// @ID           deleteShift
+// @Produce      json
+// @Security     cookieAuth
+// @Param        id path int true "Id"
+// @Success      200 {object} response.Envelope
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      403 {object} response.Envelope "Role not allowed"
+// @Failure      404 {object} response.Envelope "Not found"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/shifts/{id} [delete]
 func (shiftHandler *ShiftHandler) Delete(writer http.ResponseWriter, request *http.Request) {
 	actor, err := currentUser(request)
 	if err != nil {

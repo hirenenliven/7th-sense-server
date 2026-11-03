@@ -50,7 +50,7 @@ override 0 is Hold, so the cycle goes on and the time counts as `hold_sec`.
 
 | End reason | Shown as | How it is identified | Conditions |
 |---|---|---|---|
-| `part_count` | Part counted | `ProgramPartCount` went up by 1 … 20 since the previous reading. A bigger jump is the counter being set on the control and is ignored. If the program is still running, the next cycle opens at once. | `1 ≤ step ≤ 20` (any `program`, any `alarm`; checked first, so it wins over a reset in the same reading) |
+| `part_count` | Part counted | `ProgramPartCount` went up by 1 … 20 since the previous reading. A bigger jump is the counter being set on the control and is ignored. If the program is still running, the next cycle opens as in *Opens* (after `cycleStartGrace`). | `1 ≤ step ≤ 20` (any `program`, any `alarm`; checked first, so it wins over a reset in the same reading) |
 | `program_loop` | Program started over | Running in both readings, `CurProgLine` fell by at least half the program's lines with `TotalProgLines` and `ProgName` unchanged, and the name is the cycle's own program (an M99 loop, e.g. line 15 → 3). A call into a sub program (M98) also jumps back to low lines, shows the sub program's name and can keep `TotalProgLines`. It is not a loop (machine 195: `O1002` line 6 → `O9001` line 2). Not used once the part counter has counted for this program. The next cycle opens as above. | `prev.program = running` AND `now.program = running` AND counter has not counted for this program AND `now.lines > 0` AND `now.lines = prev.lines` AND `now.name = prev.name` AND (`cycle.name = ''` OR `now.name = cycle.name`) AND `prev.line − now.line ≥ now.lines × 0.5` |
 | `program_end` | Program finished | Previous running, now reset, no alarm in either reading (M30 / M02). | `prev.program = running` AND `now.program = reset` AND `prev.alarm = no` AND `now.alarm = no` AND no `step` |
 
@@ -77,6 +77,122 @@ the same cycle goes on and the gap counts as `offline_sec`.
   no lines). It would look like a reset and a counter drop, so it is ignored for cycles.
 - A counter that goes down (reset on the control) only moves the baseline. It never ends a
   cycle.
+
+## Fixed values and why they are needed
+
+The machine data is not perfect: signals arrive a fraction of a second out of order, operators
+change the counter by hand, programs jump back inside themselves, and the DLL stays silent while
+nothing changes. Each value below tells the collector how much of that to tolerate before it
+decides what really happened.
+
+| Value | Where | Default | What it answers |
+|---|---|---|---|
+| `cycleCheckpointInterval` | `machine_cycle.go` | 5 min | How often a running cycle's seconds are saved |
+| `loopMinimumDropFraction` | `machine_cycle.go` | 0.5 (half) | How far back the line must jump to count as "program started over" |
+| `maxPartCountStep` | `machine_cycle.go` | 20 | How big a counter step can be and still mean real parts |
+| `cycleCounterGrace` | `machine_cycle.go` | 5 s | How long after a cycle ends a late counter step still belongs to it |
+| `cycleStartGrace` | `machine_cycle.go` | 5 s | How long the next cycle waits before it is saved |
+| `CNC_CYCLE_MAX_HOURS` | `.env` | 24 h | How long a cycle may stay open before it is closed as `timeout` |
+| `CNC_STALE_SEC` | `.env` | 30 s | How long without a connected reading before a machine is Offline |
+| `CNC_QUIET_SEC` | `.env` | 300 s | How long a connected but silent machine waits before it is reconnected |
+
+### `cycleCheckpointInterval` (5 minutes)
+
+**Problem:** the seconds per mode of a running cycle are added up in memory. If the server stops,
+memory is lost.
+
+**What it does:** every 5 minutes the running cycle's seconds are written to `machine_cycles`, and
+once more when the cycle closes.
+
+**Why 5 minutes:** writing on every reading (several per second, for up to 990 machines) would load
+the database for nothing. Every 5 minutes is cheap and loses at most 5 minutes, and even those are
+rebuilt from `machine_mode_log` when the worker starts again. This is why a **running** row shows
+0 seconds until its first save.
+
+### `loopMinimumDropFraction` (0.5)
+
+**Problem:** an M99 program never ends: it jumps back to the start for ever, often without moving
+the part counter. The only sign that a part is done is `CurProgLine` jumping back. But the line also
+jumps back a little *inside* a program (small loops, `GOTO`, repeated blocks).
+
+**What it does:** a jump back counts as "program started over" only when the line falls by **at
+least half of the program's lines**, and the program name is the same in both readings and is the
+cycle's own program.
+
+| Program lines | Line jump | Drop | Half the lines | Program name | Result |
+|---|---|---|---|---|---|
+| 15 | 15 → 3 | 12 | 7.5 | same (JYOTI → JYOTI) | ✅ loop, the part is done |
+| 15 | 10 → 8 | 2 | 7.5 | same | ❌ a jump inside the program |
+| 40 | 6 → 2 | 4 | 20 | changes (O1002 → O9001) | ❌ a sub program call (M98) |
+| 40 | 30 → 2 | 28 | 20 | same, but the sub program (O9001 → O9001) | ❌ the sub program repeating inside the cycle |
+
+**Why the name check:** on Fanuc a call into a sub program jumps to the sub program's first lines,
+shows its name in `ProgName` and keeps the main program's `TotalProgLines`, so by the lines alone it
+looks like a loop (machine 195, 2026-11-02: cycle 232 was split at `O1002` line 6 → `O9001` line 2).
+
+### `maxPartCountStep` (20)
+
+**Problem:** an operator can set the part counter by hand on the control (262 → 0, or 262 → 500).
+Without a limit, 262 → 500 would be "238 parts made".
+
+| Counter change | Meaning | Result |
+|---|---|---|
+| +1 … +20 | Real parts made | ✅ counted, the cycle is completed (`part_count`) |
+| more than +20 | Counter set by hand | ❌ ignored, only the baseline moves |
+| goes down | Counter reset | ❌ ignored, only the baseline moves |
+
+**Why 20:** one cycle can make more than one part (multi-part fixtures), but not hundreds in one
+reading.
+
+### `cycleCounterGrace` and `cycleStartGrace` (5 seconds each)
+
+At the end of a part the machine sends two signals close together, the counter step and the
+program reset (M30). Their order differs per control and per reading, so there is one value for
+each order:
+
+| Order the machine sends | Without the value | Handled by |
+|---|---|---|
+| Program reset → counter steps (a moment later) | the part is lost, the cycle shows 0 parts | `cycleCounterGrace`: a counter step within 5 s after a cycle closed is that cycle's part (a `program_loop` cycle becomes `part_count`) |
+| Counter steps → program reset (a moment later) | an extra 0 s cycle is written | `cycleStartGrace`: after a part count or a loop, the next cycle waits 5 s; a reset in that time drops it |
+
+Example of the second order (machine 195, 2026-11-02):
+
+```
+17:41:29.13   Counter 269 → 270, still running    → cycle closed (part_count), next cycle waits
+17:41:29.26   Program reset (M30), 130 ms later   → next cycle dropped: it was the same part's end
+```
+
+When the program is still on after the 5 s, the next cycle is saved with its start at the moment of
+the count, and keeps the seconds counted while it waited. It is also opened on the worker's tick,
+because a dwell sends no reading. Going Offline while it waits drops it (what happened is not seen),
+and the next cycle opens at the next reset → running.
+
+**Why 5 seconds:** the two signals normally arrive within one reading, a fraction of a second apart.
+5 s leaves enough margin and is much shorter than any real cycle, so two real parts are never merged.
+
+### `CNC_CYCLE_MAX_HOURS` (24 hours)
+
+**Problem:** a machine left in Hold or at `M01` for days would keep one cycle open for days.
+
+**What it does:** a cycle open this long is closed as `unfinished` / `timeout` (checked every second
+on the worker's tick).
+
+### `CNC_STALE_SEC` (30 s) and `CNC_QUIET_SEC` (300 s)
+
+These are not cycle rules; they decide when a machine is **Offline** (`worker.checkConnectionLost`).
+They matter for cycles because Offline time goes into `offline_sec`, and Offline makes the next
+reading start without a previous one (`prev = none` in the tables above).
+
+**Problem:** the DLL sends a reading only when something **changes**. A machine in Hold or Idle is
+silent, so "no data" does not always mean "disconnected".
+
+| Value | Meaning | Result |
+|---|---|---|
+| `CNC_STALE_SEC` | The DLL's last word was "not connected" (or the connect failed) and no connected reading came for 30 s | The machine is set **Offline** |
+| `CNC_QUIET_SEC` | The machine was connected but sent nothing for 300 s | The connection is opened again to make sure, and the **mode is kept** (a held machine stays Hold, not Offline; `stale` event "mode kept") |
+
+So a machine that is silent but connected (Hold / Idle) keeps its mode, and a machine that is
+really disconnected is Offline after about 30 s.
 
 ## Where to see it
 

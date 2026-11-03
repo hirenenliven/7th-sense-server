@@ -7,8 +7,8 @@ import (
 	"net/http"
 )
 
-// body is the shape of every API response.
-type body struct {
+// Envelope is the JSON shape of every API response (also the OpenAPI response schema).
+type Envelope struct {
 	StatusCode int    `json:"statusCode"`
 	Success    bool   `json:"success"`
 	Message    string `json:"message"`
@@ -43,7 +43,7 @@ func SendResponse(writer http.ResponseWriter, request *http.Request, result erro
 
 	writer.Header().Set("Content-Type", "application/json")
 	writer.WriteHeader(apiResponse.StatusCode)
-	err := json.NewEncoder(writer).Encode(body{
+	err := json.NewEncoder(writer).Encode(Envelope{
 		StatusCode: apiResponse.StatusCode,
 		Success:    apiResponse.StatusCode < http.StatusBadRequest,
 		Message:    message,

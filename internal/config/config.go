@@ -17,6 +17,9 @@ type Config struct {
 	// CookieSecure sends the session cookie over HTTPS only. Set
 	// COOKIE_SECURE=true whenever the API is served over HTTPS.
 	CookieSecure bool
+	// APIDocs serves Swagger UI and the OpenAPI spec at /api-docs/ (API_DOCS=true). Keep it off
+	// in production.
+	APIDocs bool
 	// UploadDir is the directory uploaded files are kept in (part drawings under
 	// UploadDir/part-drawings). It must survive restarts and deploys.
 	UploadDir string
@@ -85,6 +88,7 @@ func Load() Config {
 			SSLMode:  getEnv("DB_SSLMODE", "disable"),
 		},
 		CookieSecure: getEnv("COOKIE_SECURE", "false") == "true",
+		APIDocs:      getEnvBool("API_DOCS", false),
 		UploadDir:    getEnv("UPLOAD_DIR", "uploads"),
 		CNC: CNCConfig{
 			Slots:            getEnvInt("CNC_SLOTS", 300),

@@ -21,6 +21,21 @@ func NewIdleReasonHandler(idleReasonService *service.IdleReasonService) *IdleRea
 }
 
 // GetAll handles GET /api/v1/idle-reasons[?userId=<customer id>].
+//
+// @Summary      Get idle reasons
+// @Description  Returns the idle reasons the user may read. A non-nil customerID keeps only that customer's reasons.
+// @Description
+// @Description  Used by pages: Downtime / idle reasons
+// @Tags         Reasons
+// @ID           getIdleReasons
+// @Produce      json
+// @Security     cookieAuth
+// @Param        userId query int false "User id"
+// @Success      200 {object} response.Envelope{data=[]model.IdleReason}
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/idle-reasons [get]
 func (idleReasonHandler *IdleReasonHandler) GetAll(writer http.ResponseWriter, request *http.Request) {
 	actor, err := currentUser(request)
 	if err != nil {
@@ -68,6 +83,24 @@ func (idleReasonHandler *IdleReasonHandler) GetByID(writer http.ResponseWriter, 
 }
 
 // Create handles POST /api/v1/idle-reasons.
+//
+// @Summary      Create idle reason
+// @Description  Adds a idle reason. A customer or admin (the logged-in user) adds it to their own company, whatever customer the request names; the superadmin to the customer named.
+// @Description  Roles: superadmin, customer, admin (others get 403).
+// @Description
+// @Description  Used by pages: Downtime / idle reasons
+// @Tags         Reasons
+// @ID           createIdleReason
+// @Accept       json
+// @Produce      json
+// @Security     cookieAuth
+// @Param        request body dto.CreateIdleReasonRequest true "Request body"
+// @Success      201 {object} response.Envelope{data=model.IdleReason}
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      403 {object} response.Envelope "Role not allowed"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/idle-reasons [post]
 func (idleReasonHandler *IdleReasonHandler) Create(writer http.ResponseWriter, request *http.Request) {
 	actor, err := currentUser(request)
 	if err != nil {
@@ -90,6 +123,27 @@ func (idleReasonHandler *IdleReasonHandler) Create(writer http.ResponseWriter, r
 }
 
 // Update handles PUT /api/v1/idle-reasons/{id}.
+//
+// @Summary      Update idle reason
+// @Description  Replaces the idle reason. A blank status keeps the saved one.
+// @Description  Roles: superadmin, customer, admin (others get 403).
+// @Description  Validation: Please enter valid status.
+// @Description
+// @Description  Used by pages: Downtime / idle reasons
+// @Tags         Reasons
+// @ID           updateIdleReason
+// @Accept       json
+// @Produce      json
+// @Security     cookieAuth
+// @Param        id path int true "Id"
+// @Param        request body dto.UpdateIdleReasonRequest true "Request body"
+// @Success      200 {object} response.Envelope{data=model.IdleReason}
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      403 {object} response.Envelope "Role not allowed"
+// @Failure      404 {object} response.Envelope "Not found"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/idle-reasons/{id} [put]
 func (idleReasonHandler *IdleReasonHandler) Update(writer http.ResponseWriter, request *http.Request) {
 	actor, err := currentUser(request)
 	if err != nil {
@@ -117,6 +171,24 @@ func (idleReasonHandler *IdleReasonHandler) Update(writer http.ResponseWriter, r
 }
 
 // Delete handles DELETE /api/v1/idle-reasons/{id}.
+//
+// @Summary      Delete idle reason
+// @Description  Soft-deletes the idle reason. A customer or admin (the logged-in user) deletes only their company's reasons ("Idle reason not found" for others).
+// @Description  Roles: superadmin, customer, admin (others get 403).
+// @Description
+// @Description  Used by pages: Downtime / idle reasons
+// @Tags         Reasons
+// @ID           deleteIdleReason
+// @Produce      json
+// @Security     cookieAuth
+// @Param        id path int true "Id"
+// @Success      200 {object} response.Envelope
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      403 {object} response.Envelope "Role not allowed"
+// @Failure      404 {object} response.Envelope "Not found"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/idle-reasons/{id} [delete]
 func (idleReasonHandler *IdleReasonHandler) Delete(writer http.ResponseWriter, request *http.Request) {
 	actor, err := currentUser(request)
 	if err != nil {

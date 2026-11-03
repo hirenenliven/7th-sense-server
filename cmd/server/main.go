@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"7th-sense-server/docs/api"
 	"7th-sense-server/internal/cert"
 	"7th-sense-server/internal/collector"
 	"7th-sense-server/internal/config"
@@ -23,6 +24,15 @@ import (
 	"7th-sense-server/internal/service"
 )
 
+// @title                       7th Sense API
+// @version                     1.0
+// @description                 REST API of the 7th Sense CNC monitoring platform. Every response is a JSON envelope {statusCode, success, message, data}.
+// @description                 Log in with POST /v1/auth/login: the server sets the HttpOnly session cookie ts_session, which every other call sends.
+// @BasePath                    /api
+// @securityDefinitions.apikey  cookieAuth
+// @in                          header
+// @name                        Cookie
+// @description                 Session cookie ts_session set by POST /v1/auth/login (OpenAPI 3: in cookie).
 func main() {
 	logger.Init()
 	if err := run(); err != nil {
@@ -87,7 +97,13 @@ func run() error {
 	// A part checks its customer, clientele and applicable machines; drawings are files under UPLOAD_DIR
 	partService := service.NewPartService(dbPool, repository.NewUserRepository(dbPool), machineService, clienteleService,
 		repository.NewPartDrawingStorage(filepath.Join(appConfig.UploadDir, "part-drawings")))
+	var apiDocs http.Handler
+	if appConfig.APIDocs {
+		apiDocs = apidocs.Handler()
+		slog.Info("API docs at /api-docs/")
+	}
 	router := routes.New(routes.Handlers{
+		APIDocs:      apiDocs,
 		Auth:         handler.NewAuthHandler(authService, appConfig.CookieSecure),
 		User:         handler.NewUserHandler(service.NewUserService(dbPool, branchService, roleService, machineService)),
 		Branch:       handler.NewBranchHandler(branchService),

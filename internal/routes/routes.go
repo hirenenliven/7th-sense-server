@@ -50,6 +50,8 @@ type Handlers struct {
 	MachineCycle *handler.MachineCycleHandler
 	// Dashboard serves the page-wise charts /productivity/... and /machine-health/...
 	Dashboard *handler.DashboardHandler
+	// APIDocs serves Swagger UI and the OpenAPI spec at /api-docs/ (nil = off, see config.APIDocs)
+	APIDocs http.Handler
 }
 
 // New builds the main router with all routes and global middleware.
@@ -69,6 +71,11 @@ func New(handlers Handlers, authenticate middleware.Middleware) http.Handler {
 	}
 	if handlers.Health != nil {
 		registerHealthRoutes(router, apiPrefix+"/v1", handlers.Health)
+	}
+
+	if handlers.APIDocs != nil {
+		router.Handle("GET /api-docs/", handlers.APIDocs)
+		router.Handle("GET /api-docs", http.RedirectHandler("/api-docs/index.html", http.StatusMovedPermanently))
 	}
 
 	// Register API versions behind authentication

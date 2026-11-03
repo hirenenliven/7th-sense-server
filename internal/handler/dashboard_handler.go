@@ -26,30 +26,125 @@ func NewDashboardHandler(dashboardService *service.DashboardService) *DashboardH
 // GetModeTimeline handles GET /api/v1/productivity/mode-timeline?machineId=&date=YYYY-MM-DD
 // (date defaults to today) or ?machineId=&minutes=30 (the last minutes up to now): the machine's
 // mode periods in that window with its current program and operation mode.
+//
+// @Summary      Get mode timeline
+// @Description  GetModeTimeline handles GET /api/v1/productivity/mode-timeline?machineId=&date=YYYY-MM-DD (date defaults to today) or ?machineId=&minutes=30 (the last minutes up to now): the machine's mode periods in that window with its current program and operation mode.
+// @Description
+// @Description  Used by pages: Productivity
+// @Tags         Productivity
+// @ID           getModeTimeline
+// @Produce      json
+// @Security     cookieAuth
+// @Param        machineId query int true "Machine id"
+// @Param        date query string false "Day YYYY-MM-DD (default today)"
+// @Param        minutes query int false "Last N minutes up to now (1-1440); overrides date"
+// @Success      200 {object} response.Envelope
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      404 {object} response.Envelope "Not found"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/productivity/mode-timeline [get]
 func (dashboardHandler *DashboardHandler) GetModeTimeline(writer http.ResponseWriter, request *http.Request) {
 	serveDashboard(writer, request, dashboardHandler.service.GetModeTimeline)
 }
 
 // GetOEE handles GET /api/v1/productivity/oee?machineIds=1,2&from=&to=&shiftIds=&program=&schedule=with:
 // one OEE row per day, averaged over the machines.
+//
+// @Summary      Get oee
+// @Description  GetOEE handles GET /api/v1/productivity/oee?machineIds=1,2&from=&to=&shiftIds=&program=&schedule=with: one OEE row per day, averaged over the machines.
+// @Description
+// @Description  Used by pages: Productivity
+// @Tags         Productivity
+// @ID           getOee
+// @Produce      json
+// @Security     cookieAuth
+// @Param        machineIds query string true "Machine ids, comma separated"
+// @Param        from query string false "First day YYYY-MM-DD"
+// @Param        to query string false "Last day YYYY-MM-DD (default today)"
+// @Param        shiftIds query string false "Shift ids, comma separated (none = whole day)"
+// @Param        program query string false "Program name (empty = all)"
+// @Param        schedule query string false "with = only the scheduled shift time"
+// @Success      200 {object} response.Envelope
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      404 {object} response.Envelope "Not found"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/productivity/oee [get]
 func (dashboardHandler *DashboardHandler) GetOEE(writer http.ResponseWriter, request *http.Request) {
 	serveDashboard(writer, request, dashboardHandler.service.GetOEE)
 }
 
 // GetCycleCounts handles GET /api/v1/productivity/cycle-counts?machineIds=1,2&from=&to=&shiftIds=:
 // cycles started, finished and unfinished per day.
+//
+// @Summary      Get cycle counts
+// @Description  GetCycleCounts handles GET /api/v1/productivity/cycle-counts?machineIds=1,2&from=&to=&shiftIds=: cycles started, finished and unfinished per day.
+// @Description
+// @Description  Used by pages: Productivity
+// @Tags         Productivity
+// @ID           getCycleCounts
+// @Produce      json
+// @Security     cookieAuth
+// @Param        machineIds query string true "Machine ids, comma separated"
+// @Param        from query string false "First day YYYY-MM-DD"
+// @Param        to query string false "Last day YYYY-MM-DD (default today)"
+// @Param        shiftIds query string false "Shift ids, comma separated"
+// @Success      200 {object} response.Envelope
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      404 {object} response.Envelope "Not found"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/productivity/cycle-counts [get]
 func (dashboardHandler *DashboardHandler) GetCycleCounts(writer http.ResponseWriter, request *http.Request) {
 	serveDashboard(writer, request, dashboardHandler.service.GetCycleCounts)
 }
 
 // GetFinishCycles handles GET /api/v1/productivity/finish-cycles?machineId=&date=&shiftIds=&program=:
 // the machine's completed cycles of the day with the day's totals.
+//
+// @Summary      Get finish cycles
+// @Description  GetFinishCycles handles GET /api/v1/productivity/finish-cycles?machineId=&date=&shiftIds=&program=: the machine's completed cycles of the day with the day's totals.
+// @Description
+// @Description  Used by pages: Productivity
+// @Tags         Productivity
+// @ID           getFinishCycles
+// @Produce      json
+// @Security     cookieAuth
+// @Param        machineId query int true "Machine id"
+// @Param        date query string false "Day YYYY-MM-DD (default today)"
+// @Param        shiftIds query string false "Shift ids, comma separated"
+// @Param        program query string false "Program name (empty = all)"
+// @Success      200 {object} response.Envelope
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      404 {object} response.Envelope "Not found"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/productivity/finish-cycles [get]
 func (dashboardHandler *DashboardHandler) GetFinishCycles(writer http.ResponseWriter, request *http.Request) {
 	serveDashboard(writer, request, dashboardHandler.service.GetFinishCycles)
 }
 
 // GetMachineTimeByDay handles GET /api/v1/machine-health/machine-time-by-day?machineId=&from=&to=:
 // hours per machine mode for each day.
+//
+// @Summary      Get machine time by day
+// @Description  GetMachineTimeByDay handles GET /api/v1/machine-health/machine-time-by-day?machineId=&from=&to=: hours per machine mode for each day.
+// @Description
+// @Description  Used by pages: Machine health
+// @Tags         Machine health
+// @ID           getMachineTimeByDay
+// @Produce      json
+// @Security     cookieAuth
+// @Param        machineId query int true "Machine id"
+// @Param        from query string false "First day YYYY-MM-DD"
+// @Param        to query string false "Last day YYYY-MM-DD (default today)"
+// @Success      200 {object} response.Envelope
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      404 {object} response.Envelope "Not found"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/machine-health/machine-time-by-day [get]
 func (dashboardHandler *DashboardHandler) GetMachineTimeByDay(writer http.ResponseWriter, request *http.Request) {
 	serveDashboard(writer, request, dashboardHandler.service.GetMachineTimeByDay)
 }

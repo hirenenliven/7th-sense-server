@@ -21,6 +21,21 @@ func NewClienteleHandler(clienteleService *service.ClienteleService) *ClienteleH
 }
 
 // GetAll handles GET /api/v1/clienteles[?userId=<customer id>].
+//
+// @Summary      Get clienteles
+// @Description  Returns the clienteles the user may read. A non-nil customerID keeps only that customer's clienteles.
+// @Description
+// @Description  Used by pages: Clientele, Add / edit part
+// @Tags         Clienteles
+// @ID           getClienteles
+// @Produce      json
+// @Security     cookieAuth
+// @Param        userId query int false "User id"
+// @Success      200 {object} response.Envelope{data=[]model.Clientele}
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/clienteles [get]
 func (clienteleHandler *ClienteleHandler) GetAll(writer http.ResponseWriter, request *http.Request) {
 	actor, err := currentUser(request)
 	if err != nil {
@@ -42,6 +57,23 @@ func (clienteleHandler *ClienteleHandler) GetAll(writer http.ResponseWriter, req
 }
 
 // GetByID handles GET /api/v1/clienteles/{id}[?userId=<customer id>].
+//
+// @Summary      Get clientele by id
+// @Description  Returns the clientele when the user may read it, else "Clientele not found".
+// @Description
+// @Description  Used by pages: Clientele
+// @Tags         Clienteles
+// @ID           getClienteleById
+// @Produce      json
+// @Security     cookieAuth
+// @Param        id path int true "Id"
+// @Param        userId query int false "User id"
+// @Success      200 {object} response.Envelope{data=model.Clientele}
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      404 {object} response.Envelope "Not found"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/clienteles/{id} [get]
 func (clienteleHandler *ClienteleHandler) GetByID(writer http.ResponseWriter, request *http.Request) {
 	actor, err := currentUser(request)
 	if err != nil {
@@ -68,6 +100,24 @@ func (clienteleHandler *ClienteleHandler) GetByID(writer http.ResponseWriter, re
 }
 
 // Create handles POST /api/v1/clienteles.
+//
+// @Summary      Create clientele
+// @Description  Adds a clientele. A customer or admin (the logged-in user) adds it to their own company, whatever customer the request names; the superadmin to the customer named.
+// @Description  Roles: superadmin, customer, admin (others get 403).
+// @Description
+// @Description  Used by pages: Clientele
+// @Tags         Clienteles
+// @ID           createClientele
+// @Accept       json
+// @Produce      json
+// @Security     cookieAuth
+// @Param        request body dto.CreateClienteleRequest true "Request body"
+// @Success      201 {object} response.Envelope{data=model.Clientele}
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      403 {object} response.Envelope "Role not allowed"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/clienteles [post]
 func (clienteleHandler *ClienteleHandler) Create(writer http.ResponseWriter, request *http.Request) {
 	actor, err := currentUser(request)
 	if err != nil {
@@ -90,6 +140,27 @@ func (clienteleHandler *ClienteleHandler) Create(writer http.ResponseWriter, req
 }
 
 // Update handles PUT /api/v1/clienteles/{id}.
+//
+// @Summary      Update clientele
+// @Description  Replaces the clientele. A blank status keeps the saved one.
+// @Description  Roles: superadmin, customer, admin (others get 403).
+// @Description  Validation: Please enter valid status.
+// @Description
+// @Description  Used by pages: Clientele
+// @Tags         Clienteles
+// @ID           updateClientele
+// @Accept       json
+// @Produce      json
+// @Security     cookieAuth
+// @Param        id path int true "Id"
+// @Param        request body dto.UpdateClienteleRequest true "Request body"
+// @Success      200 {object} response.Envelope{data=model.Clientele}
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      403 {object} response.Envelope "Role not allowed"
+// @Failure      404 {object} response.Envelope "Not found"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/clienteles/{id} [put]
 func (clienteleHandler *ClienteleHandler) Update(writer http.ResponseWriter, request *http.Request) {
 	actor, err := currentUser(request)
 	if err != nil {
@@ -117,6 +188,24 @@ func (clienteleHandler *ClienteleHandler) Update(writer http.ResponseWriter, req
 }
 
 // Delete handles DELETE /api/v1/clienteles/{id}.
+//
+// @Summary      Delete clientele
+// @Description  Soft-deletes the clientele unless parts use it. A customer or admin (the logged-in user) deletes only their company's clienteles ("Clientele not found" for others).
+// @Description  Roles: superadmin, customer, admin (others get 403).
+// @Description
+// @Description  Used by pages: Clientele
+// @Tags         Clienteles
+// @ID           deleteClientele
+// @Produce      json
+// @Security     cookieAuth
+// @Param        id path int true "Id"
+// @Success      200 {object} response.Envelope
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      403 {object} response.Envelope "Role not allowed"
+// @Failure      404 {object} response.Envelope "Not found"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/clienteles/{id} [delete]
 func (clienteleHandler *ClienteleHandler) Delete(writer http.ResponseWriter, request *http.Request) {
 	actor, err := currentUser(request)
 	if err != nil {
