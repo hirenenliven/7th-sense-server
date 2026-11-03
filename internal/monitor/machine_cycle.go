@@ -17,8 +17,8 @@ import (
 //
 //	reset -> running                       a cycle opens
 //	ProgramPartCount steps up              completed (part_count); still running: the next opens
-//	CurProgLine jumps back to the start    completed (program_loop), the next opens at once; only
-//	  while running                        while the counter has not counted for this program
+//	CurProgLine jumps back to the start    completed (program_loop), the next opens; only while
+//	  of the cycle's program while running the counter has not counted for this program
 //	running -> reset, no alarm             completed (program_end)
 //	alarm or E-stop -> reset               unfinished (alarm_reset)
 //	held -> reset                          unfinished (operator_reset)
@@ -30,8 +30,12 @@ import (
 //
 // A cycle closed after Offline ends when the machine went offline; the gap is not counted. The
 // program name is compared only after a gap: a main program cannot change while it runs, and
-// a sub program call (M98) may show its own name. A counter step within cycleCounterGrace
-// after a cycle closed is that cycle's part (the counter can lag M30 / the loop by a reading).
+// a sub program call (M98) may show its own name. For the same reason a line jump is a loop only
+// while the cycle's own program shows: a call into a sub program also jumps back to its first
+// lines. A counter step within cycleCounterGrace after a cycle closed is that cycle's part (the
+// counter can lag M30 / the loop by a reading). The other way round, the counter can count a
+// reading before M30 resets the program: the cycle that follows a part count or a loop opens
+// only once the program is still on cycleStartGrace later, and a reset before that drops it.
 //
 // The time of each mode inside the cycle is added up in memory as the mode changes and
 // written every cycleCheckpointInterval and when the cycle closes; a cycle a previous run left
@@ -49,6 +53,10 @@ const (
 	maxPartCountStep = 20
 	// cycleCounterGrace: a counter step this soon after a cycle closed is that cycle's part.
 	cycleCounterGrace = 5 * time.Second
+	// cycleStartGrace: the cycle that follows a part count or a loop opens only when the program
+	// has not reset this long after it (machine 195: counter 17:41:29.13, M30 reset .26 is the
+	// end of the same part, not a 0 s cycle).
+	cycleStartGrace = 5 * time.Second
 )
 
 // cycleReading is the part of a DLL reading a cycle is followed from.
@@ -111,7 +119,7 @@ func decideCycleStep(previous *cycleReading, current cycleReading, hasOpen bool,
 	switch {
 	case parts > 0 && parts <= maxPartCountStep:
 		step = cycleStep{closeReason: model.CycleEndPartCount, open: running, parts: parts}
-	case running && previous.program == programRunning && !counterCounts && isProgramLoop(*previous, current):
+	case running && previous.program == programRunning && !counterCounts && isProgramLoop(*previous, current, openProgram):
 		step = cycleStep{closeReason: model.CycleEndProgramLoop, open: true, openedByLoop: true}
 	case running && previous.program == programReset:
 		step = cycleStep{open: true}
@@ -126,11 +134,16 @@ func decideCycleStep(previous *cycleReading, current cycleReading, hasOpen bool,
 	return step
 }
 
-// isProgramLoop reports whether CurProgLine jumped from previous back to the start of the same
-// program: by at least loopMinimumDropFraction of its lines, with the line count unchanged
-// (a sub program reports its own lines).
-func isProgramLoop(previous, current cycleReading) bool {
+// isProgramLoop reports whether CurProgLine jumped from previous back to the start of the open
+// cycle's program (openProgram, "" when unknown): by at least loopMinimumDropFraction of its
+// lines, with the line count and the program name unchanged. A call into a sub program (M98)
+// jumps back to the sub program's first lines and shows its name, while TotalProgLines can stay
+// the main program's (machine 195: O1002 line 6 -> O9001 line 2).
+func isProgramLoop(previous, current cycleReading, openProgram string) bool {
 	if current.totalLines <= 0 || current.totalLines != previous.totalLines {
+		return false
+	}
+	if current.programName != previous.programName || (openProgram != "" && current.programName != openProgram) {
 		return false
 	}
 	drop := previous.programLine - current.programLine
@@ -157,6 +170,10 @@ type cycleTracker struct {
 	restored      bool                // open was left by a previous run (no reading since)
 	counterCounts bool                // ProgramPartCount counted for the current program
 	checkpointAt  time.Time           // open's seconds were last written then
+	// next is where the cycle that follows a part count or a loop starts; it waits there for
+	// cycleStartGrace (awaitNext). nextByLoop: it starts at a program loop.
+	next       *cycleReading
+	nextByLoop bool
 
 	mode         int                   // the machine mode time is being counted in
 	countedUntil time.Time             // mode time is counted into open up to here
@@ -175,18 +192,19 @@ func (tracker *cycleTracker) changeMode(at time.Time, mode int) {
 			since := at
 			tracker.offlineSince = &since
 		}
-		tracker.previous = nil
+		tracker.previous, tracker.next = nil, nil
 	}
 	tracker.mode = mode
 }
 
-// countUntil adds the time from countedUntil to at to the current mode of the open cycle. An
-// earlier at (a reading timestamped before the last tick) counts nothing and moves nothing back.
+// countUntil adds the time from countedUntil to at to the current mode of the open cycle, or of
+// the next one while it waits. An earlier at (a reading timestamped before the last tick) counts
+// nothing and moves nothing back.
 func (tracker *cycleTracker) countUntil(at time.Time) {
 	if !at.After(tracker.countedUntil) {
 		return
 	}
-	if tracker.open != nil {
+	if tracker.open != nil || tracker.next != nil {
 		tracker.modeTime[tracker.mode] += at.Sub(tracker.countedUntil)
 	}
 	tracker.countedUntil = at
@@ -199,6 +217,14 @@ func (tracker *cycleTracker) begin(cycle model.MachineCycle) {
 	tracker.countedUntil = cycle.StartedAt
 	tracker.checkpointAt = cycle.StartedAt
 	tracker.restored = false
+}
+
+// awaitNext makes start the start of the next cycle, which opens if the program has not reset
+// cycleStartGrace later; its time per mode is counted from start meanwhile.
+func (tracker *cycleTracker) awaitNext(start cycleReading, byLoop bool) {
+	tracker.next, tracker.nextByLoop = &start, byLoop
+	tracker.modeTime = map[int]time.Duration{}
+	tracker.countedUntil = start.at
 }
 
 // progress returns the open cycle with its seconds counted up to at.
@@ -296,6 +322,14 @@ func (machineWorker *worker) followCycle(reading cnc.Reading) {
 		return
 	}
 	tracker := &machineWorker.cycles
+	if tracker.next != nil {
+		switch {
+		case current.program == programReset:
+			machineWorker.dropNextCycle(current)
+		case current.at.Sub(tracker.next.at) >= cycleStartGrace:
+			machineWorker.openNextCycle(current.at)
+		}
+	}
 	openProgram := ""
 	if tracker.open != nil {
 		openProgram = tracker.open.ProgramName
@@ -305,7 +339,8 @@ func (machineWorker *worker) followCycle(reading cnc.Reading) {
 	tracker.previous, tracker.restored, tracker.offlineSince = &current, false, nil
 }
 
-// applyCycleStep counts parts, closes and opens cycles as step says.
+// applyCycleStep counts parts, closes and opens cycles as step says. The cycle that follows the
+// one closed at this reading waits cycleStartGrace before it opens (awaitNext).
 func (machineWorker *worker) applyCycleStep(current cycleReading, step cycleStep) {
 	tracker := &machineWorker.cycles
 	if step.parts > 0 {
@@ -316,12 +351,42 @@ func (machineWorker *worker) applyCycleStep(current cycleReading, step cycleStep
 			step.open = step.open && tracker.open == nil
 		}
 	}
+	if tracker.next != nil {
+		step.open = false // the next cycle has already started and waits to open
+	}
 	if step.closeReason != "" {
 		machineWorker.closeCycle(current, step)
 	}
-	if step.open {
+	switch {
+	case step.open && step.closeReason != "":
+		tracker.awaitNext(current, step.openedByLoop)
+	case step.open:
 		machineWorker.openCycle(current, step.openedByLoop)
 	}
+}
+
+// openNextCycle opens the cycle that waited (awaitNext) at its start, keeping the time per mode
+// counted since then up to now.
+func (machineWorker *worker) openNextCycle(now time.Time) {
+	tracker := &machineWorker.cycles
+	tracker.countUntil(now)
+	start, byLoop := *tracker.next, tracker.nextByLoop
+	modeTime, countedUntil := tracker.modeTime, tracker.countedUntil
+	tracker.next = nil
+	machineWorker.openCycle(start, byLoop)
+	if tracker.open != nil {
+		tracker.modeTime, tracker.countedUntil = modeTime, countedUntil
+	}
+}
+
+// dropNextCycle forgets the cycle that waited (awaitNext): the program reset at current, within
+// cycleStartGrace of the part count or loop, so that was the end of the cycle closed there.
+func (machineWorker *worker) dropNextCycle(current cycleReading) {
+	tracker := &machineWorker.cycles
+	start := *tracker.next
+	tracker.next = nil
+	machineWorker.log(logTypeCycle, slog.LevelInfo, "cnc: next cycle not opened, program reset", "program", start.programName,
+		"startedAt", start.at, "resetAt", current.at, "byLoop", tracker.nextByLoop)
 }
 
 // loadOpenCycle looks once per worker for a cycle a previous run left open and goes on with it.
@@ -420,10 +485,14 @@ func (machineWorker *worker) finishCycle(now time.Time, reason string, partCount
 		"partsMade", cycle.PartsMade)
 }
 
-// checkCycle runs on the worker's tick: a cycle open past CNC_CYCLE_MAX_HOURS is closed as
-// timeout, a running one has its seconds written every cycleCheckpointInterval.
+// checkCycle runs on the worker's tick: the next cycle opens once it waited cycleStartGrace (a
+// dwell sends no reading), a cycle open past CNC_CYCLE_MAX_HOURS is closed as timeout, a running
+// one has its seconds written every cycleCheckpointInterval.
 func (machineWorker *worker) checkCycle(now time.Time) {
 	tracker := &machineWorker.cycles
+	if tracker.next != nil && now.Sub(tracker.next.at) >= cycleStartGrace {
+		machineWorker.openNextCycle(now)
+	}
 	if tracker.open == nil {
 		return
 	}
