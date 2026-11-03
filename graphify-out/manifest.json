@@ -1218,9 +1218,9 @@
     "semantic_hash": "83e782660b9df6e3978298333b4f35a6"
   },
   ".claude/CLAUDE.md": {
-    "mtime": 1793690873.4947035,
-    "seen": 1793690916.272262,
-    "ast_hash": "00825cb52c9afa5022b65667caaa6d64",
+    "mtime": 1793698494.1423042,
+    "seen": 1793698510.148036,
+    "ast_hash": "03d6f8e0b98a3ae5b7720a0b6c6e28c4",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1380,9 +1380,9 @@
     "semantic_hash": "97854eb093cb7bd479130b6c220bcf95"
   },
   "internal/monitor/worker.go": {
-    "mtime": 1793356758.3775296,
-    "seen": 1793357087.5622602,
-    "ast_hash": "b55b5a294847476ada5641d03611b2d8",
+    "mtime": 1793696628.702394,
+    "seen": 1793698510.147784,
+    "ast_hash": "ca1d3d377107d77e36167c325efca5e0",
     "semantic_hash": ""
   },
   "7th-sense-start.ps1": {
@@ -1548,9 +1548,9 @@
     "semantic_hash": ""
   },
   "internal/monitor/machine_cycle.go": {
-    "mtime": 1793678823.5239882,
-    "seen": 1793678915.0888326,
-    "ast_hash": "976c4c344b8a9454d39f743593dbd13e",
+    "mtime": 1793698458.701195,
+    "seen": 1793698510.147769,
+    "ast_hash": "9ac6386bce67abe246cc8d19a85011a8",
     "semantic_hash": ""
   },
   "internal/repository/machine_cycle_repository.go": {
@@ -1572,15 +1572,15 @@
     "semantic_hash": ""
   },
   "docs/machine-cycles.md": {
-    "mtime": 1793685893.8166485,
-    "seen": 1793688610.8407083,
-    "ast_hash": "dd2983e7b4a2fd872c0393dfdb1d1fad",
+    "mtime": 1793698487.9046798,
+    "seen": 1793698510.1480618,
+    "ast_hash": "0a91cce59fe74c32f2688774f1a4b9bf",
     "semantic_hash": ""
   },
   "internal/monitor/machine_cycle_test.go": {
-    "mtime": 1793678840.983647,
-    "seen": 1793678915.088835,
-    "ast_hash": "5791d773978ccfbd26b884907bdc7e51",
+    "mtime": 1793698440.1677787,
+    "seen": 1793698510.1477723,
+    "ast_hash": "4c6dc576e2e815fe186edf8bcd3ef96e",
     "semantic_hash": ""
   },
   "internal/dto/dashboard_dto.go": {

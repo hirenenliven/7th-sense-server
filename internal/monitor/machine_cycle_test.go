@@ -56,6 +56,47 @@ func TestIsProgramLoop(t *testing.T) {
 	}
 }
 
+// Machine 195 (cycles 520, 523): RESET while running shows IsEmergency 1 for 0.2 - 0.6 s at the
+// reset reading. That is not an E-stop until it stays on for emergencyResetGrace.
+func TestIsResetKeyEmergency(t *testing.T) {
+	running := readingAt(0, programRunning, "JYOTI", 4, 274)
+	resetWithEmergency := readingAt(0.1, programReset, "JYOTI", 4, 274)
+	resetWithEmergency.emergency = true
+
+	tracker := cycleTracker{previous: &running}
+	if !tracker.isResetKeyEmergency(resetWithEmergency) {
+		t.Fatal("a fresh IsEmergency at the reset must be taken as the RESET key")
+	}
+
+	withAlarm := resetWithEmergency
+	withAlarm.alarm = true
+	if tracker.isResetKeyEmergency(withAlarm) {
+		t.Fatal("an AlarmNo is a real alarm")
+	}
+
+	pressedBefore := running.at.Add(-emergencyResetGrace)
+	tracker.emergencySince = &pressedBefore
+	if tracker.isResetKeyEmergency(resetWithEmergency) {
+		t.Fatal("an IsEmergency on for emergencyResetGrace before the reset is an E-stop")
+	}
+}
+
+func TestFollowEmergency(t *testing.T) {
+	on := readingAt(0, programReset, "JYOTI", 0, 274)
+	on.emergency = true
+	tracker := cycleTracker{checkEmergency: true}
+	tracker.followEmergency(on)
+	if tracker.emergencySince == nil || !tracker.emergencySince.Equal(on.at) || !tracker.checkEmergency {
+		t.Fatalf("IsEmergency on: since %v, check %v", tracker.emergencySince, tracker.checkEmergency)
+	}
+
+	off := readingAt(0.4, programReset, "JYOTI", 0, 274)
+	tracker.followEmergency(off)
+	if tracker.emergencySince != nil || tracker.checkEmergency {
+		t.Fatal("IsEmergency off within the grace: the cycle keeps its end reason")
+	}
+}
+
 // The next cycle's time is counted from its start while it waits, so it keeps it when it opens.
 func TestAwaitNextCountsFromItsStart(t *testing.T) {
 	start := readingAt(0, programRunning, "O1002", 2, 270)

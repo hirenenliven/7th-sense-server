@@ -581,6 +581,9 @@ func (machineWorker *worker) recordModeChange(at time.Time, decision modeDecisio
 	machineWorker.logModeChange(decision)
 	machineWorker.mode = mode
 	machineWorker.cycles.changeMode(at, mode)
+	// The open cycle's row follows each mode change, so its seconds per mode are never older than
+	// the last change (the checkpoint only covers a mode that lasts long).
+	machineWorker.saveCycleProgress(at)
 	machineWorker.statusDirty = true
 	ctx, cancel := context.WithTimeout(context.Background(), writeTimeout)
 	defer cancel()

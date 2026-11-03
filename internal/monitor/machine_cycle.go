@@ -20,7 +20,8 @@ import (
 //	CurProgLine jumps back to the start    completed (program_loop), the next opens; only while
 //	  of the cycle's program while running the counter has not counted for this program
 //	running -> reset, no alarm             completed (program_end)
-//	alarm or E-stop -> reset               unfinished (alarm_reset)
+//	alarm or E-stop -> reset               unfinished (alarm_reset); an IsEmergency alone must
+//	                                       stay on emergencyResetGrace (RESET shows it briefly)
 //	held -> reset                          unfinished (operator_reset)
 //	open past CNC_CYCLE_MAX_HOURS          unfinished (timeout)
 //	after Offline / a restart:
@@ -38,11 +39,13 @@ import (
 // only once the program is still on cycleStartGrace later, and a reset before that drops it.
 //
 // The time of each mode inside the cycle is added up in memory as the mode changes and
-// written every cycleCheckpointInterval and when the cycle closes; a cycle a previous run left
-// open is rebuilt from machine_mode_log when the worker starts.
+// written at each mode change, every cycleCheckpointInterval while a mode lasts and when the
+// cycle closes; a cycle a previous run left open is rebuilt from machine_mode_log when the
+// worker starts.
 
 const (
-	// cycleCheckpointInterval is how often a running cycle's seconds are written.
+	// cycleCheckpointInterval is how often a running cycle's seconds are written while its mode
+	// does not change (a mode change writes them at once).
 	cycleCheckpointInterval = 5 * time.Minute
 	// loopMinimumDropFraction: CurProgLine falling by at least this share of the program's
 	// lines while running is the program starting over (machine 195: line 15 -> 3 of 15).
@@ -57,6 +60,10 @@ const (
 	// has not reset this long after it (machine 195: counter 17:41:29.13, M30 reset .26 is the
 	// end of the same part, not a 0 s cycle).
 	cycleStartGrace = 5 * time.Second
+	// emergencyResetGrace: an IsEmergency that is on for less than this at a program reset is
+	// the RESET key, not an E-stop (machine 195: every RESET shows IsEmergency 1 for 0.2 - 0.6 s);
+	// one still on this long after the reset makes the cycle alarm_reset.
+	emergencyResetGrace = 2 * time.Second
 )
 
 // cycleReading is the part of a DLL reading a cycle is followed from.
@@ -67,7 +74,8 @@ type cycleReading struct {
 	partCount   int
 	programLine int
 	totalLines  int
-	alarm       bool
+	alarm       bool // AlarmNo ≠ 0
+	emergency   bool // IsEmergency
 }
 
 // cycleReadingFrom takes the cycle values out of reading, whose NC state is state. ok is false
@@ -82,7 +90,8 @@ func cycleReadingFrom(state machineState, reading cnc.Reading) (cycleReading, bo
 		partCount:   int(reading.Values[cnc.FieldProgramPartCount].Number),
 		programLine: int(reading.Values[cnc.FieldCurProgLine].Number),
 		totalLines:  int(reading.Values[cnc.FieldTotalProgLines].Number),
-		alarm:       state.isAlarmActive(),
+		alarm:       state.alarmNumber != 0,
+		emergency:   state.emergency,
 	}
 	emptySnapshot := state.procStatus == 0 && current.programName == "" && current.partCount == 0 && current.totalLines == 0
 	return current, !emptySnapshot
@@ -153,7 +162,7 @@ func isProgramLoop(previous, current cycleReading, openProgram string) bool {
 // resetReason is why a program that went to reset between previous and current ended.
 func resetReason(previous, current cycleReading) string {
 	switch {
-	case previous.alarm || current.alarm:
+	case previous.alarm || current.alarm || previous.emergency || current.emergency:
 		return model.CycleEndAlarmReset
 	case previous.program == programRunning:
 		return model.CycleEndProgramEnd
@@ -174,6 +183,11 @@ type cycleTracker struct {
 	// cycleStartGrace (awaitNext). nextByLoop: it starts at a program loop.
 	next       *cycleReading
 	nextByLoop bool
+	// emergencySince is when IsEmergency came on (nil while off). checkEmergency: the cycle
+	// closed last ended at a reset with a fresh IsEmergency and becomes alarm_reset if it stays
+	// on for emergencyResetGrace (confirmEmergencyStop).
+	emergencySince *time.Time
+	checkEmergency bool
 
 	mode         int                   // the machine mode time is being counted in
 	countedUntil time.Time             // mode time is counted into open up to here
@@ -193,6 +207,7 @@ func (tracker *cycleTracker) changeMode(at time.Time, mode int) {
 			tracker.offlineSince = &since
 		}
 		tracker.previous, tracker.next = nil, nil
+		tracker.emergencySince, tracker.checkEmergency = nil, false
 	}
 	tracker.mode = mode
 }
@@ -217,6 +232,33 @@ func (tracker *cycleTracker) begin(cycle model.MachineCycle) {
 	tracker.countedUntil = cycle.StartedAt
 	tracker.checkpointAt = cycle.StartedAt
 	tracker.restored = false
+}
+
+// followEmergency notes when IsEmergency came on, from current. When it goes off, a cycle closed
+// while it was on keeps its end reason.
+func (tracker *cycleTracker) followEmergency(current cycleReading) {
+	switch {
+	case !current.emergency:
+		tracker.emergencySince, tracker.checkEmergency = nil, false
+	case tracker.emergencySince == nil:
+		since := current.at
+		tracker.emergencySince = &since
+	}
+}
+
+// isResetKeyEmergency reports whether the alarm of the reset at current is only an IsEmergency
+// that has been on for less than emergencyResetGrace: the RESET key, until it stays on longer.
+// An AlarmNo in either reading is a real alarm.
+func (tracker *cycleTracker) isResetKeyEmergency(current cycleReading) bool {
+	previous := tracker.previous
+	if previous == nil || previous.alarm || current.alarm {
+		return false
+	}
+	since := current.at
+	if tracker.emergencySince != nil {
+		since = *tracker.emergencySince
+	}
+	return current.at.Sub(since) < emergencyResetGrace
 }
 
 // awaitNext makes start the start of the next cycle, which opens if the program has not reset
@@ -336,6 +378,8 @@ func (machineWorker *worker) followCycle(reading cnc.Reading) {
 	}
 	step := decideCycleStep(tracker.previous, current, tracker.open != nil, openProgram, tracker.counterCounts)
 	machineWorker.applyCycleStep(current, step)
+	tracker.followEmergency(current)
+	machineWorker.confirmEmergencyStop(current.at)
 	tracker.previous, tracker.restored, tracker.offlineSince = &current, false, nil
 }
 
@@ -365,8 +409,27 @@ func (machineWorker *worker) applyCycleStep(current cycleReading, step cycleStep
 	}
 }
 
+// confirmEmergencyStop makes the cycle closed last alarm_reset when the IsEmergency of its reset
+// (closeCycle) is still on emergencyResetGrace after it came on: an E-stop, not the RESET key.
+func (machineWorker *worker) confirmEmergencyStop(now time.Time) {
+	tracker := &machineWorker.cycles
+	if !tracker.checkEmergency || tracker.emergencySince == nil || now.Sub(*tracker.emergencySince) < emergencyResetGrace {
+		return
+	}
+	tracker.checkEmergency = false
+	closed := tracker.lastClosed
+	if closed == nil {
+		return
+	}
+	previousReason := closed.EndReason
+	closed.Status, closed.EndReason = model.CycleStatusFor(model.CycleEndAlarmReset), model.CycleEndAlarmReset
+	machineWorker.saveCycle(*closed, "cnc: mark cycle stopped by emergency")
+	machineWorker.log(logTypeCycle, slog.LevelInfo, "cnc: cycle stopped by emergency stop", "cycleId", closed.ID,
+		"previousEndReason", previousReason, "emergencySince", *tracker.emergencySince)
+}
+
 // openNextCycle opens the cycle that waited (awaitNext) at its start, keeping the time per mode
-// counted since then up to now.
+// counted since then up to now, and writes that time at once (the row is created with none).
 func (machineWorker *worker) openNextCycle(now time.Time) {
 	tracker := &machineWorker.cycles
 	tracker.countUntil(now)
@@ -374,9 +437,11 @@ func (machineWorker *worker) openNextCycle(now time.Time) {
 	modeTime, countedUntil := tracker.modeTime, tracker.countedUntil
 	tracker.next = nil
 	machineWorker.openCycle(start, byLoop)
-	if tracker.open != nil {
-		tracker.modeTime, tracker.countedUntil = modeTime, countedUntil
+	if tracker.open == nil {
+		return
 	}
+	tracker.modeTime, tracker.countedUntil = modeTime, countedUntil
+	machineWorker.saveCycleProgress(now)
 }
 
 // dropNextCycle forgets the cycle that waited (awaitNext): the program reset at current, within
@@ -465,8 +530,15 @@ func (machineWorker *worker) openCycle(current cycleReading, openedByLoop bool) 
 
 // closeCycle ends the open cycle for step.closeReason. One closed for what happened during
 // Offline ends when the machine went offline; one a previous run left ends as collector_stop.
+// A reset whose only alarm is a fresh IsEmergency ends as without it, until confirmEmergencyStop
+// sees it stay on.
 func (machineWorker *worker) closeCycle(current cycleReading, step cycleStep) {
+	tracker := &machineWorker.cycles
 	reason := step.closeReason
+	if reason == model.CycleEndAlarmReset && tracker.isResetKeyEmergency(current) {
+		reason = resetReason(cycleReading{program: tracker.previous.program}, cycleReading{program: current.program})
+		tracker.checkEmergency = true
+	}
 	afterGap := reason == model.CycleEndOfflineReset || reason == model.CycleEndProgramChanged
 	if reason == model.CycleEndOfflineReset && machineWorker.cycles.restored {
 		reason = model.CycleEndCollectorStop
@@ -485,11 +557,14 @@ func (machineWorker *worker) finishCycle(now time.Time, reason string, partCount
 		"partsMade", cycle.PartsMade)
 }
 
-// checkCycle runs on the worker's tick: the next cycle opens once it waited cycleStartGrace (a
+// checkCycle runs on the worker's tick: an E-stop still on after a reset is confirmed, the next
+// cycle opens once it waited cycleStartGrace (a
 // dwell sends no reading), a cycle open past CNC_CYCLE_MAX_HOURS is closed as timeout, a running
 // one has its seconds written every cycleCheckpointInterval.
 func (machineWorker *worker) checkCycle(now time.Time) {
 	tracker := &machineWorker.cycles
+	// An E-stop held down sends no reading while nothing changes.
+	machineWorker.confirmEmergencyStop(now)
 	if tracker.next != nil && now.Sub(tracker.next.at) >= cycleStartGrace {
 		machineWorker.openNextCycle(now)
 	}

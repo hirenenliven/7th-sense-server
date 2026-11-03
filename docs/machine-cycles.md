@@ -61,7 +61,7 @@ reading) is counted on that cycle. A `program_loop` cycle then becomes `part_cou
 
 | End reason | Shown as | How it is identified | Conditions | When the cycle ends |
 |---|---|---|---|---|
-| `alarm_reset` | Stopped by an alarm | Program goes to reset while an alarm or E-stop is active, in the previous or the current reading. | `prev.program ≠ reset` (running or held) AND `now.program = reset` AND (`prev.alarm = yes` OR `now.alarm = yes`) AND no `step` | At the reset reading |
+| `alarm_reset` | Stopped by an alarm | Program goes to reset while an alarm or E-stop is active, in the previous or the current reading. An `IsEmergency` without an `AlarmNo` counts only once it has been on for 2 s (`emergencyResetGrace`): on Fanuc the **RESET** key shows `IsEmergency = 1` for 0.2 – 0.6 s (machine 195, cycles 520 / 523). Such a reset first ends as `program_end` / `operator_reset`; if `IsEmergency` is still on 2 s after it came on, the cycle is changed to `alarm_reset` (log `cnc: cycle stopped by emergency stop`). | `prev.program ≠ reset` (running or held) AND `now.program = reset` AND (`AlarmNo ≠ 0` in `prev` or `now`, OR `IsEmergency = 1` in `prev` or `now` for ≥ 2 s) AND no `step` | At the reset reading |
 | `operator_reset` | Stopped by the operator | Previous held (feed hold, stop), now reset, no alarm: the operator aborted the part. | `prev.program = held` AND `now.program = reset` AND `prev.alarm = no` AND `now.alarm = no` AND no `step` | At the reset reading |
 | `offline_reset` | Machine went offline | The machine was Offline (or the connection was lost) with the cycle open, and the first usable reading after it is reset. | `prev = none` AND cycle open AND cycle not left by a previous server run AND `now.program = reset` | When the machine went offline; the offline gap is not counted |
 | `collector_stop` | Server restarted | Same as `offline_reset`, but the cycle was left open by a previous server run (loaded at worker start). | `prev = none` AND cycle restored at worker start (no reading since) AND `now.program = reset` | When the machine went offline at the restart |
@@ -92,6 +92,7 @@ decides what really happened.
 | `maxPartCountStep` | `machine_cycle.go` | 20 | How big a counter step can be and still mean real parts |
 | `cycleCounterGrace` | `machine_cycle.go` | 5 s | How long after a cycle ends a late counter step still belongs to it |
 | `cycleStartGrace` | `machine_cycle.go` | 5 s | How long the next cycle waits before it is saved |
+| `emergencyResetGrace` | `machine_cycle.go` | 2 s | How long `IsEmergency` must stay on to be an E-stop and not the RESET key |
 | `CNC_CYCLE_MAX_HOURS` | `.env` | 24 h | How long a cycle may stay open before it is closed as `timeout` |
 | `CNC_STALE_SEC` | `.env` | 30 s | How long without a connected reading before a machine is Offline |
 | `CNC_QUIET_SEC` | `.env` | 300 s | How long a connected but silent machine waits before it is reconnected |
@@ -101,13 +102,25 @@ decides what really happened.
 **Problem:** the seconds per mode of a running cycle are added up in memory. If the server stops,
 memory is lost.
 
-**What it does:** every 5 minutes the running cycle's seconds are written to `machine_cycles`, and
-once more when the cycle closes.
+**What it does:** the running cycle's seconds are written to `machine_cycles`:
 
-**Why 5 minutes:** writing on every reading (several per second, for up to 990 machines) would load
-the database for nothing. Every 5 minutes is cheap and loses at most 5 minutes, and even those are
-rebuilt from `machine_mode_log` when the worker starts again. This is why a **running** row shows
-0 seconds until its first save.
+| When | Why |
+|---|---|
+| At every mode change (Production → Hold, Hold → Production, …) | The row shows the time of every mode that has ended, right away (`recordModeChange` → `saveCycleProgress`) |
+| Every 5 minutes while the mode does not change | A long mode (e.g. an 8-hour Hold) still grows in the row: `hold_sec` 300, 600, 900 … |
+| When a cycle that waited `cycleStartGrace` opens | The row is created with 0 seconds; the time counted while it waited is written at once |
+| When the cycle closes | Final seconds |
+
+**Why not on every reading:** a reading comes several times per second per machine; with up to
+990 machines that would load the database for nothing. Mode changes are a few per cycle, so
+writing at each one is cheap. Every mode change is also written to `machine_mode_log` at once, so
+no time is lost if the server stops: the open cycle is rebuilt from it when the worker starts.
+
+Machine 195, 2026-11-03, cycle 515 (before this rule): opened 14:26:34 after a loop, Hold from
+14:26:37, but the row showed 0 / 0 until the 5-minute save at 14:31:35 (3 s production, 298 s hold).
+Now the row is written when it opens at 14:26:40 (about 3 s production, 3 s hold, counted from
+14:26:34 while it waited), and the 5-minute saves add the hold time as it grows. A cycle that is
+already open writes at the Hold start itself.
 
 ### `loopMinimumDropFraction` (0.5)
 
@@ -169,6 +182,31 @@ and the next cycle opens at the next reset → running.
 
 **Why 5 seconds:** the two signals normally arrive within one reading, a fraction of a second apart.
 5 s leaves enough margin and is much shorter than any real cycle, so two real parts are never merged.
+
+### `emergencyResetGrace` (2 seconds)
+
+**Problem:** on Fanuc (machine 195) pressing **RESET** makes the DLL report `IsEmergency = 1` for a
+moment, at the same reading as the program reset. Every `IsEmergency` in the logs of 2 – 3 Nov
+lasted 0.22 – 0.57 s, also when RESET was pressed on an idle machine. Counted as an alarm, every
+RESET while running became `alarm_reset` instead of `program_end` (cycles 229, 516, 520, 523).
+
+**What it does:** a reset whose only alarm is an `IsEmergency` that has been on for less than 2 s
+ends with the reason it would have without it (`program_end` from running, `operator_reset` from
+held). If `IsEmergency` is still on 2 s after it came on, it is a real E-stop: the cycle is changed
+to `unfinished` / `alarm_reset` (checked on each reading and on the worker's tick, since a held
+E-stop sends no reading). An `AlarmNo` is always an alarm at once.
+
+| `IsEmergency` at the reset | Lasts | Result |
+|---|---|---|
+| comes on with the reset (RESET key) | 0.2 – 0.6 s | `program_end` / `operator_reset` |
+| comes on with the reset (E-stop pressed) | ≥ 2 s | `alarm_reset` (changed 2 s after) |
+| on for ≥ 2 s before the reset | — | `alarm_reset` at once |
+| any, with `AlarmNo ≠ 0` | — | `alarm_reset` at once |
+
+**Why 2 seconds:** about 4 × the longest RESET flag seen, and shorter than anyone holds an E-stop
+down. An E-stop pressed and released within 2 s is taken as RESET. The mode is not changed by
+this rule: the reset reading still shows Downtime for that fraction of a second in
+`machine_mode_log`.
 
 ### `CNC_CYCLE_MAX_HOURS` (24 hours)
 
@@ -279,8 +317,8 @@ ORDER BY c.started_at;
 
 | End reason | Mode before end | Mode after end |
 |---|---|---|
-| `program_end` | 3 (4 if feed override was 0 at M30) | 5 Idle |
-| `operator_reset` | 4 Hold | 5 Idle |
+| `program_end` | 3 (4 if feed override was 0 at M30) | 5 Idle (after RESET on Fanuc first 6 Downtime for < 1 s, see `emergencyResetGrace`) |
+| `operator_reset` | 4 Hold | 5 Idle (same < 1 s Downtime after RESET) |
 | `alarm_reset` | 6, 4 or 3 | 6 Downtime (5 if the alarm cleared at the reset reading) |
 | `part_count`, `program_loop` | 3 or 4 | 3 / 4 (still running, next cycle) or 5 |
 | `offline_reset`, `collector_stop`, `program_changed` | 3, 4 or 6 | 9 Offline (the cycle ends when the machine went offline) |
@@ -398,8 +436,9 @@ ORDER BY started_at DESC
 LIMIT 5;
 ```
 
-Check the seconds only on **closed** rows. A running row writes its seconds every 5 minutes, so
-until then they show 0. Seconds may be off by 1–2 s. Note the clock time (`HH:MM:SS`) when you
+Check the final seconds on **closed** rows. A running row has the seconds of every mode that has
+ended (written at each mode change); the mode still going is added every 5 minutes. Seconds may be
+off by 1–2 s. Note the clock time (`HH:MM:SS`) when you
 press a button, so you can compare it with `started` / `ended`.
 
 ### Test list
@@ -540,6 +579,8 @@ in `hold_sec`.
 
 **Expected:** `completed` / `program_end`, `length_sec` ≈ 10. This is the current rule: running →
 reset without an alarm looks the same as M30 in the DLL data, so it counts as a completed cycle.
+RESET shows `IsEmergency = 1` for a fraction of a second; that is not an alarm (`emergencyResetGrace`),
+so `alarm_reset` here is a fail.
 To abort a part as unfinished, the operator must press CYCLE STOP first (TEST-09).
 
 #### TEST-11 · Alarm while running
