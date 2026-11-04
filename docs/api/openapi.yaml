@@ -23,6 +23,15 @@ components:
         userCityId:
           type: integer
       type: object
+    dto.CreateBrandRequest:
+      properties:
+        code:
+          type: string
+        description:
+          type: string
+        name:
+          type: string
+      type: object
     dto.CreateBreakRequest:
       properties:
         endTime:
@@ -543,6 +552,15 @@ components:
           type: string
         userCityId:
           type: integer
+      type: object
+    dto.UpdateBrandRequest:
+      properties:
+        code:
+          type: string
+        description:
+          type: string
+        name:
+          type: string
       type: object
     dto.UpdateBreakRequest:
       properties:
@@ -2617,7 +2635,7 @@ paths:
       description: |-
         GetAll handles GET /api/v1/brands.
 
-        Used by pages: Add / edit machine, Controllers
+        Used by pages: Add / edit machine, Controllers, Brands
       operationId: getBrands
       responses:
         "200":
@@ -2660,6 +2678,262 @@ paths:
       security:
         - cookieAuth: []
       summary: Get brands
+      tags:
+        - Machine catalog
+    post:
+      description: |-
+        Adds a machine brand. Name required (unique), code optional (unique), description optional.
+        Roles: superadmin only (others get 403).
+
+        Used by pages: Brands
+      operationId: createBrand
+      requestBody:
+        content:
+          application/json:
+            example:
+              code: Postman sample
+              description: Postman sample
+              name: Postman sample
+            schema:
+              $ref: '#/components/schemas/dto.CreateBrandRequest'
+        description: Request body
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              example:
+                message: created
+                statusCode: 201
+                success: true
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/response.Envelope'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/model.Brand'
+                    type: object
+          description: Created
+        "400":
+          content:
+            application/json:
+              example:
+                message: Validation error
+                statusCode: 400
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Validation error
+        "401":
+          content:
+            application/json:
+              example:
+                message: Not logged in
+                statusCode: 401
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not logged in
+        "403":
+          content:
+            application/json:
+              example:
+                message: Role not allowed
+                statusCode: 403
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Role not allowed
+        "500":
+          content:
+            application/json:
+              example:
+                message: Server error
+                statusCode: 500
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Server error
+      security:
+        - cookieAuth: []
+      summary: Create brand
+      tags:
+        - Machine catalog
+  /v1/brands/{id}:
+    delete:
+      description: |-
+        Soft-deletes the brand. A brand that still has controllers or is used by machines is kept: those must be deleted or changed first.
+        Roles: superadmin only (others get 403).
+
+        Used by pages: Brands
+      operationId: deleteBrand
+      parameters:
+        - description: Id
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              example:
+                message: success
+                statusCode: 200
+                success: true
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              example:
+                message: Validation error
+                statusCode: 400
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Validation error
+        "401":
+          content:
+            application/json:
+              example:
+                message: Not logged in
+                statusCode: 401
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not logged in
+        "403":
+          content:
+            application/json:
+              example:
+                message: Role not allowed
+                statusCode: 403
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Role not allowed
+        "404":
+          content:
+            application/json:
+              example:
+                message: Not found
+                statusCode: 404
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not found
+        "500":
+          content:
+            application/json:
+              example:
+                message: Server error
+                statusCode: 500
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Server error
+      security:
+        - cookieAuth: []
+      summary: Delete brand
+      tags:
+        - Machine catalog
+    put:
+      description: |-
+        Replaces the brand's name, code and description.
+        Roles: superadmin only (others get 403).
+
+        Used by pages: Brands
+      operationId: updateBrand
+      parameters:
+        - description: Id
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            example:
+              code: Postman sample
+              description: Postman sample
+              name: Postman sample
+            schema:
+              $ref: '#/components/schemas/dto.UpdateBrandRequest'
+        description: Request body
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              example:
+                message: success
+                statusCode: 200
+                success: true
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/response.Envelope'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/model.Brand'
+                    type: object
+          description: OK
+        "400":
+          content:
+            application/json:
+              example:
+                message: Validation error
+                statusCode: 400
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Validation error
+        "401":
+          content:
+            application/json:
+              example:
+                message: Not logged in
+                statusCode: 401
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not logged in
+        "403":
+          content:
+            application/json:
+              example:
+                message: Role not allowed
+                statusCode: 403
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Role not allowed
+        "404":
+          content:
+            application/json:
+              example:
+                message: Not found
+                statusCode: 404
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not found
+        "500":
+          content:
+            application/json:
+              example:
+                message: Server error
+                statusCode: 500
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Server error
+      security:
+        - cookieAuth: []
+      summary: Update brand
       tags:
         - Machine catalog
   /v1/breaks:

@@ -121,6 +121,35 @@ func (brandRepository *BrandRepository) Delete(ctx context.Context, id int64) er
 	return nil
 }
 
+// HasControllers reports whether the brand id has active controllers.
+func (brandRepository *BrandRepository) HasControllers(ctx context.Context, id int64) (bool, error) {
+	query := `SELECT EXISTS (
+			SELECT 1 FROM controllers WHERE brand_id = $1 AND is_deleted = false
+		)`
+	return brandRepository.exists(ctx, "check brand controllers", query, id)
+}
+
+// HasMachines reports whether active machines use the brand id.
+func (brandRepository *BrandRepository) HasMachines(ctx context.Context, id int64) (bool, error) {
+	query := `SELECT EXISTS (
+			SELECT 1 FROM machines WHERE brand_id = $1 AND is_deleted = false
+		)`
+	return brandRepository.exists(ctx, "check brand machines", query, id)
+}
+
+// exists runs a SELECT EXISTS query with id.
+func (brandRepository *BrandRepository) exists(ctx context.Context, operation, query string, id int64) (bool, error) {
+	rows, err := db.Execute(ctx, brandRepository.dbPool, query, id)
+	if err != nil {
+		return false, fmt.Errorf("%s: %w", operation, err)
+	}
+	found, err := pgx.CollectOneRow(rows, pgx.RowTo[bool])
+	if err != nil {
+		return false, fmt.Errorf("%s: %w", operation, err)
+	}
+	return found, nil
+}
+
 // mapBrandError turns driver errors into repository errors. A nil err stays nil.
 func mapBrandError(operation string, err error) error {
 	if err == nil {

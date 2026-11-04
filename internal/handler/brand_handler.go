@@ -23,7 +23,7 @@ func NewBrandHandler(brandService *service.BrandService) *BrandHandler {
 // @Summary      Get brands
 // @Description  GetAll handles GET /api/v1/brands.
 // @Description
-// @Description  Used by pages: Add / edit machine, Controllers
+// @Description  Used by pages: Add / edit machine, Controllers, Brands
 // @Tags         Machine catalog
 // @ID           getBrands
 // @Produce      json
@@ -58,6 +58,24 @@ func (brandHandler *BrandHandler) GetByID(writer http.ResponseWriter, request *h
 }
 
 // Create handles POST /api/v1/brands.
+//
+// @Summary      Create brand
+// @Description  Adds a machine brand. Name required (unique), code optional (unique), description optional.
+// @Description  Roles: superadmin only (others get 403).
+// @Description
+// @Description  Used by pages: Brands
+// @Tags         Machine catalog
+// @ID           createBrand
+// @Accept       json
+// @Produce      json
+// @Security     cookieAuth
+// @Param        request body dto.CreateBrandRequest true "Request body"
+// @Success      201 {object} response.Envelope{data=model.Brand}
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      403 {object} response.Envelope "Role not allowed"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/brands [post]
 func (brandHandler *BrandHandler) Create(writer http.ResponseWriter, request *http.Request) {
 	var brandRequest dto.CreateBrandRequest
 	if err := decodeAndValidate(writer, request, &brandRequest); err != nil {
@@ -74,6 +92,26 @@ func (brandHandler *BrandHandler) Create(writer http.ResponseWriter, request *ht
 }
 
 // Update handles PUT /api/v1/brands/{id}.
+//
+// @Summary      Update brand
+// @Description  Replaces the brand's name, code and description.
+// @Description  Roles: superadmin only (others get 403).
+// @Description
+// @Description  Used by pages: Brands
+// @Tags         Machine catalog
+// @ID           updateBrand
+// @Accept       json
+// @Produce      json
+// @Security     cookieAuth
+// @Param        id path int true "Id"
+// @Param        request body dto.UpdateBrandRequest true "Request body"
+// @Success      200 {object} response.Envelope{data=model.Brand}
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      403 {object} response.Envelope "Role not allowed"
+// @Failure      404 {object} response.Envelope "Not found"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/brands/{id} [put]
 func (brandHandler *BrandHandler) Update(writer http.ResponseWriter, request *http.Request) {
 	id, err := pathID(request)
 	if err != nil {
@@ -96,6 +134,24 @@ func (brandHandler *BrandHandler) Update(writer http.ResponseWriter, request *ht
 }
 
 // Delete handles DELETE /api/v1/brands/{id}.
+//
+// @Summary      Delete brand
+// @Description  Soft-deletes the brand. A brand that still has controllers or is used by machines is kept: those must be deleted or changed first.
+// @Description  Roles: superadmin only (others get 403).
+// @Description
+// @Description  Used by pages: Brands
+// @Tags         Machine catalog
+// @ID           deleteBrand
+// @Produce      json
+// @Security     cookieAuth
+// @Param        id path int true "Id"
+// @Success      200 {object} response.Envelope
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      403 {object} response.Envelope "Role not allowed"
+// @Failure      404 {object} response.Envelope "Not found"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/brands/{id} [delete]
 func (brandHandler *BrandHandler) Delete(writer http.ResponseWriter, request *http.Request) {
 	id, err := pathID(request)
 	if err != nil {

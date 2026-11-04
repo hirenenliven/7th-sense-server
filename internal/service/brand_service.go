@@ -49,7 +49,23 @@ func (brandService *BrandService) Update(ctx context.Context, id int64, brandReq
 	return brand, toBrandResponseError(err)
 }
 
+// Delete soft-deletes brand id. A brand that still has controllers or is used
+// by machines is kept: those must be deleted or changed first.
 func (brandService *BrandService) Delete(ctx context.Context, id int64) error {
+	hasControllers, err := brandService.brandRepository.HasControllers(ctx, id)
+	if err != nil {
+		return err
+	}
+	if hasControllers {
+		return response.NewError(http.StatusBadRequest, "This brand has controllers. Delete its controllers first")
+	}
+	hasMachines, err := brandService.brandRepository.HasMachines(ctx, id)
+	if err != nil {
+		return err
+	}
+	if hasMachines {
+		return response.NewError(http.StatusBadRequest, "Machines use this brand. Change or delete those machines first")
+	}
 	return toBrandResponseError(brandService.brandRepository.Delete(ctx, id))
 }
 

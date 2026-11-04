@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"context"
 	"net/http"
 	"strconv"
 	"strings"
@@ -45,7 +44,18 @@ func NewDashboardHandler(dashboardService *service.DashboardService) *DashboardH
 // @Failure      500 {object} response.Envelope "Server error"
 // @Router       /v1/productivity/mode-timeline [get]
 func (dashboardHandler *DashboardHandler) GetModeTimeline(writer http.ResponseWriter, request *http.Request) {
-	serveDashboard(writer, request, dashboardHandler.service.GetModeTimeline)
+	actor, dashboardRequest, err := readDashboardRequest(request)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+
+	timeline, err := dashboardHandler.service.GetModeTimeline(request.Context(), actor, dashboardRequest)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+	response.SendResponse(writer, request, response.Success, timeline)
 }
 
 // GetOEE handles GET /api/v1/productivity/oee?machineIds=1,2&from=&to=&shiftIds=&program=&schedule=with:
@@ -72,7 +82,18 @@ func (dashboardHandler *DashboardHandler) GetModeTimeline(writer http.ResponseWr
 // @Failure      500 {object} response.Envelope "Server error"
 // @Router       /v1/productivity/oee [get]
 func (dashboardHandler *DashboardHandler) GetOEE(writer http.ResponseWriter, request *http.Request) {
-	serveDashboard(writer, request, dashboardHandler.service.GetOEE)
+	actor, dashboardRequest, err := readDashboardRequest(request)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+
+	oee, err := dashboardHandler.service.GetOEE(request.Context(), actor, dashboardRequest)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+	response.SendResponse(writer, request, response.Success, oee)
 }
 
 // GetCycleCounts handles GET /api/v1/productivity/cycle-counts?machineIds=1,2&from=&to=&shiftIds=:
@@ -97,7 +118,18 @@ func (dashboardHandler *DashboardHandler) GetOEE(writer http.ResponseWriter, req
 // @Failure      500 {object} response.Envelope "Server error"
 // @Router       /v1/productivity/cycle-counts [get]
 func (dashboardHandler *DashboardHandler) GetCycleCounts(writer http.ResponseWriter, request *http.Request) {
-	serveDashboard(writer, request, dashboardHandler.service.GetCycleCounts)
+	actor, dashboardRequest, err := readDashboardRequest(request)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+
+	rows, err := dashboardHandler.service.GetCycleCounts(request.Context(), actor, dashboardRequest)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+	response.SendResponse(writer, request, response.Success, rows)
 }
 
 // GetFinishCycles handles GET /api/v1/productivity/finish-cycles?machineId=&date=&shiftIds=&program=:
@@ -122,7 +154,18 @@ func (dashboardHandler *DashboardHandler) GetCycleCounts(writer http.ResponseWri
 // @Failure      500 {object} response.Envelope "Server error"
 // @Router       /v1/productivity/finish-cycles [get]
 func (dashboardHandler *DashboardHandler) GetFinishCycles(writer http.ResponseWriter, request *http.Request) {
-	serveDashboard(writer, request, dashboardHandler.service.GetFinishCycles)
+	actor, dashboardRequest, err := readDashboardRequest(request)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+
+	finishCycles, err := dashboardHandler.service.GetFinishCycles(request.Context(), actor, dashboardRequest)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+	response.SendResponse(writer, request, response.Success, finishCycles)
 }
 
 // GetModeTotals handles GET /api/v1/productivity/mode-totals?machineId=&from=&to= (or &date=
@@ -148,7 +191,18 @@ func (dashboardHandler *DashboardHandler) GetFinishCycles(writer http.ResponseWr
 // @Failure      500 {object} response.Envelope "Server error"
 // @Router       /v1/productivity/mode-totals [get]
 func (dashboardHandler *DashboardHandler) GetModeTotals(writer http.ResponseWriter, request *http.Request) {
-	serveDashboard(writer, request, dashboardHandler.service.GetModeTotals)
+	actor, dashboardRequest, err := readDashboardRequest(request)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+
+	totals, err := dashboardHandler.service.GetModeTotals(request.Context(), actor, dashboardRequest)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+	response.SendResponse(writer, request, response.Success, totals)
 }
 
 // GetMachineTimeByDay handles GET /api/v1/machine-health/machine-time-by-day?machineId=&from=&to=:
@@ -172,33 +226,34 @@ func (dashboardHandler *DashboardHandler) GetModeTotals(writer http.ResponseWrit
 // @Failure      500 {object} response.Envelope "Server error"
 // @Router       /v1/machine-health/machine-time-by-day [get]
 func (dashboardHandler *DashboardHandler) GetMachineTimeByDay(writer http.ResponseWriter, request *http.Request) {
-	serveDashboard(writer, request, dashboardHandler.service.GetMachineTimeByDay)
-}
-
-// serveDashboard reads the user and the chart query, then answers with what load returns.
-func serveDashboard[T any](writer http.ResponseWriter, request *http.Request,
-	load func(context.Context, model.AuthUser, dto.DashboardRequest) (T, error)) {
-	actor, err := currentUser(request)
+	actor, dashboardRequest, err := readDashboardRequest(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
+	}
+
+	rows, err := dashboardHandler.service.GetMachineTimeByDay(request.Context(), actor, dashboardRequest)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+	response.SendResponse(writer, request, response.Success, rows)
+}
+
+// readDashboardRequest reads the logged-in user and the chart query, and validates the query.
+func readDashboardRequest(request *http.Request) (model.AuthUser, dto.DashboardRequest, error) {
+	actor, err := currentUser(request)
+	if err != nil {
+		return model.AuthUser{}, dto.DashboardRequest{}, err
 	}
 	dashboardRequest, err := dashboardQuery(request)
 	if err != nil {
-		response.SendResponse(writer, request, err, nil)
-		return
+		return model.AuthUser{}, dto.DashboardRequest{}, err
 	}
 	if err := dashboardRequest.Validate(); err != nil {
-		response.SendResponse(writer, request, err, nil)
-		return
+		return model.AuthUser{}, dto.DashboardRequest{}, err
 	}
-
-	data, err := load(request.Context(), actor, dashboardRequest)
-	if err != nil {
-		response.SendResponse(writer, request, err, nil)
-		return
-	}
-	response.SendResponse(writer, request, response.Success, data)
+	return actor, dashboardRequest, nil
 }
 
 // dashboardQuery reads the chart query: machineIds (or machineId), from / to (or date for one

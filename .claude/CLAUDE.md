@@ -193,7 +193,7 @@ Base path: `/api/v1`
 **Roles**: GET `/roles` — the roles the current user may give (role dropdown of the user form); empty for users who manage no users.
 **Items**: GET/POST/PUT/DELETE `/items`
 **Branches**: GET/POST/PUT/DELETE `/branches`
-**Brands**: GET/POST/PUT/DELETE `/brands` — every logged-in user reads; only the superadmin writes (`superAdminOnly`).
+**Brands**: GET/POST/PUT/DELETE `/brands` — `{name, code, description}` (name required, code optional; both unique). Every logged-in user reads; only the superadmin writes (`superAdminOnly`; client Account Center › Machine Catalog › Brands). Cannot be deleted while it has controllers or machines use it.
 **Categories**: GET/POST/PUT/DELETE `/categories`
 **Products**: GET/POST/PUT/DELETE `/products`
 **Controllers**: GET/POST/PUT/DELETE `/controllers` — machine catalog Brand → Controller → Model. Body `{brandId, name, description}`: no code or variant, the variant is part of the name (e.g. "Sinumerik 828D", migration 017). Brand required, name unique per brand (case-insensitive), `?brandId=` on list. Cannot be deleted while it has models or machines use it; its brand cannot change while machines use it.

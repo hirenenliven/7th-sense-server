@@ -83,6 +83,13 @@ func TestControllerBrand(t *testing.T) {
 		expectStatus(t, sendRequest(t, router, http.MethodPost, apiV1+"/controllers", map[string]any{"name": name, "brandId": unknownID}), http.StatusBadRequest, "Please enter valid brand")
 	})
 
+	t.Run("a brand with controllers cannot be deleted", func(t *testing.T) {
+		brandID := createTestRecord(t, "/brands", "Brand")
+		createController(t, router, "Test Controller "+uniqueSuffix(), brandID)
+		expectStatus(t, sendRequest(t, router, http.MethodDelete, fmt.Sprintf("%s/brands/%d", apiV1, brandID), nil),
+			http.StatusBadRequest, "This brand has controllers. Delete its controllers first")
+	})
+
 	t.Run("name is unique per brand", func(t *testing.T) {
 		name := "Test Controller " + uniqueSuffix()
 		firstID := createController(t, router, name, createTestRecord(t, "/brands", "Brand"))

@@ -192,9 +192,9 @@
     "semantic_hash": "ca7e9f6b163eac6518e9dfce95ab7f2c"
   },
   "internal/handler/auth_handler.go": {
-    "mtime": 1793784613.182842,
-    "seen": 1793784734.4638693,
-    "ast_hash": "02dcedb436616d807a638ea86086ec52",
+    "mtime": 1793785653.2004087,
+    "seen": 1793786096.295206,
+    "ast_hash": "bf8a34eab0ef03bd6cf369815179b2dd",
     "semantic_hash": ""
   },
   "internal/handler/branch_handler.go": {
@@ -204,9 +204,9 @@
     "semantic_hash": ""
   },
   "internal/handler/brand_handler.go": {
-    "mtime": 1793690505.9086487,
-    "seen": 1793690916.2717595,
-    "ast_hash": "bab2ae0bf40837dafc047ec34ef1e144",
+    "mtime": 1793788826.6689298,
+    "seen": 1793789038.7681162,
+    "ast_hash": "c3b4fb8cf6a0f5cf41efd6e7d6dc92fb",
     "semantic_hash": ""
   },
   "internal/handler/break_handler.go": {
@@ -588,10 +588,10 @@
     "semantic_hash": "6750f5e80108aa785b9e1485f58c5faf"
   },
   "internal/repository/brand_repository.go": {
-    "mtime": 1791807334.3187916,
-    "seen": 1792149991.0138583,
-    "ast_hash": "e99f6f9ce8011024f524c4423d6a911b",
-    "semantic_hash": "e99f6f9ce8011024f524c4423d6a911b"
+    "mtime": 1793788826.628928,
+    "seen": 1793789038.7683067,
+    "ast_hash": "a430f5ef10486a877ab3bc912ac49283",
+    "semantic_hash": ""
   },
   "internal/repository/break_repository.go": {
     "mtime": 1792048499.143658,
@@ -948,10 +948,10 @@
     "semantic_hash": "69739a4c16986a6f33657e9b248d7c73"
   },
   "internal/service/brand_service.go": {
-    "mtime": 1791870962.4813192,
-    "seen": 1792149991.0138583,
-    "ast_hash": "cc5ccc8a7bdc396e0b45594c46490219",
-    "semantic_hash": "cc5ccc8a7bdc396e0b45594c46490219"
+    "mtime": 1793788826.629521,
+    "seen": 1793789038.768425,
+    "ast_hash": "ca408d6e6ef921fa4e9b5292605241c3",
+    "semantic_hash": ""
   },
   "internal/service/break_service.go": {
     "mtime": 1791975312.6488204,
@@ -1134,10 +1134,10 @@
     "semantic_hash": "24f45787d069b61c33b64970cb2798bf"
   },
   "tests/catalog_test.go": {
-    "mtime": 1791950807.1203673,
-    "seen": 1792149991.0138583,
-    "ast_hash": "879aca319f31cad56d9dd0c44917fb16",
-    "semantic_hash": "879aca319f31cad56d9dd0c44917fb16"
+    "mtime": 1793788861.760403,
+    "seen": 1793789038.7684917,
+    "ast_hash": "dc5b27562ac2d306aac677d86017a8be",
+    "semantic_hash": ""
   },
   "tests/clientele_test.go": {
     "mtime": 1791972677.5099835,
@@ -1218,9 +1218,9 @@
     "semantic_hash": "83e782660b9df6e3978298333b4f35a6"
   },
   ".claude/CLAUDE.md": {
-    "mtime": 1793784613.1818426,
-    "seen": 1793784734.4642591,
-    "ast_hash": "7230475d307815d97b8ff53d35f2a44c",
+    "mtime": 1793788826.670653,
+    "seen": 1793789038.7685246,
+    "ast_hash": "b92ce4a93230a2b0f9fef57092152905",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1596,15 +1596,15 @@
     "semantic_hash": ""
   },
   "docs/postman/7th-sense.postman_collection.json": {
-    "mtime": 1793784614.8840823,
-    "seen": 1793784734.4637797,
-    "ast_hash": "1d71ec82f2c122eea85816a711e3591c",
+    "mtime": 1793789022.7472217,
+    "seen": 1793789038.7680259,
+    "ast_hash": "0c7df5488c51d2ca669420fa3afc4d2d",
     "semantic_hash": ""
   },
   "docs/postman/7th-sense.postman_environment.json": {
-    "mtime": 1793784614.8840823,
-    "seen": 1793784734.463782,
-    "ast_hash": "b87cb9a353a53711c2b018cef942f8de",
+    "mtime": 1793789022.7477303,
+    "seen": 1793789038.7680283,
+    "ast_hash": "a595675440176eaa943a382e74103db4",
     "semantic_hash": ""
   },
   "tests/apidocs_test.go": {
@@ -1668,9 +1668,9 @@
     "semantic_hash": ""
   },
   "docs/api/openapi.yaml": {
-    "mtime": 1793784614.879233,
-    "seen": 1793784734.4642797,
-    "ast_hash": "215df61bd1328c30cd3cb1aab047c15b",
+    "mtime": 1793789022.7417414,
+    "seen": 1793789038.7685442,
+    "ast_hash": "7edc90b5091300ec74056117b40f3fc1",
     "semantic_hash": ""
   },
   "cmd/partcount-probe/main.go": {
