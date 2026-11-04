@@ -153,6 +153,11 @@ func (telemetryService *MachineTelemetryService) GetOpModeName(ctx context.Conte
 	return fmt.Sprintf("Mode %d", opMode), nil
 }
 
+// GetModeDurations returns the seconds machine machineID spent in each mode between from and to.
+func (telemetryService *MachineTelemetryService) GetModeDurations(ctx context.Context, machineID int64, from, to time.Time) ([]model.ModeDuration, error) {
+	return telemetryService.telemetryRepository.SumModeDurations(ctx, machineID, from, to)
+}
+
 // GetModePeriods returns machine machineID's mode periods running at or after since, oldest first.
 func (telemetryService *MachineTelemetryService) GetModePeriods(ctx context.Context, machineID int64, since time.Time) ([]model.MachineModePeriod, error) {
 	return telemetryService.telemetryRepository.FindModePeriods(ctx, machineID, since)

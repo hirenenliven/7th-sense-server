@@ -4299,6 +4299,76 @@
                   "  pm.expect(json).to.have.property('success', true);",
                   "  pm.expect(json.statusCode).to.be.a('number');",
                   "  pm.expect(json.message).to.be.a('string');",
+                  "});",
+                  "pm.test('data is an object', () =\u003e pm.expect(json.data).to.be.an('object'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "Get mode totals",
+          "request": {
+            "description": "GetModeTotals handles GET /api/v1/productivity/mode-totals?machineId=\u0026from=\u0026to= (or \u0026date= for one day, or \u0026all=true for every recorded period): the time the machine spent in each mode.\n\nUsed by pages: Productivity",
+            "header": [],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "productivity",
+                "mode-totals"
+              ],
+              "query": [
+                {
+                  "description": "Machine id",
+                  "disabled": false,
+                  "key": "machineId",
+                  "value": ""
+                },
+                {
+                  "description": "One day YYYY-MM-DD (default today)",
+                  "disabled": true,
+                  "key": "date",
+                  "value": ""
+                },
+                {
+                  "description": "First day YYYY-MM-DD",
+                  "disabled": true,
+                  "key": "from",
+                  "value": ""
+                },
+                {
+                  "description": "Last day YYYY-MM-DD (default today); at most 31 days",
+                  "disabled": true,
+                  "key": "to",
+                  "value": ""
+                },
+                {
+                  "description": "Every recorded period (dates ignored)",
+                  "disabled": true,
+                  "key": "all",
+                  "value": ""
+                }
+              ],
+              "raw": "{{baseUrl}}/v1/productivity/mode-totals"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('status is 200', () =\u003e pm.response.to.have.status(200));",
+                  "pm.test('response time \u003c 2000ms', () =\u003e pm.expect(pm.response.responseTime).to.be.below(2000));",
+                  "const json = pm.response.json();",
+                  "pm.test('envelope fields', () =\u003e {",
+                  "  pm.expect(json).to.have.property('success', true);",
+                  "  pm.expect(json.statusCode).to.be.a('number');",
+                  "  pm.expect(json.message).to.be.a('string');",
                   "});"
                 ],
                 "type": "text/javascript"

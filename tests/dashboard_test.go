@@ -79,7 +79,46 @@ func TestDashboardCharts(t *testing.T) {
 	}
 	t.Logf("last 30 minutes: %d periods, program %q, op mode %q", len(lastMinutes.Periods), lastMinutes.ProgramName, lastMinutes.OpMode)
 
+	// Mode totals: today's add up to at most the time since midnight; all time covers at least today
+	todayTotals := sendRequest(t, router, http.MethodGet, fmt.Sprintf("%s/productivity/mode-totals?machineId=%d&date=%s", apiV1, machineID, today), nil)
+	if !todayTotals.Success {
+		t.Fatalf("mode totals of today: %s", todayTotals.Message)
+	}
+	var todaySum dto.ModeTotalsResponse
+	mustDecode(t, todayTotals.Data, &todaySum)
+	todaySeconds := int64(0)
+	for _, total := range todaySum.Totals {
+		todaySeconds += total.DurationSec
+	}
+	midnight, _ := time.ParseInLocation("2006-01-02", today, time.Local)
+	if limit := int64(time.Since(midnight).Seconds()) + 1; todaySeconds > limit {
+		t.Errorf("mode totals of today add up to %d s, more than the %d s since midnight", todaySeconds, limit)
+	}
+
+	allTotals := sendRequest(t, router, http.MethodGet, fmt.Sprintf("%s/productivity/mode-totals?machineId=%d&all=true", apiV1, machineID), nil)
+	if !allTotals.Success {
+		t.Fatalf("mode totals of all time: %s", allTotals.Message)
+	}
+	var allSum dto.ModeTotalsResponse
+	mustDecode(t, allTotals.Data, &allSum)
+	allSeconds := int64(0)
+	for _, total := range allSum.Totals {
+		allSeconds += total.DurationSec
+	}
+	if allSeconds < todaySeconds {
+		t.Errorf("mode totals of all time (%d s) are less than today's (%d s)", allSeconds, todaySeconds)
+	}
+	if allSum.From == nil {
+		t.Errorf("mode totals of all time have no start")
+	}
+	t.Logf("mode totals: today %d s, all time %d s since %v", todaySeconds, allSeconds, allSum.From)
+
+	if result := sendRequest(t, router, http.MethodGet, apiV1+"/productivity/mode-totals?all=true", nil); result.StatusCode != http.StatusBadRequest {
+		t.Errorf("mode totals without a machine: status %d, want 400", result.StatusCode)
+	}
+
 	for _, path := range []string{
+		fmt.Sprintf("/productivity/mode-totals?machineId=%d&from=%s&to=%s", machineID, weekAgo, today),
 		fmt.Sprintf("/productivity/oee?machineIds=%d&from=%s&to=%s", machineID, weekAgo, today),
 		fmt.Sprintf("/productivity/oee?machineIds=%d&from=%s&to=%s&schedule=with", machineID, weekAgo, today),
 		fmt.Sprintf("/productivity/cycle-counts?machineIds=%d&from=%s&to=%s", machineID, weekAgo, today),

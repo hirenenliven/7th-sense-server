@@ -24,8 +24,8 @@ const (
 // DashboardRequest is the query of the /productivity and /machine-health charts: the machines,
 // the days From … To (YYYY-MM-DD, both included; an empty To is today, an empty From is To),
 // the shifts (none = the whole day), the program (empty = every program), for OEE whether
-// availability counts the scheduled shift time only, and for the mode timeline the last Minutes
-// up to now (0 = the To day).
+// availability counts the scheduled shift time only, for the mode timeline the last Minutes
+// up to now (0 = the To day), and for the mode totals AllTime (every recorded period, no dates).
 type DashboardRequest struct {
 	MachineIDs   []int64
 	From         string
@@ -34,12 +34,20 @@ type DashboardRequest struct {
 	Program      string
 	WithSchedule bool
 	Minutes      int
+	AllTime      bool
 }
 
 // Validate checks the machines and the dates (at most MachineCycleMaxDays days).
 func (dashboardRequest *DashboardRequest) Validate() error {
 	if dashboardRequest.Minutes < 0 || dashboardRequest.Minutes > ModeTimelineMaxMinutes {
 		return response.NewError(http.StatusBadRequest, fmt.Sprintf("Please select at most %d minutes", ModeTimelineMaxMinutes))
+	}
+	// All time has no dates, so only the machine is checked (no day limit)
+	if dashboardRequest.AllTime {
+		if len(dashboardRequest.MachineIDs) == 0 || dashboardRequest.MachineIDs[0] <= 0 {
+			return response.SelectMachine
+		}
+		return nil
 	}
 	listRequest := dashboardRequest.cycleRequest()
 	return listRequest.Validate()
@@ -73,6 +81,16 @@ type ModeTimelineResponse struct {
 	To          time.Time        `json:"to"`
 	ServerTime  time.Time        `json:"serverTime"`
 	Periods     []TimelinePeriod `json:"periods"`
+}
+
+// ModeTotalsResponse is the response of GET /productivity/mode-totals: the time the machine spent
+// in each mode within From … To (periods clipped to it; the open period runs up to ServerTime).
+// For all time From is the start of the first recorded period (nil when nothing is recorded).
+type ModeTotalsResponse struct {
+	From       *time.Time           `json:"from"`
+	To         time.Time            `json:"to"`
+	ServerTime time.Time            `json:"serverTime"`
+	Totals     []model.ModeDuration `json:"totals"`
 }
 
 // TimelinePeriod is one bar of the mode Gantt chart.

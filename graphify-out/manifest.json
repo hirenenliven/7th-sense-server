@@ -1218,9 +1218,9 @@
     "semantic_hash": "83e782660b9df6e3978298333b4f35a6"
   },
   ".claude/CLAUDE.md": {
-    "mtime": 1793698494.1423042,
-    "seen": 1793698510.148036,
-    "ast_hash": "03d6f8e0b98a3ae5b7720a0b6c6e28c4",
+    "mtime": 1793772706.4986193,
+    "seen": 1793772746.3246684,
+    "ast_hash": "c7484c7fc0d73162c9399aa26da38483",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1240,24 +1240,6 @@
     "seen": 1792496167.7790656,
     "ast_hash": "18e202ea12c8a7d885a7db4b6b821e5c",
     "semantic_hash": "18e202ea12c8a7d885a7db4b6b821e5c"
-  },
-  "docs/dll-usecase/G0_V0.0.4_DLL/go.mod": {
-    "mtime": 1792038442.0,
-    "seen": 1793354477.4906828,
-    "ast_hash": "7e5cc3321bcb42a2ac343f28459ffad7",
-    "semantic_hash": "7e5cc3321bcb42a2ac343f28459ffad7"
-  },
-  "docs/dll-usecase/G0_V0.0.4_DLL/sinumerik_client.go": {
-    "mtime": 1792998334.9248672,
-    "seen": 1793354477.4906828,
-    "ast_hash": "531f9b6b5d9bb6601b59a73fa1b86876",
-    "semantic_hash": "531f9b6b5d9bb6601b59a73fa1b86876"
-  },
-  "docs/dll-usecase/G0_V0.0.4_DLL/tools/gencert/gencert.go": {
-    "mtime": 1792127568.0,
-    "seen": 1793354477.4906828,
-    "ast_hash": "ad479555d88bc947b129f77dce9df446",
-    "semantic_hash": "ad479555d88bc947b129f77dce9df446"
   },
   "internal/dto/downtime_reason_dto.go": {
     "mtime": 1792556010.9614973,
@@ -1392,21 +1374,21 @@
     "semantic_hash": "bfbe04d6006e9063b6bbc24985603f3c"
   },
   "internal/model/machine_telemetry.go": {
-    "mtime": 1793681770.0650256,
-    "seen": 1793682002.5451734,
-    "ast_hash": "f0b9892e4386a32bff773af95ce32652",
+    "mtime": 1793771697.3055556,
+    "seen": 1793771932.890603,
+    "ast_hash": "cc32401c5818cc1e84ebda5beb30e195",
     "semantic_hash": ""
   },
   "internal/repository/machine_telemetry_repository.go": {
-    "mtime": 1793681770.0655339,
-    "seen": 1793682002.5452657,
-    "ast_hash": "6835a757382c5e9fef6614051b4a93a9",
+    "mtime": 1793772696.9590101,
+    "seen": 1793772746.3244658,
+    "ast_hash": "53450dd4eff1eeb90f801beaf4a9e215",
     "semantic_hash": ""
   },
   "internal/service/machine_telemetry_service.go": {
-    "mtime": 1793681791.6207874,
-    "seen": 1793682002.5453982,
-    "ast_hash": "848992ff7cf4da56e8bd1588fe10fb5f",
+    "mtime": 1793771697.307121,
+    "seen": 1793771932.8908265,
+    "ast_hash": "321b1c4db0ca6ddcf086806fead70cd0",
     "semantic_hash": ""
   },
   "docs/cnc-data-collection-flow.md": {
@@ -1420,12 +1402,6 @@
     "seen": 1793354477.4906828,
     "ast_hash": "561dde8417980e478b2a723094a8bff1",
     "semantic_hash": "561dde8417980e478b2a723094a8bff1"
-  },
-  "docs/dll-usecase/G0_V0.0.4_DLL/demo_monitor/main.go": {
-    "mtime": 1793004400.9849021,
-    "seen": 1793354477.4906828,
-    "ast_hash": "f92a669f5573addb1eb9a7cce37c2fc2",
-    "semantic_hash": "f92a669f5573addb1eb9a7cce37c2fc2"
   },
   "docs/setup-guide.txt": {
     "mtime": 1793172367.6874745,
@@ -1584,33 +1560,33 @@
     "semantic_hash": ""
   },
   "internal/dto/dashboard_dto.go": {
-    "mtime": 1793688535.0180461,
-    "seen": 1793688610.8402972,
-    "ast_hash": "99a0ffb2d126a60df33ae2f1c0ef7249",
+    "mtime": 1793771697.2935882,
+    "seen": 1793771932.8904612,
+    "ast_hash": "75e854b44ac9a0fc0d6276364826bc47",
     "semantic_hash": ""
   },
   "internal/handler/dashboard_handler.go": {
-    "mtime": 1793690506.554934,
-    "seen": 1793690916.2717686,
-    "ast_hash": "15a8dd38a739ffbe4ab52f36189337a0",
+    "mtime": 1793772697.0153508,
+    "seen": 1793772746.3243036,
+    "ast_hash": "61cc2d24424258dc8b9b7ee14e837de5",
     "semantic_hash": ""
   },
   "internal/routes/dashboard_routes.go": {
-    "mtime": 1793680832.9238014,
-    "seen": 1793681292.467203,
-    "ast_hash": "9b9c59bdab2cfc2fbdbe78b446c4ab3d",
+    "mtime": 1793771697.3096428,
+    "seen": 1793771932.890751,
+    "ast_hash": "75582fb708f0a029252526aa41685d78",
     "semantic_hash": ""
   },
   "internal/service/dashboard_service.go": {
-    "mtime": 1793688535.2625332,
-    "seen": 1793688610.8406196,
-    "ast_hash": "0e7086d1d4f760cfa538df379196b97c",
+    "mtime": 1793771697.3086252,
+    "seen": 1793771932.8908088,
+    "ast_hash": "dc601fc347fde4049b0578eb103d4cc8",
     "semantic_hash": ""
   },
   "tests/dashboard_test.go": {
-    "mtime": 1793681791.6277132,
-    "seen": 1793682002.5454443,
-    "ast_hash": "441d637bb205b8d0fc503f780abb79b6",
+    "mtime": 1793771783.9194436,
+    "seen": 1793771932.89087,
+    "ast_hash": "54d2eb619fdad5f5ab9f564c25861e79",
     "semantic_hash": ""
   },
   "docs/api/apidocs.go": {
@@ -1620,14 +1596,14 @@
     "semantic_hash": ""
   },
   "docs/postman/7th-sense.postman_collection.json": {
-    "mtime": 1793690534.3654063,
-    "seen": 1793690916.271624,
-    "ast_hash": "56a5507f78a3063cee027ddae718c116",
+    "mtime": 1793772728.009251,
+    "seen": 1793772746.324123,
+    "ast_hash": "09551a4d62fa9551993327fd65280057",
     "semantic_hash": ""
   },
   "docs/postman/7th-sense.postman_environment.json": {
-    "mtime": 1793690534.3654063,
-    "seen": 1793690916.271626,
+    "mtime": 1793772728.0097663,
+    "seen": 1793772746.3241253,
     "ast_hash": "b87cb9a353a53711c2b018cef942f8de",
     "semantic_hash": ""
   },
@@ -1692,9 +1668,15 @@
     "semantic_hash": ""
   },
   "docs/api/openapi.yaml": {
-    "mtime": 1793690534.3605208,
-    "seen": 1793690916.2722821,
-    "ast_hash": "a736eedb64c706b9db533c0a4d756936",
+    "mtime": 1793772728.004353,
+    "seen": 1793772746.3247044,
+    "ast_hash": "b3f227ee0ca223fdf9cb0f5870a8b308",
+    "semantic_hash": ""
+  },
+  "cmd/partcount-probe/main.go": {
+    "mtime": 1793703874.783721,
+    "seen": 1793708297.478967,
+    "ast_hash": "be1a2bf24fd815cead7cf91fff87b89b",
     "semantic_hash": ""
   }
 }

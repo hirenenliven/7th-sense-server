@@ -92,6 +92,37 @@ func (dashboardService *DashboardService) GetModeTimeline(ctx context.Context, a
 	}, nil
 }
 
+// GetModeTotals returns the time the machine spent in each mode over the days From … To (up to
+// now), or over every recorded period when AllTime.
+func (dashboardService *DashboardService) GetModeTotals(ctx context.Context, actor model.AuthUser, dashboardRequest dto.DashboardRequest) (dto.ModeTotalsResponse, error) {
+	now := time.Now()
+	machines, err := dashboardService.machinesFor(ctx, actor, dashboardRequest.MachineIDs[:1])
+	if err != nil {
+		return dto.ModeTotalsResponse{}, err
+	}
+	from, to := time.Time{}, now
+	if !dashboardRequest.AllTime {
+		from, to = dashboardRequest.Range(now)
+		to = minTime(to, now)
+	}
+	totals, err := dashboardService.telemetryService.GetModeDurations(ctx, machines[0].ID, from, to)
+	if err != nil {
+		return dto.ModeTotalsResponse{}, err
+	}
+
+	// A range starts at its From day; all time starts at the first recorded period
+	var first *time.Time
+	if !dashboardRequest.AllTime {
+		first = &from
+	}
+	for index := range totals {
+		if first == nil || totals[index].FirstAt.Before(*first) {
+			first = &totals[index].FirstAt
+		}
+	}
+	return dto.ModeTotalsResponse{From: first, To: to, ServerTime: now, Totals: totals}, nil
+}
+
 // GetOEE returns one OEE row per day with planned time, averaged over the machines:
 // availability = run time / planned time, performance = standard cycle time / run time of the
 // completed cycles that have a standard time, quality = completed / closed cycles. Planned time

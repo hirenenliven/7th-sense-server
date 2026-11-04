@@ -130,6 +130,15 @@ type MachineModePeriod struct {
 	DurationSec int        `db:"duration_sec" json:"durationSec"`
 }
 
+// ModeDuration is the time a machine spent in one mode within a time range (periods clipped to
+// it); FirstAt is when the first of those periods began (clipped to the range start).
+type ModeDuration struct {
+	ModeID      int       `db:"mode_id" json:"modeId"`
+	ModeName    string    `db:"mode_name" json:"modeName"`
+	DurationSec int64     `db:"duration_sec" json:"durationSec"`
+	FirstAt     time.Time `db:"first_at" json:"-"`
+}
+
 // MachineModeStatus is a machine and the mode it is in now: its open machine_mode_log period
 // (machines.mode_id when it has none). ModeID is nil for a machine never collected; ModeSince
 // and ModeDurationSec are nil without an open period.

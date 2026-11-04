@@ -416,8 +416,6 @@ func (telemetryRepository *MachineTelemetryRepository) FindMachineModeStatuses(c
 	return statuses, nil
 }
 
-// FindModePeriods returns machine machineID's mode periods that were running at or after since,
-// oldest first. The open period (ended_at NULL) counts its duration up to now.
 // FindOpMode returns machine machineID's latest opMode value (cnc_variables code 'opMode') and
 // its controller's cnc_engine; either is nil when unknown.
 func (telemetryRepository *MachineTelemetryRepository) FindOpMode(ctx context.Context, machineID int64) (*float64, *int, error) {
@@ -444,6 +442,31 @@ func (telemetryRepository *MachineTelemetryRepository) FindOpMode(ctx context.Co
 	return value, engine, rows.Err()
 }
 
+// SumModeDurations returns the seconds machine machineID spent in each mode between from and to,
+// summed in the database with every period clipped to the range (an open period runs up to to).
+func (telemetryRepository *MachineTelemetryRepository) SumModeDurations(ctx context.Context, machineID int64, from, to time.Time) ([]model.ModeDuration, error) {
+	query := `SELECT l.mode_id, COALESCE(mm.name, '') AS mode_name,
+			COALESCE(SUM(EXTRACT(EPOCH FROM LEAST(COALESCE(l.ended_at, $3), $3) - GREATEST(l.started_at, $2))), 0)::bigint AS duration_sec,
+			MIN(GREATEST(l.started_at, $2)) AS first_at
+		FROM machine_mode_log l
+		LEFT JOIN machine_modes mm ON mm.id = l.mode_id
+		WHERE l.machine_id = $1 AND l.started_at < $3 AND (l.ended_at IS NULL OR l.ended_at > $2)
+		GROUP BY l.mode_id, mm.name
+		ORDER BY l.mode_id`
+
+	rows, err := db.Execute(ctx, telemetryRepository.database, query, machineID, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("sum mode durations: %w", err)
+	}
+	durations, err := pgx.CollectRows(rows, pgx.RowToStructByName[model.ModeDuration])
+	if err != nil {
+		return nil, fmt.Errorf("sum mode durations: %w", err)
+	}
+	return durations, nil
+}
+
+// FindModePeriods returns machine machineID's mode periods that were running at or after since,
+// oldest first. The open period (ended_at NULL) counts its duration up to now.
 func (telemetryRepository *MachineTelemetryRepository) FindModePeriods(ctx context.Context, machineID int64, since time.Time) ([]model.MachineModePeriod, error) {
 	query := `SELECT l.id, l.mode_id, COALESCE(mm.name, '') AS mode_name,
 			COALESCE(l.program_name, '') AS program_name, l.started_at, l.ended_at,

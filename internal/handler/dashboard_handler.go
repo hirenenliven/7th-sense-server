@@ -125,6 +125,32 @@ func (dashboardHandler *DashboardHandler) GetFinishCycles(writer http.ResponseWr
 	serveDashboard(writer, request, dashboardHandler.service.GetFinishCycles)
 }
 
+// GetModeTotals handles GET /api/v1/productivity/mode-totals?machineId=&from=&to= (or &date=
+// for one day, or &all=true for every recorded period): the time the machine spent in each mode.
+//
+// @Summary      Get mode totals
+// @Description  GetModeTotals handles GET /api/v1/productivity/mode-totals?machineId=&from=&to= (or &date= for one day, or &all=true for every recorded period): the time the machine spent in each mode.
+// @Description
+// @Description  Used by pages: Productivity
+// @Tags         Productivity
+// @ID           getModeTotals
+// @Produce      json
+// @Security     cookieAuth
+// @Param        machineId query int true "Machine id"
+// @Param        date query string false "One day YYYY-MM-DD (default today)"
+// @Param        from query string false "First day YYYY-MM-DD"
+// @Param        to query string false "Last day YYYY-MM-DD (default today); at most 31 days"
+// @Param        all query bool false "Every recorded period (dates ignored)"
+// @Success      200 {object} response.Envelope{data=dto.ModeTotalsResponse}
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      404 {object} response.Envelope "Not found"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/productivity/mode-totals [get]
+func (dashboardHandler *DashboardHandler) GetModeTotals(writer http.ResponseWriter, request *http.Request) {
+	serveDashboard(writer, request, dashboardHandler.service.GetModeTotals)
+}
+
 // GetMachineTimeByDay handles GET /api/v1/machine-health/machine-time-by-day?machineId=&from=&to=:
 // hours per machine mode for each day.
 //
@@ -176,7 +202,7 @@ func serveDashboard[T any](writer http.ResponseWriter, request *http.Request,
 }
 
 // dashboardQuery reads the chart query: machineIds (or machineId), from / to (or date for one
-// day), shiftIds, program, schedule and minutes.
+// day), shiftIds, program, schedule, minutes and all (every recorded period).
 func dashboardQuery(request *http.Request) (dto.DashboardRequest, error) {
 	query := request.URL.Query()
 	machineIDs, err := queryIDList(query.Get("machineIds"), "machineIds")
@@ -196,6 +222,7 @@ func dashboardQuery(request *http.Request) (dto.DashboardRequest, error) {
 	dashboardRequest := dto.DashboardRequest{
 		MachineIDs: machineIDs, From: query.Get("from"), To: query.Get("to"), ShiftIDs: shiftIDs,
 		Program: strings.TrimSpace(query.Get("program")), WithSchedule: query.Get("schedule") == "with",
+		AllTime: query.Get("all") == "true",
 	}
 	if minutes := query.Get("minutes"); minutes != "" {
 		value, err := strconv.Atoi(minutes)

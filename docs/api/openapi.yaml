@@ -407,6 +407,19 @@ components:
         name:
           type: string
       type: object
+    dto.ModeTotalsResponse:
+      properties:
+        from:
+          type: string
+        serverTime:
+          type: string
+        to:
+          type: string
+        totals:
+          items:
+            $ref: '#/components/schemas/model.ModeDuration'
+          type: array
+      type: object
     dto.NewLicenceKey:
       properties:
         duration:
@@ -1383,6 +1396,15 @@ components:
         name:
           type: string
         updatedAt:
+          type: string
+      type: object
+    model.ModeDuration:
+      properties:
+        durationSec:
+          type: integer
+        modeId:
+          type: integer
+        modeName:
           type: string
       type: object
     model.Part:
@@ -7206,6 +7228,101 @@ paths:
       security:
         - cookieAuth: []
       summary: Get mode timeline
+      tags:
+        - Productivity
+  /v1/productivity/mode-totals:
+    get:
+      description: |-
+        GetModeTotals handles GET /api/v1/productivity/mode-totals?machineId=&from=&to= (or &date= for one day, or &all=true for every recorded period): the time the machine spent in each mode.
+
+        Used by pages: Productivity
+      operationId: getModeTotals
+      parameters:
+        - description: Machine id
+          in: query
+          name: machineId
+          required: true
+          schema:
+            type: integer
+        - description: One day YYYY-MM-DD (default today)
+          in: query
+          name: date
+          schema:
+            type: string
+        - description: First day YYYY-MM-DD
+          in: query
+          name: from
+          schema:
+            type: string
+        - description: Last day YYYY-MM-DD (default today); at most 31 days
+          in: query
+          name: to
+          schema:
+            type: string
+        - description: Every recorded period (dates ignored)
+          in: query
+          name: all
+          schema:
+            type: boolean
+      responses:
+        "200":
+          content:
+            application/json:
+              example:
+                message: success
+                statusCode: 200
+                success: true
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/response.Envelope'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/dto.ModeTotalsResponse'
+                    type: object
+          description: OK
+        "400":
+          content:
+            application/json:
+              example:
+                message: Validation error
+                statusCode: 400
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Validation error
+        "401":
+          content:
+            application/json:
+              example:
+                message: Not logged in
+                statusCode: 401
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not logged in
+        "404":
+          content:
+            application/json:
+              example:
+                message: Not found
+                statusCode: 404
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not found
+        "500":
+          content:
+            application/json:
+              example:
+                message: Server error
+                statusCode: 500
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Server error
+      security:
+        - cookieAuth: []
+      summary: Get mode totals
       tags:
         - Productivity
   /v1/productivity/oee:
