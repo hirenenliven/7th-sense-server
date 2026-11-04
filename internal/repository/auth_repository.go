@@ -50,13 +50,36 @@ func (authRepository *AuthRepository) FindUserByUsername(ctx context.Context, us
 	return user, mapAuthError("find login user", err)
 }
 
+// FindUserByID returns the user with id and its role name (no password hash).
+func (authRepository *AuthRepository) FindUserByID(ctx context.Context, id int64) (model.AuthUser, error) {
+	query := `SELECT users.id, users.username, users.email,
+			COALESCE(users.first_name, '') AS first_name,
+			COALESCE(users.last_name, '') AS last_name,
+			COALESCE(users.status, '') AS status,
+			users.company_id,
+			roles.name AS role
+		FROM users
+		JOIN roles ON roles.id = users.role_id
+		WHERE users.id = $1 AND users.is_deleted = false`
+
+	rows, err := db.Execute(ctx, authRepository.database, query, id)
+	if err != nil {
+		return model.AuthUser{}, fmt.Errorf("find user by id: %w", err)
+	}
+	// Lax: the password hash is not read.
+	user, err := pgx.CollectOneRow(rows, pgx.RowToStructByNameLax[model.AuthUser])
+	return user, mapAuthError("find user by id", err)
+}
+
 // CreateSession stores a session of userID that expires after lifetime.
-func (authRepository *AuthRepository) CreateSession(ctx context.Context, userID int64, tokenHash, deviceInfo string, lifetime time.Duration) error {
-	query := `INSERT INTO auth_tokens (user_id, token, token_type, device_type, device_info, expires_at)
-		VALUES ($1, $2, $3, 'web', NULLIF($4, ''), NOW() + $5 * INTERVAL '1 second')`
+// impersonatedBy is the superadmin who started it with "log in as" (nil for a
+// password login).
+func (authRepository *AuthRepository) CreateSession(ctx context.Context, userID int64, tokenHash, deviceInfo string, lifetime time.Duration, impersonatedBy *int64) error {
+	query := `INSERT INTO auth_tokens (user_id, token, token_type, device_type, device_info, expires_at, impersonated_by)
+		VALUES ($1, $2, $3, 'web', NULLIF($4, ''), NOW() + $5 * INTERVAL '1 second', $6)`
 
 	rows, err := db.Execute(ctx, authRepository.database, query,
-		userID, tokenHash, sessionTokenType, deviceInfo, int64(lifetime.Seconds()),
+		userID, tokenHash, sessionTokenType, deviceInfo, int64(lifetime.Seconds()), impersonatedBy,
 	)
 	if err != nil {
 		return fmt.Errorf("create session: %w", err)

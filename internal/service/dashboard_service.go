@@ -124,8 +124,9 @@ func (dashboardService *DashboardService) GetModeTotals(ctx context.Context, act
 }
 
 // GetOEE returns one OEE row per day with planned time, averaged over the machines:
-// availability = run time / planned time, performance = standard cycle time / run time of the
-// completed cycles that have a standard time, quality = completed / closed cycles. Planned time
+// availability = run time / planned time, performance = standard cycle time × parts counted
+// (ProgramPartCount) / run time of the completed cycles that have a standard time, quality =
+// completed / closed cycles. Planned time
 // is the day (or the shifts picked); "with schedule" counts only the customer's shifts that
 // work that weekday, and planned stops are left out.
 func (dashboardService *DashboardService) GetOEE(ctx context.Context, actor model.AuthUser, dashboardRequest dto.DashboardRequest) (dto.OEEResponse, error) {
@@ -444,8 +445,10 @@ func machineDayOEE(periods []model.MachineModePeriod, cycles []model.MachineCycl
 			continue
 		}
 		completed++
-		if cycle.StandardCycleSec != nil && *cycle.StandardCycleSec > 0 && cycle.ProductionSec > 0 {
-			standardSec += float64(*cycle.StandardCycleSec * max(cycle.PartsMade, 1))
+		// Parts come only from the controller's counter (M30). One part can take several
+		// cycles, so a cycle without a part adds its run time but no standard time.
+		if cycle.StandardCycleSec != nil && *cycle.StandardCycleSec > 0 {
+			standardSec += float64(*cycle.StandardCycleSec * cycle.PartsMade)
 			productionSec += float64(cycle.ProductionSec)
 		}
 	}

@@ -44,18 +44,28 @@ override 0 is Hold, so the cycle goes on and the time counts as `hold_sec`.
 | Conditions | Notes |
 |---|---|
 | `prev.program = reset` AND `now.program = running` AND no cycle open (or one closes at this reading) | A cycle opens only where its start is seen. Held → running does not open one (the held cycle goes on). A machine that connects while already running gets no cycle until its next reset → running. |
-| `step` 1 … 20 or a program loop (below) AND `now.program = running` | The next cycle starts at the moment the previous one is completed, but its row is written only when the program has not reset within 5 s (`cycleStartGrace`). The counter can count a reading before M30 resets the program; that reset ends the same part, so no 0 s cycle is written. |
+| `step` = 1 or a program loop (below) AND `now.program = running` | The next cycle starts at the moment the previous one is completed, but its row is written only when the program has not reset within 5 s (`cycleStartGrace`). The counter can count a reading before M30 resets the program; that reset ends the same part, so no 0 s cycle is written. |
 
 ### Completed
 
 | End reason | Shown as | How it is identified | Conditions |
 |---|---|---|---|
-| `part_count` | Part counted | `ProgramPartCount` went up by 1 … 20 since the previous reading. A bigger jump is the counter being set on the control and is ignored. If the program is still running, the next cycle opens as in *Opens* (after `cycleStartGrace`). | `1 ≤ step ≤ 20` (any `program`, any `alarm`; checked first, so it wins over a reset in the same reading) |
+| `part_count` | Part counted | `ProgramPartCount` went up by 1 since the previous reading (the controller counts one part per M30). A bigger jump is the counter being set on the control and is ignored. If the program is still running, the next cycle opens as in *Opens* (after `cycleStartGrace`). | `step = 1` (any `program`, any `alarm`; checked first, so it wins over a reset in the same reading) |
 | `program_loop` | Program started over | Running in both readings, `CurProgLine` fell by at least half the program's lines with `TotalProgLines` and `ProgName` unchanged, and the name is the cycle's own program (an M99 loop, e.g. line 15 → 3). A call into a sub program (M98) also jumps back to low lines, shows the sub program's name and can keep `TotalProgLines`. It is not a loop (machine 195: `O1002` line 6 → `O9001` line 2). Not used once the part counter has counted for this program. The next cycle opens as above. | `prev.program = running` AND `now.program = running` AND counter has not counted for this program AND `now.lines > 0` AND `now.lines = prev.lines` AND `now.name = prev.name` AND (`cycle.name = ''` OR `now.name = cycle.name`) AND `prev.line − now.line ≥ now.lines × 0.5` |
 | `program_end` | Program finished | Previous running, now reset, no alarm in either reading (M30 / M02). | `prev.program = running` AND `now.program = reset` AND `prev.alarm = no` AND `now.alarm = no` AND no `step` |
 
-A counter step up to 5 s after a cycle closed (the counter can lag M30 or the loop by a
-reading) is counted on that cycle. A `program_loop` cycle then becomes `part_count`.
+A cycle has at most one part, and the part comes only from the controller's counter, which
+counts at M30. One part can take several cycles: those without the M30 stay `completed` with
+`parts_made = 0`. The counter can reach the collector late, so a step belongs to the cycle closed
+last, if that one has no part yet, when:
+
+- no cycle is open (the machine is idle, or the step comes in the very reading the next run
+  starts: machine 195, 2026-11-03, cycle 568 ended 17:09:40 with the counter at 287, and 288
+  came only with the next start at 17:10:01), or
+- a cycle has opened since, and the step came within 5 s of its start (`cycleCounterGrace`: too
+  soon to be a part of its own). The open cycle then starts from the new count.
+
+A `program_loop` cycle then becomes `part_count`; the other end reasons are kept.
 
 ### Unfinished
 
@@ -89,8 +99,8 @@ decides what really happened.
 |---|---|---|---|
 | `cycleCheckpointInterval` | `machine_cycle.go` | 5 min | How often a running cycle's seconds are saved |
 | `loopMinimumDropFraction` | `machine_cycle.go` | 0.5 (half) | How far back the line must jump to count as "program started over" |
-| `maxPartCountStep` | `machine_cycle.go` | 20 | How big a counter step can be and still mean real parts |
-| `cycleCounterGrace` | `machine_cycle.go` | 5 s | How long after a cycle ends a late counter step still belongs to it |
+| `maxPartCountStep` | `machine_cycle.go` | 1 | How big a counter step can be and still mean a real part |
+| `cycleCounterGrace` | `machine_cycle.go` | 5 s | How long after the next cycle starts a late counter step still belongs to the cycle before |
 | `cycleStartGrace` | `machine_cycle.go` | 5 s | How long the next cycle waits before it is saved |
 | `emergencyResetGrace` | `machine_cycle.go` | 2 s | How long `IsEmergency` must stay on to be an E-stop and not the RESET key |
 | `CNC_CYCLE_MAX_HOURS` | `.env` | 24 h | How long a cycle may stay open before it is closed as `timeout` |
@@ -143,19 +153,18 @@ cycle's own program.
 shows its name in `ProgName` and keeps the main program's `TotalProgLines`, so by the lines alone it
 looks like a loop (machine 195, 2026-11-02: cycle 232 was split at `O1002` line 6 → `O9001` line 2).
 
-### `maxPartCountStep` (20)
+### `maxPartCountStep` (1)
 
 **Problem:** an operator can set the part counter by hand on the control (262 → 0, or 262 → 500).
 Without a limit, 262 → 500 would be "238 parts made".
 
 | Counter change | Meaning | Result |
 |---|---|---|
-| +1 … +20 | Real parts made | ✅ counted, the cycle is completed (`part_count`) |
-| more than +20 | Counter set by hand | ❌ ignored, only the baseline moves |
+| +1 | A real part made (M30) | ✅ counted, the cycle is completed (`part_count`) |
+| more than +1 | Counter set by hand | ❌ ignored, only the baseline moves |
 | goes down | Counter reset | ❌ ignored, only the baseline moves |
 
-**Why 20:** one cycle can make more than one part (multi-part fixtures), but not hundreds in one
-reading.
+**Why 1:** the controller counts at most one part per M30, and one cycle has at most one M30.
 
 ### `cycleCounterGrace` and `cycleStartGrace` (5 seconds each)
 
@@ -165,7 +174,7 @@ each order:
 
 | Order the machine sends | Without the value | Handled by |
 |---|---|---|
-| Program reset → counter steps (a moment later) | the part is lost, the cycle shows 0 parts | `cycleCounterGrace`: a counter step within 5 s after a cycle closed is that cycle's part (a `program_loop` cycle becomes `part_count`) |
+| Program reset → counter steps (a moment later, or only with the next start) | the part is lost, the cycle shows 0 parts | a step while no cycle is open, or within `cycleCounterGrace` (5 s) of the next cycle's start, is the part of the cycle closed last if it has none (a `program_loop` cycle becomes `part_count`) |
 | Counter steps → program reset (a moment later) | an extra 0 s cycle is written | `cycleStartGrace`: after a part count or a loop, the next cycle waits 5 s; a reset in that time drops it |
 
 Example of the second order (machine 195, 2026-11-02):
@@ -349,7 +358,7 @@ ORDER BY t.recorded_at;
 
 Read the rows with the **Conditions** tables above: e.g. a `program_end` must show ProcStatus
 going from the running value (Fanuc 3, Siemens 2) to 0 at `ended_at`; a `part_count` must show
-201 stepping up by 1 … 20 at `ended_at`; an `operator_reset` must show a held value (Fanuc 1/2/4,
+201 stepping up by 1 at `ended_at` (or, sent late, at the next cycle's start); an `operator_reset` must show a held value (Fanuc 1/2/4,
 Siemens 1/3/4) just before the 0.
 
 Alarms are not a stored variable, so for the alarm side (and when the variables are not

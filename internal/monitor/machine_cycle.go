@@ -33,8 +33,10 @@ import (
 // program name is compared only after a gap: a main program cannot change while it runs, and
 // a sub program call (M98) may show its own name. For the same reason a line jump is a loop only
 // while the cycle's own program shows: a call into a sub program also jumps back to its first
-// lines. A counter step within cycleCounterGrace after a cycle closed is that cycle's part (the
-// counter can lag M30 / the loop by a reading). The other way round, the counter can count a
+// lines. The counter steps only at M30, at most one part per cycle, and can reach us late: a
+// step while no cycle is open (often in the very reading the next run starts, machine 195
+// cycles 568 / 570) or within cycleCounterGrace of the next cycle's start is the part of the
+// cycle closed last, if that one has none yet. The other way round, the counter can count a
 // reading before M30 resets the program: the cycle that follows a part count or a loop opens
 // only once the program is still on cycleStartGrace later, and a reset before that drops it.
 //
@@ -51,10 +53,12 @@ const (
 	// lines while running is the program starting over (machine 195: line 15 -> 3 of 15).
 	// Smaller jumps back are loops inside the program.
 	loopMinimumDropFraction = 0.5
-	// maxPartCountStep: a bigger jump of ProgramPartCount is the counter being set on the
-	// control, not parts made; it only moves the baseline.
-	maxPartCountStep = 20
-	// cycleCounterGrace: a counter step this soon after a cycle closed is that cycle's part.
+	// maxPartCountStep: the controller counts at most one part per M30, so a bigger jump of
+	// ProgramPartCount is the counter being set on the control, not parts made; it only moves
+	// the baseline.
+	maxPartCountStep = 1
+	// cycleCounterGrace: a counter step this soon after a cycle closed, in a cycle that opened
+	// since, is the closed cycle's part.
 	cycleCounterGrace = 5 * time.Second
 	// cycleStartGrace: the cycle that follows a part count or a loop opens only when the program
 	// has not reset this long after it (machine 195: counter 17:41:29.13, M30 reset .26 is the
@@ -316,15 +320,20 @@ func secondsOf(duration time.Duration) int {
 	return max(0, int(math.Round(duration.Seconds())))
 }
 
-// lateParts reports whether parts counted at current belong to the cycle closed last: the
-// counter stepped within cycleCounterGrace of its end, while no cycle is open or the open one
-// began at that end (a program loop).
+// lateParts reports whether parts counted at current belong to the cycle closed last, which has
+// no part yet (one part per cycle): no cycle is open (the DLL may send the step only with the
+// next start, machine 195: cycle 568 ended 17:09:40, its 288 came at 17:10:01 with the next
+// start), or the open one began at or after that end and the step came within
+// cycleCounterGrace of the open one's start (too soon to be a part of its own).
 func (tracker *cycleTracker) lateParts(current cycleReading) bool {
 	closed := tracker.lastClosed
-	if closed == nil || closed.EndedAt == nil || current.at.Sub(*closed.EndedAt) > cycleCounterGrace {
+	if closed == nil || closed.EndedAt == nil || closed.PartsMade > 0 {
 		return false
 	}
-	return tracker.open == nil || tracker.open.StartedAt.Equal(*closed.EndedAt)
+	if tracker.open == nil {
+		return true
+	}
+	return !tracker.open.StartedAt.Before(*closed.EndedAt) && current.at.Sub(tracker.open.StartedAt) <= cycleCounterGrace
 }
 
 // restore goes on with cycle, left open by a previous run: the time per mode since its start is
@@ -486,15 +495,21 @@ func (machineWorker *worker) loadOpenCycle() bool {
 }
 
 // countLateParts gives parts to the cycle closed last (lateParts): a program loop it ended at
-// becomes a counted part.
+// becomes a counted part. A cycle opened since starts from the new count.
 func (machineWorker *worker) countLateParts(current cycleReading, parts int) {
-	closed := machineWorker.cycles.lastClosed
+	tracker := &machineWorker.cycles
+	closed := tracker.lastClosed
 	closed.PartsMade += parts
 	closed.PartCountEnd = &current.partCount
 	if closed.EndReason == model.CycleEndProgramLoop {
 		closed.EndReason = model.CycleEndPartCount
 	}
 	machineWorker.saveCycle(*closed, "cnc: count part on closed cycle")
+	if tracker.open != nil {
+		partCountStart := current.partCount
+		tracker.open.PartCountStart, tracker.open.PartCountEnd = &partCountStart, &partCountStart
+		machineWorker.saveCycle(tracker.progress(current.at), "cnc: move cycle part count start")
+	}
 	machineWorker.log(logTypeCycle, slog.LevelInfo, "cnc: cycle part counted after its end", "cycleId", closed.ID,
 		"parts", parts, "partCount", current.partCount, "endReason", closed.EndReason)
 }

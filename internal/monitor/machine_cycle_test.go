@@ -112,3 +112,41 @@ func TestAwaitNextCountsFromItsStart(t *testing.T) {
 		t.Fatal("Offline must drop the waiting cycle: its start is no longer known to go on")
 	}
 }
+
+// The controller counts at most one part per M30: a bigger step is the counter set by hand.
+func TestDecideCycleStepCountsOnePartPerStep(t *testing.T) {
+	running := readingAt(0, programRunning, "O1002", 10, 287)
+	if step := decideCycleStep(&running, readingAt(1, programRunning, "O1002", 11, 288), true, "O1002", true); step.closeReason != model.CycleEndPartCount || step.parts != 1 {
+		t.Fatalf("one part: got %+v", step)
+	}
+	if step := decideCycleStep(&running, readingAt(1, programRunning, "O1002", 11, 289), true, "O1002", true); step.closeReason != "" || step.parts != 0 {
+		t.Fatalf("counter set by hand (+2): got %+v, want the cycle to go on", step)
+	}
+}
+
+// Machine 195, 2026-11-03: cycle 568 ended (M30 reset) at 17:09:40 with the counter at 287; the
+// DLL sent 288 only with the next start at 17:10:01. That part is cycle 568's.
+func TestLatePartsBelongToTheCycleClosedLast(t *testing.T) {
+	ended := readingAt(0, programReset, "O1002", 0, 287).at
+	closed := model.MachineCycle{EndedAt: &ended}
+
+	nextStart := readingAt(21, programRunning, "O1002", 1, 288)
+	tracker := cycleTracker{lastClosed: &closed}
+	if !tracker.lateParts(nextStart) {
+		t.Fatal("a step with no cycle open is the closed cycle's part")
+	}
+
+	tracker.open = &model.MachineCycle{StartedAt: nextStart.at}
+	if !tracker.lateParts(readingAt(23, programRunning, "O1002", 2, 288)) {
+		t.Fatal("a step within cycleCounterGrace of the next start is the closed cycle's part")
+	}
+	if tracker.lateParts(readingAt(40, programRunning, "O1002", 30, 288)) {
+		t.Fatal("a step later in the next cycle is that cycle's own part")
+	}
+
+	closed.PartsMade = 1
+	tracker.open = nil
+	if tracker.lateParts(nextStart) {
+		t.Fatal("a cycle has at most one part")
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 
+	"7th-sense-server/internal/model"
 	"7th-sense-server/internal/response"
 )
 
@@ -31,4 +32,26 @@ func (request *LoginRequest) Validate() error {
 		return response.InvalidCredentials
 	}
 	return nil
+}
+
+// LoginAsRequest is the body for POST /auth/login-as: the customer whose account
+// the superadmin opens in a new tab.
+type LoginAsRequest struct {
+	CustomerID int64 `json:"customerId"`
+}
+
+// Validate checks a customer is given.
+func (request *LoginAsRequest) Validate() error {
+	if request.CustomerID <= 0 {
+		return response.SelectCustomer
+	}
+	return nil
+}
+
+// LoginAsResponse answers POST /auth/login-as. SessionKey names the API path of
+// the new session (/api/as/<sessionKey>/v1/...); it is not a secret, the session
+// token itself stays in an HttpOnly cookie.
+type LoginAsResponse struct {
+	SessionKey string         `json:"sessionKey"`
+	User       model.AuthUser `json:"user"`
 }

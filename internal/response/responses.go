@@ -53,6 +53,10 @@ var (
 	Forbidden            = newResponse(http.StatusForbidden, "You do not have permission to do this")
 	AccountInactive      = newResponse(http.StatusForbidden, "Your account is inactive. Please contact your administrator")
 	TooManyLoginAttempts = newResponse(http.StatusTooManyRequests, "Too many login attempts. Please try again in 15 minutes")
+	// CustomerNotFound: log in as a user that does not exist, is deleted or is not a customer.
+	CustomerNotFound = newResponse(http.StatusNotFound, "Customer not found")
+	// SelectCustomer: log in as without a customer.
+	SelectCustomer = newResponse(http.StatusBadRequest, "Please select customer")
 
 	// Validation error responses
 	ValidName              = newResponse(http.StatusBadRequest, "Please enter valid name")

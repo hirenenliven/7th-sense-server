@@ -54,6 +54,20 @@ func queryID(request *http.Request, name string) (*int64, error) {
 	return &id, nil
 }
 
+// queryBool reads the optional query parameter name as a boolean ("true" /
+// "false", "1" / "0"). It returns false when the parameter is missing or empty.
+func queryBool(request *http.Request, name string) (bool, error) {
+	value := request.URL.Query().Get(name)
+	if value == "" {
+		return false, nil
+	}
+	flag, err := strconv.ParseBool(value)
+	if err != nil {
+		return false, response.NewError(http.StatusBadRequest, "Please enter valid "+name)
+	}
+	return flag, nil
+}
+
 // currentUserID returns the id of the user making the request (set by
 // middleware.Authenticate), or Unauthorized when there is none.
 func currentUserID(request *http.Request) (int64, error) {

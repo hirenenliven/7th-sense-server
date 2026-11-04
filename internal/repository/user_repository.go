@@ -28,8 +28,9 @@ func NewUserRepository(database db.Querier) *UserRepository {
 }
 
 // FindAll returns the users. A non-empty role keeps only users with that role
-// name; a non-nil companyID only the members of that customer.
-func (userRepository *UserRepository) FindAll(ctx context.Context, role string, companyID *int64) ([]model.User, error) {
+// name; a non-nil companyID only the members of that customer; membersOnly only
+// users that belong to a customer (no customers, no superadmin).
+func (userRepository *UserRepository) FindAll(ctx context.Context, role string, companyID *int64, membersOnly bool) ([]model.User, error) {
 	query := `SELECT id, username, email, password,
 			COALESCE(first_name, '') AS first_name,
 			COALESCE(last_name, '') AS last_name,
@@ -42,9 +43,10 @@ func (userRepository *UserRepository) FindAll(ctx context.Context, role string, 
 		WHERE is_deleted = false
 			AND (NULLIF($1, '') IS NULL OR role_id = (SELECT id FROM roles WHERE name = $1))
 			AND ($2::integer IS NULL OR company_id = $2)
+			AND (NOT $3::boolean OR company_id IS NOT NULL)
 		ORDER BY id`
 
-	rows, err := db.Execute(ctx, userRepository.database, query, role, companyID)
+	rows, err := db.Execute(ctx, userRepository.database, query, role, companyID, membersOnly)
 	if err != nil {
 		return nil, fmt.Errorf("find all users: %w", err)
 	}

@@ -30,13 +30,19 @@ const (
 // sessionTokenBytes is the size of a session token before encoding (256 bits).
 const sessionTokenBytes = 32
 
+// loginAsKeyBytes is the size of a "log in as" session key before hex encoding.
+const loginAsKeyBytes = 16
+
 // dummyPasswordHash is compared when the username does not exist, so a wrong
 // username takes as long as a wrong password and usernames cannot be probed.
 var dummyPasswordHash, _ = bcrypt.GenerateFromPassword([]byte("7th-sense-dummy-password"), bcrypt.DefaultCost)
 
 // Session is a logged-in session: the token for the client's cookie and the user.
+// Key is set only for a "log in as" session: the path segment its cookie is
+// scoped to (/api/as/<Key>).
 type Session struct {
 	Token    string
+	Key      string
 	Lifetime time.Duration
 	Remember bool
 	User     model.AuthUser
@@ -96,13 +102,47 @@ func (authService *AuthService) Login(ctx context.Context, loginRequest dto.Logi
 	if loginRequest.Remember {
 		lifetime = RememberSessionLifetime
 	}
-	if err := authService.authRepository.CreateSession(ctx, user.ID, hashToken(token), truncate(deviceInfo, 255), lifetime); err != nil {
+	if err := authService.authRepository.CreateSession(ctx, user.ID, hashToken(token), truncate(deviceInfo, 255), lifetime, nil); err != nil {
 		return Session{}, err
 	}
 
 	slog.Info("login", "userId", user.ID, "role", user.Role, "remember", loginRequest.Remember)
 	user.Password = ""
 	return Session{Token: token, Lifetime: lifetime, Remember: loginRequest.Remember, User: user}, nil
+}
+
+// LoginAs starts a session of customer customerID for actor (the superadmin),
+// who opens that account in a new browser tab. It is an ordinary customer
+// session that records actor as impersonated_by and lasts one working day. It
+// gets its own key, so its cookie never replaces actor's own session.
+func (authService *AuthService) LoginAs(ctx context.Context, actor model.AuthUser, customerID int64, deviceInfo string) (Session, error) {
+	if actor.Role != model.RoleSuperAdmin {
+		return Session{}, response.Forbidden
+	}
+	customer, err := authService.authRepository.FindUserByID(ctx, customerID)
+	if errors.Is(err, repository.ErrNotFound) || (err == nil && customer.Role != model.RoleCustomer) {
+		return Session{}, response.CustomerNotFound
+	}
+	if err != nil {
+		return Session{}, err
+	}
+	if customer.Status != "" && customer.Status != dto.UserStatusActive {
+		return Session{}, response.AccountInactive
+	}
+
+	token, err := newSessionToken()
+	if err != nil {
+		return Session{}, err
+	}
+	key, err := newLoginAsKey()
+	if err != nil {
+		return Session{}, err
+	}
+	if err := authService.authRepository.CreateSession(ctx, customer.ID, hashToken(token), truncate(deviceInfo, 255), DefaultSessionLifetime, &actor.ID); err != nil {
+		return Session{}, err
+	}
+	slog.Info("login as", "userId", customer.ID, "impersonatedBy", actor.ID)
+	return Session{Token: token, Key: key, Lifetime: DefaultSessionLifetime, User: customer}, nil
 }
 
 // Authenticate returns the user of the session token, or LoginRequired when
@@ -133,6 +173,15 @@ func newSessionToken() (string, error) {
 		return "", fmt.Errorf("generate session token: %w", err)
 	}
 	return base64.RawURLEncoding.EncodeToString(tokenBytes), nil
+}
+
+// newLoginAsKey returns a random hex key for the API path of a "log in as" session.
+func newLoginAsKey() (string, error) {
+	keyBytes := make([]byte, loginAsKeyBytes)
+	if _, err := rand.Read(keyBytes); err != nil {
+		return "", fmt.Errorf("generate login as key: %w", err)
+	}
+	return hex.EncodeToString(keyBytes), nil
 }
 
 // hashToken returns the hex SHA-256 of token, the value stored in auth_tokens.token.

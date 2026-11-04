@@ -19,12 +19,13 @@ func NewUserHandler(userService *service.UserService) *UserHandler {
 	return &UserHandler{service: userService}
 }
 
-// GetAll handles GET /api/v1/users[?filterRole=<role name>][&companyId=<customer id>]:
-// the users the current user may see, e.g. ?filterRole=customer for the customer list.
+// GetAll handles GET /api/v1/users[?filterRole=<role name>][&companyId=<customer id>][&membersOnly=true]:
+// the users the current user may see, e.g. ?filterRole=customer for the customer list and
+// ?membersOnly=true for the users list (company members only: no customers, no superadmin).
 // filterRole narrows the list by the listed users' role; the caller is always the session user.
 //
 // @Summary      Get users
-// @Description  Returns the users the user may see, narrowed by filter: every user for the superadmin, the company's members for a customer or admin. A customer or admin asking for another company gets Forbidden.
+// @Description  Returns the users the user may see, narrowed by filter: every user for the superadmin, the company's members for a customer or admin. filterRole=customer is the superadmin's customer list (Account Center › Customer); membersOnly=true leaves out customers and the superadmin, so only the users created for a company are listed (Masters › Users). A customer or admin asking for another company gets Forbidden.
 // @Description  Roles: superadmin, customer, admin (others get 403).
 // @Description
 // @Description  Used by pages: Customers / Users list, Add / edit customer or user, Add / edit branch, Add / edit machine, Clientele, Add / edit part, Add / edit production schedule, Shifts, Breaks, Holidays / week off, Downtime / idle reasons, Licence keys
@@ -34,6 +35,7 @@ func NewUserHandler(userService *service.UserService) *UserHandler {
 // @Security     cookieAuth
 // @Param        companyId query int false "Company id"
 // @Param        filterRole query string false "Filter role"
+// @Param        membersOnly query bool false "Only company members (users created by a customer), no customers"
 // @Success      200 {object} response.Envelope{data=[]model.User}
 // @Failure      400 {object} response.Envelope "Validation error"
 // @Failure      401 {object} response.Envelope "Not logged in"
@@ -51,7 +53,16 @@ func (userHandler *UserHandler) GetAll(writer http.ResponseWriter, request *http
 		response.SendResponse(writer, request, err, nil)
 		return
 	}
-	filter := dto.UserListFilter{Role: strings.ToLower(strings.TrimSpace(request.URL.Query().Get("filterRole"))), CompanyID: companyID}
+	membersOnly, err := queryBool(request, "membersOnly")
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+	filter := dto.UserListFilter{
+		Role:        strings.ToLower(strings.TrimSpace(request.URL.Query().Get("filterRole"))),
+		CompanyID:   companyID,
+		MembersOnly: membersOnly,
+	}
 
 	users, err := userHandler.service.GetAll(request.Context(), actor, filter)
 	if err != nil {

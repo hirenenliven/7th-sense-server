@@ -57,7 +57,8 @@ type Handlers struct {
 // New builds the main router with all routes and global middleware.
 // authenticate resolves the logged-in user (middleware.Authenticate in the
 // server). Only /health, the machine mode history and its chart page (/mode-chart/),
-// login and logout work without a session; every other
+// login and logout work without a session; /api/as/<key>/... serves the same
+// routes for a "log in as" session (middleware.RouteLoginAs); every other
 // /api route answers 401 until the user logs in.
 func New(handlers Handlers, authenticate middleware.Middleware) http.Handler {
 	router := http.NewServeMux()
@@ -83,7 +84,8 @@ func New(handlers Handlers, authenticate middleware.Middleware) http.Handler {
 	registerV1Routes(protectedRouter, handlers)
 	router.Handle(apiPrefix+"/", authenticate(protectedRouter))
 
-	return middleware.Chain(router, middleware.Logger, middleware.Recoverer, middleware.CrossOrigin)
+	// RouteLoginAs is innermost: the log shows the path the browser asked for (/api/as/<key>/...)
+	return middleware.Chain(router, middleware.Logger, middleware.Recoverer, middleware.CrossOrigin, middleware.RouteLoginAs)
 }
 
 // managersOnly lets only the roles that manage a company (superadmin, customer,

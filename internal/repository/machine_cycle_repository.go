@@ -123,11 +123,11 @@ func (cycleRepository *MachineCycleRepository) Update(ctx context.Context, cycle
 	query := `UPDATE machine_cycles
 		SET status = $2, end_reason = NULLIF($3, ''), ended_at = $4,
 			production_sec = $5, hold_sec = $6, downtime_sec = $7, offline_sec = $8,
-			part_count_end = $9, parts_made = $10, updated_at = CURRENT_TIMESTAMP
+			part_count_end = $9, parts_made = $10, part_count_start = $11, updated_at = CURRENT_TIMESTAMP
 		WHERE id = $1`
 	affected, err := executeAffected(ctx, cycleRepository.database, query, cycle.ID, cycle.Status, cycle.EndReason,
 		cycle.EndedAt, cycle.ProductionSec, cycle.HoldSec, cycle.DowntimeSec, cycle.OfflineSec,
-		cycle.PartCountEnd, cycle.PartsMade)
+		cycle.PartCountEnd, cycle.PartsMade, cycle.PartCountStart)
 	if err != nil {
 		return mapMachineCycleError("update machine cycle", err)
 	}

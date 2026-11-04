@@ -78,7 +78,7 @@ func (userService *UserService) GetAll(ctx context.Context, actor model.AuthUser
 		}
 		filter.CompanyID = company
 	}
-	return userService.services.userRepository.FindAll(ctx, filter.Role, filter.CompanyID)
+	return userService.services.userRepository.FindAll(ctx, filter.Role, filter.CompanyID, filter.MembersOnly)
 }
 
 // GetByID returns user id with its details, or "User not found" when actor may

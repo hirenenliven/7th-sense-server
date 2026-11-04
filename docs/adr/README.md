@@ -11,5 +11,6 @@ Server (backend) decisions, one file each (Michael Nygard template). Never edit 
 | 0005 | [CNC collector runs inside the API process](0005-in-process-cnc-collector.md) | Accepted (Inferred from existing code) | 2026-11-03 |
 | 0006 | [Page-wise dashboard endpoints returning only chart fields](0006-page-wise-dashboard-endpoints.md) | Accepted | 2026-11-03 |
 | 0007 | [OpenAPI 3 from swag annotations, Swagger UI behind API_DOCS, generated Postman](0007-openapi-from-swag-annotations.md) | Accepted | 2026-11-03 |
+| 0008 | ["Log in as customer" uses a separate session with a path-scoped cookie](0008-login-as-path-scoped-session.md) | Accepted | 2026-11-04 |
 
 New ADR: copy the newest file, take the next number, status "Proposed" until agreed, then "Accepted"; add a row here.

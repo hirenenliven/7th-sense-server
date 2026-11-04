@@ -420,9 +420,12 @@ type UserResponse struct {
 	MachineIDs []int64 `json:"machineIds"`
 }
 
-// UserListFilter narrows GET /users: by role name (e.g. "customer") and by the
-// customer whose members to list. Empty / nil does not narrow.
+// UserListFilter narrows GET /users: by role name (e.g. "customer"), by the
+// customer whose members to list and to company members only (MembersOnly:
+// users that belong to a customer, never customers or the superadmin).
+// Empty / nil / false does not narrow.
 type UserListFilter struct {
-	Role      string
-	CompanyID *int64
+	Role        string
+	CompanyID   *int64
+	MembersOnly bool
 }

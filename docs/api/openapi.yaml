@@ -390,6 +390,18 @@ components:
           description: number of keys, 1 … LicenceKeyMaxCount
           type: integer
       type: object
+    dto.LoginAsRequest:
+      properties:
+        customerId:
+          type: integer
+      type: object
+    dto.LoginAsResponse:
+      properties:
+        sessionKey:
+          type: string
+        user:
+          $ref: '#/components/schemas/model.AuthUser'
+      type: object
     dto.LoginRequest:
       properties:
         password:
@@ -982,6 +994,28 @@ components:
           type: string
         userId:
           type: integer
+      type: object
+    model.AuthUser:
+      properties:
+        companyId:
+          description: |-
+            CompanyID is the customer a member belongs to (users.company_id); nil for
+            customers and the superadmin.
+          type: integer
+        email:
+          type: string
+        firstName:
+          type: string
+        id:
+          type: integer
+        lastName:
+          type: string
+        role:
+          type: string
+        status:
+          type: string
+        username:
+          type: string
       type: object
     model.Branch:
       properties:
@@ -2038,10 +2072,99 @@ paths:
       summary: Login
       tags:
         - Auth
+  /v1/auth/login-as:
+    post:
+      description: |-
+        Starts a session of the customer for the superadmin, in a new browser tab. The session cookie (HttpOnly) is scoped to /api/as/{sessionKey}: that tab calls /api/as/{sessionKey}/v1/... instead of /api/v1/..., so logging out of either tab never ends the other session. The session records the superadmin (auth_tokens.impersonated_by) and lasts one working day.
+        Roles: superadmin (others get 403).
+        Validation: Please select customer; Customer not found (missing, deleted or not a customer); Account inactive.
+
+        Used by pages: Customers (tab)
+      operationId: loginAs
+      requestBody:
+        content:
+          application/json:
+            example:
+              customerId: 1
+            schema:
+              $ref: '#/components/schemas/dto.LoginAsRequest'
+        description: Request body
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              example:
+                message: success
+                statusCode: 200
+                success: true
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/response.Envelope'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/dto.LoginAsResponse'
+                    type: object
+          description: OK
+        "400":
+          content:
+            application/json:
+              example:
+                message: Validation error
+                statusCode: 400
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Validation error
+        "401":
+          content:
+            application/json:
+              example:
+                message: Not logged in
+                statusCode: 401
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not logged in
+        "403":
+          content:
+            application/json:
+              example:
+                message: Role not allowed or account inactive
+                statusCode: 403
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Role not allowed or account inactive
+        "404":
+          content:
+            application/json:
+              example:
+                message: Customer not found
+                statusCode: 404
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Customer not found
+        "500":
+          content:
+            application/json:
+              example:
+                message: Server error
+                statusCode: 500
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Server error
+      security:
+        - cookieAuth: []
+      summary: Log in as customer
+      tags:
+        - Auth
   /v1/auth/logout:
     post:
       description: |-
-        Ends the session of token. An unknown or empty token is not an error.
+        Ends the session of token. An unknown or empty token is not an error. Called as /api/as/{key}/v1/auth/logout it ends only that "log in as" session.
 
         Used by pages: App shell (session, logout, theme)
       operationId: logout
@@ -10332,7 +10455,7 @@ paths:
   /v1/users:
     get:
       description: |-
-        Returns the users the user may see, narrowed by filter: every user for the superadmin, the company's members for a customer or admin. A customer or admin asking for another company gets Forbidden.
+        Returns the users the user may see, narrowed by filter: every user for the superadmin, the company's members for a customer or admin. filterRole=customer is the superadmin's customer list (Account Center › Customer); membersOnly=true leaves out customers and the superadmin, so only the users created for a company are listed (Masters › Users). A customer or admin asking for another company gets Forbidden.
         Roles: superadmin, customer, admin (others get 403).
 
         Used by pages: Customers / Users list, Add / edit customer or user, Add / edit branch, Add / edit machine, Clientele, Add / edit part, Add / edit production schedule, Shifts, Breaks, Holidays / week off, Downtime / idle reasons, Licence keys
@@ -10348,6 +10471,11 @@ paths:
           name: filterRole
           schema:
             type: string
+        - description: Only company members (users created by a customer), no customers
+          in: query
+          name: membersOnly
+          schema:
+            type: boolean
       responses:
         "200":
           content:
