@@ -139,7 +139,7 @@ func run() error {
 		Health:         handler.NewHealthHandler(healthService, cycleService),
 		MachineCycle:   handler.NewMachineCycleHandler(cycleService),
 		Dashboard: handler.NewDashboardHandler(service.NewDashboardService(machineService, telemetryService,
-			cycleService, repository.NewShiftRepository(dbPool))),
+			cycleService, repository.NewShiftRepository(dbPool), repository.NewProductionScheduleRepository(dbPool))),
 	}, middleware.Authenticate(authService))
 
 	server := &http.Server{

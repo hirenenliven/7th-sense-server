@@ -182,3 +182,20 @@ type MachineLiveStatus struct {
 	ErrorCount     int64
 	LastError      string
 }
+
+// OpenModePeriod is a machine's open machine_mode_log period: the mode it is in now and since when.
+type OpenModePeriod struct {
+	MachineID int64     `db:"machine_id"`
+	ModeID    int       `db:"mode_id"`
+	StartedAt time.Time `db:"started_at"`
+}
+
+// AlarmCount is one alarm code raised (machine_events alarm_on) within a time range: how often,
+// on how many machines, its latest message and when it was last raised.
+type AlarmCount struct {
+	Code         int       `db:"code"`
+	Message      string    `db:"message"`
+	Count        int       `db:"count"`
+	MachineCount int       `db:"machine_count"`
+	LastAt       time.Time `db:"last_at"`
+}

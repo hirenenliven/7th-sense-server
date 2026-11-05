@@ -133,6 +133,26 @@ func (scheduleRepository *ProductionScheduleRepository) MachineBooked(ctx contex
 	return booked, nil
 }
 
+// SumMachineQuantities returns the quantity the active schedules plan for each of machineIDs on
+// day (YYYY-MM-DD): the jobs scheduled that day, one row per machine that has any.
+func (scheduleRepository *ProductionScheduleRepository) SumMachineQuantities(ctx context.Context, machineIDs []int64, day string) ([]model.MachineQuantity, error) {
+	query := `SELECT ps.machine_id, SUM(psi.quantity)::int AS quantity
+		FROM production_schedule_items psi
+		JOIN production_schedules ps ON ps.id = psi.schedule_id AND ps.is_deleted = false AND ps.status = 'active'
+		WHERE psi.is_deleted = false AND psi.schedule_date = $2::date AND ps.machine_id = ANY($1::bigint[])
+		GROUP BY ps.machine_id`
+
+	rows, err := db.Execute(ctx, scheduleRepository.database, query, machineIDs, day)
+	if err != nil {
+		return nil, fmt.Errorf("sum machine quantities: %w", err)
+	}
+	quantities, err := pgx.CollectRows(rows, pgx.RowToStructByName[model.MachineQuantity])
+	if err != nil {
+		return nil, fmt.Errorf("sum machine quantities: %w", err)
+	}
+	return quantities, nil
+}
+
 // CountCompanyMembers returns how many of ids are members of customer companyID with role.
 func (scheduleRepository *ProductionScheduleRepository) CountCompanyMembers(ctx context.Context, companyID int64, role string, ids []int64) (int, error) {
 	query := `SELECT COUNT(*) FROM users u

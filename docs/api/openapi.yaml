@@ -399,6 +399,150 @@ components:
           description: number of keys, 1 … LicenceKeyMaxCount
           type: integer
       type: object
+    dto.HomeAlarm:
+      properties:
+        code:
+          type: integer
+        count:
+          type: integer
+        lastAt:
+          type: string
+        machineCount:
+          type: integer
+        message:
+          type: string
+      type: object
+    dto.HomeCycles:
+      properties:
+        completedCount:
+          type: integer
+        cycleCount:
+          type: integer
+        partsMade:
+          type: integer
+        runningCount:
+          type: integer
+        unfinishedCount:
+          type: integer
+      type: object
+    dto.HomeDashboardResponse:
+      properties:
+        alarms:
+          items:
+            $ref: '#/components/schemas/dto.HomeAlarm'
+          type: array
+        cycles:
+          $ref: '#/components/schemas/dto.HomeCycles'
+        date:
+          type: string
+        fleet:
+          $ref: '#/components/schemas/dto.HomeFleet'
+        hourly:
+          items:
+            $ref: '#/components/schemas/dto.HomeHour'
+          type: array
+        machines:
+          items:
+            $ref: '#/components/schemas/dto.HomeMachine'
+          type: array
+        oee:
+          $ref: '#/components/schemas/dto.OEERow'
+        plan:
+          $ref: '#/components/schemas/dto.HomePlan'
+        serverTime:
+          type: string
+        time:
+          $ref: '#/components/schemas/dto.HomeTime'
+      type: object
+    dto.HomeFleet:
+      properties:
+        awaitingData:
+          type: integer
+        inactive:
+          type: integer
+        modes:
+          items:
+            $ref: '#/components/schemas/dto.HomeModeCount'
+          type: array
+        offline:
+          type: integer
+        online:
+          type: integer
+        total:
+          type: integer
+      type: object
+    dto.HomeHour:
+      properties:
+        hour:
+          type: integer
+        partsMade:
+          type: integer
+        previousPartsMade:
+          type: integer
+      type: object
+    dto.HomeMachine:
+      properties:
+        availability:
+          type: number
+        completedCount:
+          type: integer
+        customerName:
+          type: string
+        cycleCount:
+          type: integer
+        machineId:
+          type: integer
+        machineName:
+          type: string
+        modeId:
+          type: integer
+        modeSince:
+          type: string
+        oee:
+          type: number
+        onlineStatus:
+          type: boolean
+        partsMade:
+          type: integer
+        performance:
+          type: number
+        plannedQuantity:
+          type: integer
+        quality:
+          type: number
+        unfinishedCount:
+          type: integer
+      type: object
+    dto.HomeModeCount:
+      properties:
+        count:
+          type: integer
+        modeId:
+          type: integer
+      type: object
+    dto.HomePlan:
+      properties:
+        partsMade:
+          type: integer
+        quantity:
+          type: integer
+      type: object
+    dto.HomeTime:
+      properties:
+        groups:
+          items:
+            $ref: '#/components/schemas/dto.HomeTimeGroup'
+          type: array
+        spanSec:
+          type: integer
+      type: object
+    dto.HomeTimeGroup:
+      properties:
+        durationSec:
+          type: integer
+        group:
+          type: string
+      type: object
     dto.LoginAsRequest:
       properties:
         customerId:
@@ -467,6 +611,19 @@ components:
           type: string
         licenceKey:
           type: string
+      type: object
+    dto.OEERow:
+      properties:
+        availability:
+          type: number
+        date:
+          type: string
+        oee:
+          type: number
+        performance:
+          type: number
+        quality:
+          type: number
       type: object
     dto.PartProcessFields:
       properties:
@@ -1000,6 +1157,71 @@ components:
         username:
           type: string
       type: object
+    dto.VirtualScreenCycle:
+      properties:
+        elapsedSec:
+          type: integer
+        programName:
+          type: string
+        standardCycleSec:
+          type: integer
+        startedAt:
+          type: string
+      type: object
+    dto.VirtualScreenLive:
+      properties:
+        axisLoadX:
+          type: number
+        axisLoadY:
+          type: number
+        axisLoadZ:
+          type: number
+        emergency:
+          type: boolean
+        feedOverride:
+          type: number
+        feedRate:
+          type: number
+        feedUnit:
+          type: string
+        spindleLoad:
+          type: number
+        spindleOverride:
+          type: number
+        spindleSpeed:
+          type: number
+        toolNumber:
+          type: number
+        updatedAt:
+          type: string
+      type: object
+    dto.VirtualScreenResponse:
+      properties:
+        alarm:
+          $ref: '#/components/schemas/model.MachineAlarm'
+        cycle:
+          $ref: '#/components/schemas/dto.VirtualScreenCycle'
+        job:
+          $ref: '#/components/schemas/model.JobProgress'
+        live:
+          $ref: '#/components/schemas/dto.VirtualScreenLive'
+        machineId:
+          type: integer
+        modeId:
+          type: integer
+        modeName:
+          type: string
+        modeSince:
+          type: string
+        online:
+          type: boolean
+        opMode:
+          type: string
+        programName:
+          type: string
+        serverTime:
+          type: string
+      type: object
     model.Address:
       properties:
         addressLine1:
@@ -1320,6 +1542,34 @@ components:
         userId:
           type: integer
       type: object
+    model.JobProgress:
+      properties:
+        clienteleName:
+          type: string
+        completedCycles:
+          type: integer
+        endTime:
+          description: HH:mm, not after the start = past midnight
+          type: string
+        jobId:
+          type: string
+        partName:
+          type: string
+        processName:
+          type: string
+        quantity:
+          type: integer
+        scheduleDate:
+          description: YYYY-MM-DD
+          type: string
+        scheduleItemId:
+          type: integer
+        standardCycleSec:
+          type: integer
+        startTime:
+          description: HH:mm
+          type: string
+      type: object
     model.LicenceKey:
       properties:
         companyName:
@@ -1446,6 +1696,17 @@ components:
         username:
           type: string
         warrantyDate:
+          type: string
+      type: object
+    model.MachineAlarm:
+      properties:
+        active:
+          type: boolean
+        at:
+          type: string
+        code:
+          type: integer
+        message:
           type: string
       type: object
     model.MachineModel:
@@ -4023,6 +4284,85 @@ paths:
       summary: Update controller
       tags:
         - Machine catalog
+  /v1/dashboard/home:
+    get:
+      description: |-
+        GetHomeDashboard handles GET /api/v1/dashboard/home?date=YYYY-MM-DD[&userId=<customer id>] (date defaults to today; userId narrows the superadmin's machines to one customer): the active machines together, the fleet now and the day's OEE, cycles, parts vs plan, time per mode group, parts per hour, per-machine rows and the most raised alarms.
+
+        Used by pages: Home
+      operationId: getHomeDashboard
+      parameters:
+        - description: Day YYYY-MM-DD (default today, not after today)
+          in: query
+          name: date
+          schema:
+            type: string
+        - description: Customer id (superadmin; others only their own company)
+          in: query
+          name: userId
+          schema:
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              example:
+                message: success
+                statusCode: 200
+                success: true
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/response.Envelope'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/dto.HomeDashboardResponse'
+                    type: object
+          description: OK
+        "400":
+          content:
+            application/json:
+              example:
+                message: Validation error
+                statusCode: 400
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Validation error
+        "401":
+          content:
+            application/json:
+              example:
+                message: Not logged in
+                statusCode: 401
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not logged in
+        "403":
+          content:
+            application/json:
+              example:
+                message: Another company
+                statusCode: 403
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Another company
+        "500":
+          content:
+            application/json:
+              example:
+                message: Server error
+                statusCode: 500
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Server error
+      security:
+        - cookieAuth: []
+      summary: Get home dashboard
+      tags:
+        - Dashboard
   /v1/downtime-reasons:
     get:
       description: |-
@@ -7813,7 +8153,7 @@ paths:
   /v1/productivity/oee:
     get:
       description: |-
-        GetOEE handles GET /api/v1/productivity/oee?machineIds=1,2&from=&to=&shiftIds=&program=&schedule=with: one OEE row per day, averaged over the machines.
+        GetOEE handles GET /api/v1/productivity/oee?machineIds=1,2&from=&to=&shiftIds=&program=&schedule=with: one OEE row per day over the machines together, weighted by their planned / run time and closed cycles.
 
         Used by pages: Productivity
       operationId: getOee
@@ -7903,6 +8243,81 @@ paths:
       security:
         - cookieAuth: []
       summary: Get oee
+      tags:
+        - Productivity
+  /v1/productivity/virtual-screen:
+    get:
+      description: |-
+        GetVirtualScreen handles GET /api/v1/productivity/virtual-screen?machineId=: what the machine is doing now: mode and program (open mode period), operation mode, the latest CNC values (spindle load / speed / override, feed rate / override, X / Y / Z axis load, tool number, E-stop; null when never read), the last alarm raised (active while no alarm_off followed), the running cycle (elapsed and planned seconds) and its job (the running cycle's, else the one scheduled now: quantity, completed cycles, times, part, process, clientele). Read only; the page reloads it every few seconds.
+
+        Used by pages: Monitoring (Virtual Screen tab)
+      operationId: getVirtualScreen
+      parameters:
+        - description: Machine id
+          in: query
+          name: machineId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              example:
+                message: success
+                statusCode: 200
+                success: true
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/response.Envelope'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/dto.VirtualScreenResponse'
+                    type: object
+          description: OK
+        "400":
+          content:
+            application/json:
+              example:
+                message: Validation error
+                statusCode: 400
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Validation error
+        "401":
+          content:
+            application/json:
+              example:
+                message: Not logged in
+                statusCode: 401
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not logged in
+        "404":
+          content:
+            application/json:
+              example:
+                message: Machine not found
+                statusCode: 404
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Machine not found
+        "500":
+          content:
+            application/json:
+              example:
+                message: Server error
+                statusCode: 500
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Server error
+      security:
+        - cookieAuth: []
+      summary: Get virtual screen
       tags:
         - Productivity
   /v1/roles:
@@ -11309,6 +11724,7 @@ tags:
   - name: Branches
   - name: Breaks
   - name: Clienteles
+  - name: Dashboard
   - name: Holidays
   - name: Licence keys
   - name: Machine catalog

@@ -11,8 +11,8 @@ import (
 	"7th-sense-server/internal/service"
 )
 
-// DashboardHandler serves the charts of the Productivity (/productivity/...) and Machine Health
-// (/machine-health/...) pages. Every logged-in user reads the machines they may access.
+// DashboardHandler serves the charts of the Home (/dashboard/home), Productivity (/productivity/...)
+// and Machine Health (/machine-health/...) pages. Every logged-in user reads the machines they may access.
 type DashboardHandler struct {
 	service *service.DashboardService
 }
@@ -20,6 +20,52 @@ type DashboardHandler struct {
 // NewDashboardHandler creates a DashboardHandler that uses dashboardService.
 func NewDashboardHandler(dashboardService *service.DashboardService) *DashboardHandler {
 	return &DashboardHandler{service: dashboardService}
+}
+
+// GetHomeDashboard handles GET /api/v1/dashboard/home?date=YYYY-MM-DD[&userId=<customer id>]
+// (date defaults to today; userId narrows the superadmin's machines to one customer): the active
+// machines together, the fleet now and the day's OEE, cycles, parts vs plan, time per mode group,
+// parts per hour, per-machine rows and the most raised alarms.
+//
+// @Summary      Get home dashboard
+// @Description  GetHomeDashboard handles GET /api/v1/dashboard/home?date=YYYY-MM-DD[&userId=<customer id>] (date defaults to today; userId narrows the superadmin's machines to one customer): the active machines together, the fleet now and the day's OEE, cycles, parts vs plan, time per mode group, parts per hour, per-machine rows and the most raised alarms.
+// @Description
+// @Description  Used by pages: Home
+// @Tags         Dashboard
+// @ID           getHomeDashboard
+// @Produce      json
+// @Security     cookieAuth
+// @Param        date query string false "Day YYYY-MM-DD (default today, not after today)"
+// @Param        userId query int false "Customer id (superadmin; others only their own company)"
+// @Success      200 {object} response.Envelope{data=dto.HomeDashboardResponse}
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      403 {object} response.Envelope "Another company"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/dashboard/home [get]
+func (dashboardHandler *DashboardHandler) GetHomeDashboard(writer http.ResponseWriter, request *http.Request) {
+	actor, err := currentUser(request)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+	customerID, err := queryID(request, "userId")
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+	homeRequest := dto.HomeDashboardRequest{Date: request.URL.Query().Get("date"), CustomerID: customerID}
+	if err := homeRequest.Validate(); err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+
+	home, err := dashboardHandler.service.GetHomeDashboard(request.Context(), actor, homeRequest)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+	response.SendResponse(writer, request, response.Success, home)
 }
 
 // GetModeTimeline handles GET /api/v1/productivity/mode-timeline?machineId=&date=YYYY-MM-DD
@@ -59,10 +105,10 @@ func (dashboardHandler *DashboardHandler) GetModeTimeline(writer http.ResponseWr
 }
 
 // GetOEE handles GET /api/v1/productivity/oee?machineIds=1,2&from=&to=&shiftIds=&program=&schedule=with:
-// one OEE row per day, averaged over the machines.
+// one OEE row per day over the machines together, weighted by their planned / run time and closed cycles.
 //
 // @Summary      Get oee
-// @Description  GetOEE handles GET /api/v1/productivity/oee?machineIds=1,2&from=&to=&shiftIds=&program=&schedule=with: one OEE row per day, averaged over the machines.
+// @Description  GetOEE handles GET /api/v1/productivity/oee?machineIds=1,2&from=&to=&shiftIds=&program=&schedule=with: one OEE row per day over the machines together, weighted by their planned / run time and closed cycles.
 // @Description
 // @Description  Used by pages: Productivity
 // @Tags         Productivity

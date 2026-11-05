@@ -486,3 +486,44 @@ func (telemetryRepository *MachineTelemetryRepository) FindModePeriods(ctx conte
 	}
 	return periods, nil
 }
+
+// FindOpenModePeriods returns the open machine_mode_log period (at most one per machine) of each
+// of machineIDs that has one.
+func (telemetryRepository *MachineTelemetryRepository) FindOpenModePeriods(ctx context.Context, machineIDs []int64) ([]model.OpenModePeriod, error) {
+	query := `SELECT machine_id, mode_id, started_at
+		FROM machine_mode_log
+		WHERE ended_at IS NULL AND machine_id = ANY($1::bigint[])`
+
+	rows, err := db.Execute(ctx, telemetryRepository.database, query, machineIDs)
+	if err != nil {
+		return nil, fmt.Errorf("find open mode periods: %w", err)
+	}
+	periods, err := pgx.CollectRows(rows, pgx.RowToStructByName[model.OpenModePeriod])
+	if err != nil {
+		return nil, fmt.Errorf("find open mode periods: %w", err)
+	}
+	return periods, nil
+}
+
+// SumAlarms returns the alarm codes machineIDs raised between from and to (alarm_on events), the
+// most raised first, at most limit codes. The message is the latest one sent with the code.
+func (telemetryRepository *MachineTelemetryRepository) SumAlarms(ctx context.Context, machineIDs []int64, from, to time.Time, limit int) ([]model.AlarmCount, error) {
+	query := `SELECT COALESCE(code, 0) AS code,
+			COALESCE((ARRAY_AGG(message ORDER BY created_at DESC) FILTER (WHERE COALESCE(message, '') <> ''))[1], '') AS message,
+			COUNT(*)::int AS count, COUNT(DISTINCT machine_id)::int AS machine_count, MAX(created_at) AS last_at
+		FROM machine_events
+		WHERE event_type = 'alarm_on' AND machine_id = ANY($1::bigint[]) AND created_at >= $2 AND created_at < $3
+		GROUP BY COALESCE(code, 0)
+		ORDER BY count DESC, last_at DESC
+		LIMIT $4`
+
+	rows, err := db.Execute(ctx, telemetryRepository.database, query, machineIDs, from, to, limit)
+	if err != nil {
+		return nil, fmt.Errorf("sum alarms: %w", err)
+	}
+	alarms, err := pgx.CollectRows(rows, pgx.RowToStructByName[model.AlarmCount])
+	if err != nil {
+		return nil, fmt.Errorf("sum alarms: %w", err)
+	}
+	return alarms, nil
+}

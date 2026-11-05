@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"maps"
 	"math"
 	"slices"
 	"time"
@@ -27,22 +28,24 @@ type timeWindow struct {
 	To   time.Time
 }
 
-// DashboardService serves the charts of the Productivity and Machine Health pages from what
+// DashboardService serves the charts of the Home, Productivity and Machine Health pages from what
 // the CNC collector recorded: mode periods (machine_mode_log) and cycles (machine_cycles). Users
 // read the machines they may access (MachineService decides which). Days are calendar days in
 // the server's time zone, like GET /machine-cycles.
 type DashboardService struct {
-	machineService   *MachineService
-	telemetryService *MachineTelemetryService
-	cycleService     *MachineCycleService
-	shiftRepository  *repository.ShiftRepository
+	machineService     *MachineService
+	telemetryService   *MachineTelemetryService
+	cycleService       *MachineCycleService
+	shiftRepository    *repository.ShiftRepository
+	scheduleRepository *repository.ProductionScheduleRepository
 }
 
 // NewDashboardService creates a DashboardService.
 func NewDashboardService(machineService *MachineService, telemetryService *MachineTelemetryService,
-	cycleService *MachineCycleService, shiftRepository *repository.ShiftRepository) *DashboardService {
+	cycleService *MachineCycleService, shiftRepository *repository.ShiftRepository,
+	scheduleRepository *repository.ProductionScheduleRepository) *DashboardService {
 	return &DashboardService{machineService: machineService, telemetryService: telemetryService,
-		cycleService: cycleService, shiftRepository: shiftRepository}
+		cycleService: cycleService, shiftRepository: shiftRepository, scheduleRepository: scheduleRepository}
 }
 
 // GetModeTimeline returns the mode periods of dashboardRequest's machine on its To day, or in its
@@ -123,8 +126,8 @@ func (dashboardService *DashboardService) GetModeTotals(ctx context.Context, act
 	return dto.ModeTotalsResponse{From: first, To: to, ServerTime: now, Totals: totals}, nil
 }
 
-// GetOEE returns one OEE row per day with planned time, averaged over the machines:
-// availability = run time / planned time, performance = standard cycle time × parts counted
+// GetOEE returns one OEE row per day with planned time, over all the machines together
+// (weighted by time and cycles, see oeeSum): availability = run time / planned time, performance = standard cycle time × parts counted
 // (ProgramPartCount) / run time of the completed cycles that have a standard time, quality =
 // completed / closed cycles. Planned time
 // is the day (or the shifts picked); "with schedule" counts only the customer's shifts that
@@ -251,6 +254,187 @@ func (dashboardService *DashboardService) GetMachineSummaries(ctx context.Contex
 		summaries = append(summaries, summary)
 	}
 	return summaries, nil
+}
+
+// GetHomeDashboard returns the Home page: the active machines actor may read (of
+// homeRequest's customer for the superadmin) together. The fleet is counted now; OEE, cycles,
+// parts vs plan, time per mode group, parts per hour and alarms cover the day up to now, with
+// the same rules as GetOEE / GetMachineSummaries (whole day, no shifts), machines weighted by
+// their time (oeeSum).
+func (dashboardService *DashboardService) GetHomeDashboard(ctx context.Context, actor model.AuthUser, homeRequest dto.HomeDashboardRequest) (dto.HomeDashboardResponse, error) {
+	now := time.Now()
+	machines, err := dashboardService.machineService.GetAll(ctx, actor, homeRequest.CustomerID)
+	if err != nil {
+		return dto.HomeDashboardResponse{}, err
+	}
+	day, nextDay := homeRequest.Range(now)
+	home := dto.HomeDashboardResponse{Date: day.Format(shiftDateLayout), ServerTime: now,
+		Hourly: make([]dto.HomeHour, 24), Machines: []dto.HomeMachine{}, Alarms: []dto.HomeAlarm{}}
+	for hour := range home.Hourly {
+		home.Hourly[hour].Hour = hour
+	}
+
+	active, machineIDs := []model.Machine{}, []int64{}
+	for _, machine := range machines {
+		if machine.Status != dto.MachineStatusActive {
+			home.Fleet.Inactive++
+			continue
+		}
+		active = append(active, machine)
+		machineIDs = append(machineIDs, machine.ID)
+	}
+	openPeriods, planned, err := dashboardService.homeLookups(ctx, machineIDs, home.Date)
+	if err != nil {
+		return dto.HomeDashboardResponse{}, err
+	}
+	alarms, err := dashboardService.telemetryService.GetAlarmCounts(ctx, machineIDs, day, nextDay, dto.HomeTopAlarms)
+	if err != nil {
+		return dto.HomeDashboardResponse{}, err
+	}
+	for _, alarm := range alarms {
+		home.Alarms = append(home.Alarms, dto.NewHomeAlarm(alarm))
+	}
+
+	windows := dayWindows(day, nil, false, now)
+	fleetOEE, fleetCycles := oeeSum{}, dto.MachineCycleSummary{}
+	groupSeconds := map[string]float64{}
+	modeCounts := map[int]int{}
+	for _, machine := range active {
+		modeID, since := currentMode(machine, openPeriods)
+		home.Fleet.Add(machine, modeID)
+		if modeID != nil {
+			modeCounts[*modeID]++
+		}
+
+		// The day before is read too, for the parts per hour it is compared with
+		cycles, err := dashboardService.cycleService.cycleRepository.FindAll(ctx, machine.ID, day.AddDate(0, 0, -1), nextDay)
+		if err != nil {
+			return dto.HomeDashboardResponse{}, err
+		}
+		addHourlyParts(home.Hourly, cycles, day)
+		dayCycles := cyclesIn(cycles, windows, "")
+		machineCycles := summarizeCycles(dayCycles)
+		addCycleSummary(&fleetCycles, machineCycles)
+		plannedQuantity := planned[machine.ID]
+		if plannedQuantity != nil {
+			if home.Plan == nil {
+				home.Plan = &dto.HomePlan{}
+			}
+			home.Plan.Quantity += *plannedQuantity
+			home.Plan.PartsMade += machineCycles.PartsMade
+		}
+		homeMachine := dto.NewHomeMachine(machine, modeID, since, machineCycles, plannedQuantity)
+
+		if day.Before(now) {
+			periods, err := dashboardService.periodsBetween(ctx, machine.ID, day, nextDay)
+			if err != nil {
+				return dto.HomeDashboardResponse{}, err
+			}
+			for _, window := range windows {
+				home.Time.SpanSec += int64(window.To.Sub(window.From).Seconds())
+				for _, period := range periods {
+					groupSeconds[modeGroup(period.ModeID)] += overlapSeconds(period, window, now)
+				}
+			}
+			if dayOEE, ok := machineDayOEE(periods, dayCycles, windows, "", now); ok {
+				machineOEE := oeeSum{}
+				machineOEE.add(dayOEE)
+				homeMachine = homeMachine.WithOEE(machineOEE.row(home.Date))
+				fleetOEE.add(dayOEE)
+			}
+		}
+		home.Machines = append(home.Machines, homeMachine)
+	}
+
+	home.Fleet.Modes = homeModeCounts(modeCounts)
+	home.Cycles = dto.NewHomeCycles(fleetCycles)
+	home.Time.Groups = homeTimeGroups(groupSeconds)
+	if fleetOEE.plannedSec > 0 {
+		row := fleetOEE.row(home.Date)
+		home.OEE = &row
+	}
+	return home, nil
+}
+
+// homeLookups returns the open mode period and the quantity scheduled on day of each of
+// machineIDs (machines without one are not in the maps).
+func (dashboardService *DashboardService) homeLookups(ctx context.Context, machineIDs []int64, day string) (map[int64]model.OpenModePeriod, map[int64]*int, error) {
+	periods, err := dashboardService.telemetryService.GetOpenModePeriods(ctx, machineIDs)
+	if err != nil {
+		return nil, nil, err
+	}
+	quantities, err := dashboardService.scheduleRepository.SumMachineQuantities(ctx, machineIDs, day)
+	if err != nil {
+		return nil, nil, err
+	}
+	openPeriods := make(map[int64]model.OpenModePeriod, len(periods))
+	for _, period := range periods {
+		openPeriods[period.MachineID] = period
+	}
+	planned := make(map[int64]*int, len(quantities))
+	for _, quantity := range quantities {
+		planned[quantity.MachineID] = &quantity.Quantity
+	}
+	return openPeriods, planned, nil
+}
+
+// currentMode returns the mode machine is in now and since when: its open mode period, else
+// machines.mode_id with no start; nil for a machine never collected.
+func currentMode(machine model.Machine, openPeriods map[int64]model.OpenModePeriod) (*int, *time.Time) {
+	if period, found := openPeriods[machine.ID]; found {
+		return &period.ModeID, &period.StartedAt
+	}
+	if machine.ModeID == nil {
+		return nil, nil
+	}
+	modeID := int(*machine.ModeID)
+	return &modeID, nil
+}
+
+// addHourlyParts adds the parts of the cycles completed on day, and on the day before, to the
+// hour (0-23) they completed in.
+func addHourlyParts(hours []dto.HomeHour, cycles []model.MachineCycle, day time.Time) {
+	previousDay, nextDay := day.AddDate(0, 0, -1), day.AddDate(0, 0, 1)
+	for _, cycle := range cycles {
+		if cycle.Status != model.CycleCompleted || cycle.EndedAt == nil || cycle.PartsMade == 0 {
+			continue
+		}
+		endedAt := cycle.EndedAt.In(day.Location())
+		switch {
+		case !endedAt.Before(day) && endedAt.Before(nextDay):
+			hours[endedAt.Hour()].PartsMade += cycle.PartsMade
+		case !endedAt.Before(previousDay) && endedAt.Before(day):
+			hours[endedAt.Hour()].PreviousPartsMade += cycle.PartsMade
+		}
+	}
+}
+
+// addCycleSummary adds machine's cycle counts and parts to fleet.
+func addCycleSummary(fleet *dto.MachineCycleSummary, machine dto.MachineCycleSummary) {
+	fleet.CycleCount += machine.CycleCount
+	fleet.CompletedCount += machine.CompletedCount
+	fleet.UnfinishedCount += machine.UnfinishedCount
+	fleet.RunningCount += machine.RunningCount
+	fleet.PartsMade += machine.PartsMade
+}
+
+// homeModeCounts returns how many machines are in each mode, by mode id.
+func homeModeCounts(counts map[int]int) []dto.HomeModeCount {
+	modes := make([]dto.HomeModeCount, 0, len(counts))
+	for _, modeID := range slices.Sorted(maps.Keys(counts)) {
+		modes = append(modes, dto.HomeModeCount{ModeID: modeID, Count: counts[modeID]})
+	}
+	return modes
+}
+
+// homeTimeGroups returns the seconds of every mode group, in the order the chart stacks them.
+func homeTimeGroups(seconds map[string]float64) []dto.HomeTimeGroup {
+	order := []string{dto.ModeGroupProduction, dto.ModeGroupHold, dto.ModeGroupIdle, dto.ModeGroupDowntime, dto.ModeGroupOffline}
+	groups := make([]dto.HomeTimeGroup, 0, len(order))
+	for _, group := range order {
+		groups = append(groups, dto.HomeTimeGroup{Group: group, DurationSec: int64(seconds[group])})
+	}
+	return groups
 }
 
 // GetFinishCycles returns the completed cycles of dashboardRequest's machine on its To day (in
@@ -445,85 +629,78 @@ func cyclesIn(cycles []model.MachineCycle, windows []timeWindow, program string)
 	return inside
 }
 
-// machineOEE is one machine's OEE parts for one day (percent); nil = no closed cycle.
+// machineOEE is one machine's day as the seconds and counts its OEE parts come from, so several
+// machines add up weighted by their time and cycles (oeeSum), not by averaging percentages.
 type machineOEE struct {
-	availability float64
-	performance  *float64
-	quality      *float64
+	plannedSec, runSec         float64 // availability = run / planned
+	standardSec, productionSec float64 // performance = standard / production (completed cycles with a standard time)
+	completed, closed          int     // quality = completed / closed cycles
 }
 
 // machineDayOEE works out one machine's day; ok is false when the day has no planned time.
 func machineDayOEE(periods []model.MachineModePeriod, cycles []model.MachineCycle, windows []timeWindow, program string, now time.Time) (machineOEE, bool) {
-	planned, run := 0.0, 0.0
+	result := machineOEE{}
 	for _, window := range windows {
-		planned += window.To.Sub(window.From).Seconds()
+		result.plannedSec += window.To.Sub(window.From).Seconds()
 		for _, period := range periods {
 			overlap := overlapSeconds(period, window, now)
 			switch {
 			case slices.Contains(plannedStopModes, period.ModeID):
-				planned -= overlap
+				result.plannedSec -= overlap
 			case slices.Contains(runModes, period.ModeID) && (program == "" || period.ProgramName == program):
-				run += overlap
+				result.runSec += overlap
 			}
 		}
 	}
-	if planned <= 0 {
+	if result.plannedSec <= 0 {
 		return machineOEE{}, false
 	}
-	result := machineOEE{availability: math.Min(100, run/planned*100)}
 
-	completed, closed, standardSec, productionSec := 0, 0, 0.0, 0.0
 	for _, cycle := range cycles {
 		if cycle.Status == model.CycleRunning {
 			continue
 		}
-		closed++
+		result.closed++
 		if cycle.Status != model.CycleCompleted {
 			continue
 		}
-		completed++
+		result.completed++
 		// Parts come only from the controller's counter (M30). One part can take several
 		// cycles, so a cycle without a part adds its run time but no standard time.
 		if cycle.StandardCycleSec != nil && *cycle.StandardCycleSec > 0 {
-			standardSec += float64(*cycle.StandardCycleSec * cycle.PartsMade)
-			productionSec += float64(cycle.ProductionSec)
+			result.standardSec += float64(*cycle.StandardCycleSec * cycle.PartsMade)
+			result.productionSec += float64(cycle.ProductionSec)
 		}
-	}
-	if closed > 0 {
-		quality := float64(completed) / float64(closed) * 100
-		result.quality = &quality
-		// Without standard cycle times the run counts at full speed
-		performance := 100.0
-		if productionSec > 0 {
-			performance = math.Min(100, standardSec/productionSec*100)
-		}
-		result.performance = &performance
 	}
 	return result, true
 }
 
-// oeeSum adds up the machines' OEE parts of one day to average them.
+// oeeSum adds up the machines' days (seconds and cycles) so a machine counts by how long it was
+// planned and ran and by how many cycles it closed: a machine planned 10 minutes weighs less
+// than one planned 20 hours. For one machine it is that machine's OEE.
 type oeeSum struct {
-	machines, closedMachines           int
-	availability, performance, quality float64
+	machineOEE
 }
 
 func (sum *oeeSum) add(value machineOEE) {
-	sum.machines++
-	sum.availability += value.availability
-	if value.performance != nil && value.quality != nil {
-		sum.closedMachines++
-		sum.performance += *value.performance
-		sum.quality += *value.quality
-	}
+	sum.plannedSec += value.plannedSec
+	sum.runSec += value.runSec
+	sum.standardSec += value.standardSec
+	sum.productionSec += value.productionSec
+	sum.completed += value.completed
+	sum.closed += value.closed
 }
 
 func (sum *oeeSum) row(date string) dto.OEERow {
-	availability := sum.availability / float64(sum.machines)
+	availability := math.Min(100, sum.runSec/sum.plannedSec*100)
 	row := dto.OEERow{Date: date, Availability: round1(availability)}
-	if sum.closedMachines > 0 {
-		performance := sum.performance / float64(sum.closedMachines)
-		quality := sum.quality / float64(sum.closedMachines)
+	if sum.closed > 0 {
+		quality := float64(sum.completed) / float64(sum.closed) * 100
+		// Without standard cycle times the run counts at full speed
+		performance := 100.0
+		if sum.productionSec > 0 {
+			performance = math.Min(100, sum.standardSec/sum.productionSec*100)
+		}
 		oee := round1(availability * performance * quality / 10_000)
 		performance, quality = round1(performance), round1(quality)
 		row.Performance, row.Quality, row.OEE = &performance, &quality, &oee

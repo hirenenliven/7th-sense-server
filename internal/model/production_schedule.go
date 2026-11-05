@@ -57,3 +57,9 @@ type ProductionScheduleItem struct {
 	PartName       string `db:"part_name" json:"partName"`
 	ProcessName    string `db:"process_name" json:"processName"`
 }
+
+// MachineQuantity is the quantity planned for one machine (production schedule jobs of a day).
+type MachineQuantity struct {
+	MachineID int64 `db:"machine_id"`
+	Quantity  int   `db:"quantity"`
+}

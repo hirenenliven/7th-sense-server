@@ -162,3 +162,15 @@ func (telemetryService *MachineTelemetryService) GetModeDurations(ctx context.Co
 func (telemetryService *MachineTelemetryService) GetModePeriods(ctx context.Context, machineID int64, since time.Time) ([]model.MachineModePeriod, error) {
 	return telemetryService.telemetryRepository.FindModePeriods(ctx, machineID, since)
 }
+
+// GetOpenModePeriods returns the mode each of machineIDs is in now and since when (machines
+// without an open period are left out).
+func (telemetryService *MachineTelemetryService) GetOpenModePeriods(ctx context.Context, machineIDs []int64) ([]model.OpenModePeriod, error) {
+	return telemetryService.telemetryRepository.FindOpenModePeriods(ctx, machineIDs)
+}
+
+// GetAlarmCounts returns the alarm codes machineIDs raised between from and to, the most raised
+// first, at most limit codes.
+func (telemetryService *MachineTelemetryService) GetAlarmCounts(ctx context.Context, machineIDs []int64, from, to time.Time, limit int) ([]model.AlarmCount, error) {
+	return telemetryService.telemetryRepository.SumAlarms(ctx, machineIDs, from, to, limit)
+}

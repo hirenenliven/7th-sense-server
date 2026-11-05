@@ -22,7 +22,8 @@ func newDashboardRouter() http.Handler {
 	telemetryService := service.NewMachineTelemetryService(testDBPool, repository.NewMachineTelemetryRepository(testDBPool))
 	cycleService := service.NewMachineCycleService(repository.NewMachineCycleRepository(testDBPool), machineService)
 	return routes.New(routes.Handlers{Dashboard: handler.NewDashboardHandler(service.NewDashboardService(
-		machineService, telemetryService, cycleService, repository.NewShiftRepository(testDBPool)))}, asTestUser)
+		machineService, telemetryService, cycleService, repository.NewShiftRepository(testDBPool),
+		repository.NewProductionScheduleRepository(testDBPool)))}, asTestUser)
 }
 
 // TestDashboardCharts reads every chart of the machine with the most recent mode periods (read
@@ -149,6 +150,61 @@ func TestDashboardCharts(t *testing.T) {
 
 	if result := sendRequest(t, router, http.MethodGet, apiV1+"/productivity/oee", nil); result.StatusCode != http.StatusBadRequest {
 		t.Errorf("OEE without a machine: status %d, want 400", result.StatusCode)
+	}
+}
+
+// TestHomeDashboard reads the Home dashboard of every machine (superadmin) and checks that its
+// parts add up: fleet counts, cycles, time within the day so far, OEE parts in range.
+func TestHomeDashboard(t *testing.T) {
+	router := newDashboardRouter()
+	result := sendRequest(t, router, http.MethodGet, apiV1+"/dashboard/home", nil)
+	if !result.Success {
+		t.Fatalf("home dashboard: %s", result.Message)
+	}
+	var home dto.HomeDashboardResponse
+	mustDecode(t, result.Data, &home)
+
+	fleet := home.Fleet
+	if fleet.Online+fleet.Offline != fleet.Total {
+		t.Errorf("fleet: %d online + %d offline != %d total", fleet.Online, fleet.Offline, fleet.Total)
+	}
+	inModes := 0
+	for _, mode := range fleet.Modes {
+		inModes += mode.Count
+	}
+	if inModes+fleet.AwaitingData != fleet.Total {
+		t.Errorf("fleet: %d in modes + %d awaiting data != %d total", inModes, fleet.AwaitingData, fleet.Total)
+	}
+	if len(home.Machines) != fleet.Total {
+		t.Errorf("home: %d machine rows, want %d", len(home.Machines), fleet.Total)
+	}
+	if cycles := home.Cycles; cycles.CompletedCount+cycles.UnfinishedCount+cycles.RunningCount != cycles.CycleCount {
+		t.Errorf("cycles: %+v do not add up", cycles)
+	}
+	if len(home.Hourly) != 24 {
+		t.Errorf("hourly: %d rows, want 24", len(home.Hourly))
+	}
+	recorded := int64(0)
+	for _, group := range home.Time.Groups {
+		recorded += group.DurationSec
+	}
+	if recorded > home.Time.SpanSec+int64(fleet.Total) {
+		t.Errorf("time: %d s recorded, more than the %d s span", recorded, home.Time.SpanSec)
+	}
+	if home.OEE != nil && home.OEE.OEE != nil && (*home.OEE.OEE < 0 || *home.OEE.OEE > 100) {
+		t.Errorf("fleet OEE %v out of range", *home.OEE.OEE)
+	}
+	t.Logf("home: fleet %+v, cycles %+v, plan %+v, %d alarms", fleet, home.Cycles, home.Plan, len(home.Alarms))
+
+	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+	if result := sendRequest(t, router, http.MethodGet, apiV1+"/dashboard/home?date="+yesterday, nil); !result.Success {
+		t.Errorf("home dashboard of yesterday: %s", result.Message)
+	}
+	tomorrow := time.Now().AddDate(0, 0, 1).Format("2006-01-02")
+	for _, query := range []string{"?date=bad", "?date=" + tomorrow, "?userId=x"} {
+		if result := sendRequest(t, router, http.MethodGet, apiV1+"/dashboard/home"+query, nil); result.StatusCode != http.StatusBadRequest {
+			t.Errorf("home dashboard %s: status %d, want 400", query, result.StatusCode)
+		}
 	}
 }
 
