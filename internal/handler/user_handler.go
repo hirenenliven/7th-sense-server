@@ -243,9 +243,9 @@ func (userHandler *UserHandler) Create(writer http.ResponseWriter, request *http
 // Update handles PUT /api/v1/users/{id}.
 //
 // @Summary      Update user
-// @Description  Replaces the user and its customer details. Customer details the user does not have yet are created.
+// @Description  Replaces the user and its customer details. Customer details the user does not have yet are created. password sets a new password (8 to 72 characters); empty keeps the current one.
 // @Description  Roles: superadmin, customer, admin (others get 403).
-// @Description  Validation: Please enter valid status.
+// @Description  Validation: Please enter valid password, Please enter valid status.
 // @Description
 // @Description  Used by pages: Customers / Users list, Add / edit customer or user
 // @Tags         Users

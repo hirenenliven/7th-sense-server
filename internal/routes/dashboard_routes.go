@@ -14,5 +14,6 @@ func registerDashboardRoutes(router *http.ServeMux, prefix string, dashboardHand
 	router.HandleFunc("GET "+prefix+"/productivity/oee", dashboardHandler.GetOEE)
 	router.HandleFunc("GET "+prefix+"/productivity/cycle-counts", dashboardHandler.GetCycleCounts)
 	router.HandleFunc("GET "+prefix+"/productivity/finish-cycles", dashboardHandler.GetFinishCycles)
+	router.HandleFunc("GET "+prefix+"/productivity/machine-summaries", dashboardHandler.GetMachineSummaries)
 	router.HandleFunc("GET "+prefix+"/machine-health/machine-time-by-day", dashboardHandler.GetMachineTimeByDay)
 }

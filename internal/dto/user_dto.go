@@ -79,8 +79,7 @@ func (request *CreateUserRequest) Validate() error {
 	if err := validateProfile(request.Username, request.Email, request.FirstName, request.LastName); err != nil {
 		return err
 	}
-	// bcrypt only uses the first 72 bytes of a password.
-	if len(request.Password) < 8 || len(request.Password) > 72 {
+	if !validPassword(request.Password) {
 		return response.NewError(http.StatusBadRequest, "Please enter valid password")
 	}
 	if err := validateAccess(request.RoleID, request.CompanyID, &request.MachineIDs); err != nil {
@@ -94,11 +93,19 @@ func (request *CreateUserRequest) Validate() error {
 	return request.CustomerDetails.validate()
 }
 
-// UpdateUserRequest is the body for PUT /users/{id}. It replaces every field
-// except the password. An empty status keeps the current one.
+// validPassword reports whether password has 8 to 72 bytes (bcrypt only uses
+// the first 72 bytes of a password).
+func validPassword(password string) bool {
+	return len(password) >= 8 && len(password) <= 72
+}
+
+// UpdateUserRequest is the body for PUT /users/{id}. It replaces every field.
+// An empty password keeps the current one and an empty status keeps the
+// current status.
 type UpdateUserRequest struct {
 	Username  string `json:"username"`
 	Email     string `json:"email"`
+	Password  string `json:"password"` // new password; empty keeps the current one
 	FirstName string `json:"firstName"`
 	LastName  string `json:"lastName"`
 	RoleID    int64  `json:"roleId"`
@@ -120,6 +127,9 @@ func (request *UpdateUserRequest) Validate() error {
 
 	if err := validateProfile(request.Username, request.Email, request.FirstName, request.LastName); err != nil {
 		return err
+	}
+	if request.Password != "" && !validPassword(request.Password) {
+		return response.NewError(http.StatusBadRequest, "Please enter valid password")
 	}
 	if request.Status != "" && request.Status != UserStatusActive && request.Status != UserStatusInactive {
 		return response.NewError(http.StatusBadRequest, "Please enter valid status")

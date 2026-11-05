@@ -216,6 +216,43 @@ func (dashboardService *DashboardService) GetCycleCounts(ctx context.Context, ac
 	return rows, nil
 }
 
+// GetMachineSummaries returns, for every machine actor may read, its OEE parts and cycle counts
+// of dashboardRequest's To day (default today; the whole day, no shifts or program): the
+// Monitoring machine list. Same rules as GetOEE and GetCycleCounts for one machine.
+func (dashboardService *DashboardService) GetMachineSummaries(ctx context.Context, actor model.AuthUser, dashboardRequest dto.DashboardRequest) ([]dto.MachineSummary, error) {
+	now := time.Now()
+	machines, err := dashboardService.machineService.GetAll(ctx, actor, nil)
+	if err != nil {
+		return nil, err
+	}
+	dashboardRequest.From = dashboardRequest.To
+	day, nextDay := dashboardRequest.Range(now)
+	windows := dayWindows(day, nil, false, now)
+
+	summaries := make([]dto.MachineSummary, 0, len(machines))
+	for _, machine := range machines {
+		cycles, err := dashboardService.cycleService.cycleRepository.FindAll(ctx, machine.ID, day, nextDay)
+		if err != nil {
+			return nil, err
+		}
+		dayCycles := cyclesIn(cycles, windows, "")
+		summary := dto.NewMachineSummary(machine.ID, summarizeCycles(dayCycles))
+		if day.Before(now) {
+			periods, err := dashboardService.periodsBetween(ctx, machine.ID, day, nextDay)
+			if err != nil {
+				return nil, err
+			}
+			if dayOEE, ok := machineDayOEE(periods, dayCycles, windows, "", now); ok {
+				sum := oeeSum{}
+				sum.add(dayOEE)
+				summary = summary.WithOEE(sum.row(day.Format(shiftDateLayout)))
+			}
+		}
+		summaries = append(summaries, summary)
+	}
+	return summaries, nil
+}
+
 // GetFinishCycles returns the completed cycles of dashboardRequest's machine on its To day (in
 // the shifts and program picked), the totals of every cycle started then and the programs run.
 func (dashboardService *DashboardService) GetFinishCycles(ctx context.Context, actor model.AuthUser, dashboardRequest dto.DashboardRequest) (dto.FinishCyclesResponse, error) {

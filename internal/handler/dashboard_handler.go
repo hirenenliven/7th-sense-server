@@ -132,6 +132,45 @@ func (dashboardHandler *DashboardHandler) GetCycleCounts(writer http.ResponseWri
 	response.SendResponse(writer, request, response.Success, rows)
 }
 
+// GetMachineSummaries handles GET /api/v1/productivity/machine-summaries?date=YYYY-MM-DD (default
+// today): OEE and cycle counts of the day for every machine the user may read.
+//
+// @Summary      Get machine summaries
+// @Description  GetMachineSummaries handles GET /api/v1/productivity/machine-summaries?date=YYYY-MM-DD (default today): OEE (availability, performance, quality) and cycle counts (total, completed, unfinished) of the whole day for every machine the user may read. Availability is null when the day has no planned time yet; performance, quality and oee are null when no cycle closed.
+// @Description
+// @Description  Used by pages: Monitoring (machine list)
+// @Tags         Productivity
+// @ID           getMachineSummaries
+// @Produce      json
+// @Security     cookieAuth
+// @Param        date query string false "Day YYYY-MM-DD (default today)"
+// @Success      200 {object} response.Envelope{data=[]dto.MachineSummary}
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/productivity/machine-summaries [get]
+func (dashboardHandler *DashboardHandler) GetMachineSummaries(writer http.ResponseWriter, request *http.Request) {
+	actor, err := currentUser(request)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+	date := request.URL.Query().Get("date")
+	// Only the day is checked: the machines are every one the user may read
+	dateRequest := dto.MachineCycleListRequest{MachineID: 1, From: date, To: date}
+	if err := dateRequest.Validate(); err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+
+	summaries, err := dashboardHandler.service.GetMachineSummaries(request.Context(), actor, dto.DashboardRequest{From: date, To: date})
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+	response.SendResponse(writer, request, response.Success, summaries)
+}
+
 // GetFinishCycles handles GET /api/v1/productivity/finish-cycles?machineId=&date=&shiftIds=&program=:
 // the machine's completed cycles of the day with the day's totals.
 //

@@ -428,6 +428,25 @@ components:
         name:
           type: string
       type: object
+    dto.MachineSummary:
+      properties:
+        availability:
+          type: number
+        completedCount:
+          type: integer
+        cycleCount:
+          type: integer
+        machineId:
+          type: integer
+        oee:
+          type: number
+        performance:
+          type: number
+        quality:
+          type: number
+        unfinishedCount:
+          type: integer
+      type: object
     dto.ModeTotalsResponse:
       properties:
         from:
@@ -895,6 +914,9 @@ components:
             type: integer
           type: array
         panNumber:
+          type: string
+        password:
+          description: new password; empty keeps the current one
           type: string
         primaryPhone:
           type: string
@@ -7547,6 +7569,72 @@ paths:
       summary: Get finish cycles
       tags:
         - Productivity
+  /v1/productivity/machine-summaries:
+    get:
+      description: |-
+        GetMachineSummaries handles GET /api/v1/productivity/machine-summaries?date=YYYY-MM-DD (default today): OEE (availability, performance, quality) and cycle counts (total, completed, unfinished) of the whole day for every machine the user may read. Availability is null when the day has no planned time yet; performance, quality and oee are null when no cycle closed.
+
+        Used by pages: Monitoring (machine list)
+      operationId: getMachineSummaries
+      parameters:
+        - description: Day YYYY-MM-DD (default today)
+          in: query
+          name: date
+          schema:
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              example:
+                message: success
+                statusCode: 200
+                success: true
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/response.Envelope'
+                  - properties:
+                      data:
+                        items:
+                          $ref: '#/components/schemas/dto.MachineSummary'
+                        type: array
+                    type: object
+          description: OK
+        "400":
+          content:
+            application/json:
+              example:
+                message: Validation error
+                statusCode: 400
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Validation error
+        "401":
+          content:
+            application/json:
+              example:
+                message: Not logged in
+                statusCode: 401
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not logged in
+        "500":
+          content:
+            application/json:
+              example:
+                message: Server error
+                statusCode: 500
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Server error
+      security:
+        - cookieAuth: []
+      summary: Get machine summaries
+      tags:
+        - Productivity
   /v1/productivity/mode-timeline:
     get:
       description: |-
@@ -11088,9 +11176,9 @@ paths:
         - Users
     put:
       description: |-
-        Replaces the user and its customer details. Customer details the user does not have yet are created.
+        Replaces the user and its customer details. Customer details the user does not have yet are created. password sets a new password (8 to 72 characters); empty keeps the current one.
         Roles: superadmin, customer, admin (others get 403).
-        Validation: Please enter valid status.
+        Validation: Please enter valid password, Please enter valid status.
 
         Used by pages: Customers / Users list, Add / edit customer or user
       operationId: updateUser
@@ -11125,6 +11213,7 @@ paths:
               machineIds:
                 - 1
               panNumber: Postman sample
+              password: Postman sample
               primaryPhone: Postman sample
               roleId: 1
               secondaryPhone: Postman sample

@@ -129,6 +129,24 @@ func TestDashboardCharts(t *testing.T) {
 		}
 	}
 
+	summaries := sendRequest(t, router, http.MethodGet, apiV1+"/productivity/machine-summaries", nil)
+	if !summaries.Success {
+		t.Fatalf("machine summaries: %s", summaries.Message)
+	}
+	var machineRows []dto.MachineSummary
+	mustDecode(t, summaries.Data, &machineRows)
+	for _, row := range machineRows {
+		if row.CompletedCount+row.UnfinishedCount > row.CycleCount {
+			t.Errorf("machine %d: %d completed + %d unfinished > %d cycles", row.MachineID, row.CompletedCount, row.UnfinishedCount, row.CycleCount)
+		}
+		if row.OEE != nil && (*row.OEE < 0 || *row.OEE > 100) {
+			t.Errorf("machine %d: OEE %v out of range", row.MachineID, *row.OEE)
+		}
+	}
+	if result := sendRequest(t, router, http.MethodGet, apiV1+"/productivity/machine-summaries?date=bad", nil); result.StatusCode != http.StatusBadRequest {
+		t.Errorf("machine summaries with a bad date: status %d, want 400", result.StatusCode)
+	}
+
 	if result := sendRequest(t, router, http.MethodGet, apiV1+"/productivity/oee", nil); result.StatusCode != http.StatusBadRequest {
 		t.Errorf("OEE without a machine: status %d, want 400", result.StatusCode)
 	}

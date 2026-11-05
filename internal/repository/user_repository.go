@@ -100,13 +100,14 @@ func (userRepository *UserRepository) Create(ctx context.Context, user model.Use
 }
 
 // Update replaces the profile fields of user.ID. An empty Status keeps the
-// current status. The password is not changed.
+// current status and an empty Password (a bcrypt hash) keeps the current one.
 func (userRepository *UserRepository) Update(ctx context.Context, user model.User) (model.User, error) {
 	query := `UPDATE users
 		SET username = $2, email = $3,
 			first_name = NULLIF($4, ''), last_name = NULLIF($5, ''), mobile = NULLIF($6, ''),
 			role_id = $7, branch_id = $8, company_id = $9,
-			status = COALESCE(NULLIF($10, ''), status)
+			status = COALESCE(NULLIF($10, ''), status),
+			password = COALESCE(NULLIF($11, ''), password)
 		WHERE id = $1 AND is_deleted = false
 		RETURNING id, username, email, password,
 			COALESCE(first_name, '') AS first_name,
@@ -118,7 +119,7 @@ func (userRepository *UserRepository) Update(ctx context.Context, user model.Use
 			created_at, updated_at`
 
 	rows, err := db.Execute(ctx, userRepository.database, query,
-		user.ID, user.Username, user.Email, user.FirstName, user.LastName, user.Mobile, user.RoleID, user.BranchID, user.CompanyID, user.Status,
+		user.ID, user.Username, user.Email, user.FirstName, user.LastName, user.Mobile, user.RoleID, user.BranchID, user.CompanyID, user.Status, user.Password,
 	)
 	if err != nil {
 		return model.User{}, fmt.Errorf("update user: %w", err)

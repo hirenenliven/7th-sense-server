@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"golang.org/x/crypto/bcrypt"
 
 	"7th-sense-server/internal/dto"
 	"7th-sense-server/internal/handler"
@@ -341,6 +342,32 @@ func TestCompanyUserManagement(t *testing.T) {
 		}
 		if got := listIDs(t, sendRequest(t, operatorA, http.MethodGet, apiV1+"/machines", nil)); !slices.Equal(got, companyA.machineIDs[1:]) {
 			t.Fatalf("operator sees machines %v; want %v", got, companyA.machineIDs[1:])
+		}
+	})
+
+	t.Run("updating sets a new password, blank keeps it", func(t *testing.T) {
+		storedHash := func() string {
+			var hash string
+			if err := testDBPool.QueryRow(context.Background(), `SELECT password FROM users WHERE id = $1`, operator.ID).Scan(&hash); err != nil {
+				t.Fatalf("read password: %v", err)
+			}
+			return hash
+		}
+		body := updateBody(operatorBody)
+		body.Password = "short"
+		expectStatus(t, sendRequest(t, customerA, http.MethodPut, userPath(operator.ID), body), http.StatusBadRequest, "Please enter valid password")
+
+		body.Password = "NewPassword@123"
+		expectStatus(t, sendRequest(t, customerA, http.MethodPut, userPath(operator.ID), body), http.StatusOK, "success")
+		changed := storedHash()
+		if bcrypt.CompareHashAndPassword([]byte(changed), []byte(body.Password)) != nil {
+			t.Fatal("stored password does not match the new password")
+		}
+
+		body.Password = ""
+		expectStatus(t, sendRequest(t, customerA, http.MethodPut, userPath(operator.ID), body), http.StatusOK, "success")
+		if storedHash() != changed {
+			t.Fatal("blank password changed the stored password")
 		}
 	})
 

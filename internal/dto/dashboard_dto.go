@@ -139,6 +139,36 @@ type CycleCountRow struct {
 	Unfinished int    `json:"unfinished"`
 }
 
+// MachineSummary is one machine of GET /productivity/machine-summaries: its OEE parts and cycle
+// counts of one day (the whole day, like GET /productivity/oee and /cycle-counts without shifts).
+// Availability is nil when the day has no planned time yet; Performance, Quality and OEE are nil
+// when no cycle closed. CycleCount counts every cycle started; running ones are neither
+// completed nor unfinished.
+type MachineSummary struct {
+	MachineID       int64    `json:"machineId"`
+	Availability    *float64 `json:"availability"`
+	Performance     *float64 `json:"performance"`
+	Quality         *float64 `json:"quality"`
+	OEE             *float64 `json:"oee"`
+	CycleCount      int      `json:"cycleCount"`
+	CompletedCount  int      `json:"completedCount"`
+	UnfinishedCount int      `json:"unfinishedCount"`
+}
+
+// NewMachineSummary builds machineID's row from its cycle counts; the OEE parts are set by
+// WithOEE.
+func NewMachineSummary(machineID int64, cycles MachineCycleSummary) MachineSummary {
+	return MachineSummary{MachineID: machineID, CycleCount: cycles.CycleCount,
+		CompletedCount: cycles.CompletedCount, UnfinishedCount: cycles.UnfinishedCount}
+}
+
+// WithOEE sets the day's OEE parts (one machine's row of GET /productivity/oee).
+func (summary MachineSummary) WithOEE(row OEERow) MachineSummary {
+	availability := row.Availability
+	summary.Availability, summary.Performance, summary.Quality, summary.OEE = &availability, row.Performance, row.Quality, row.OEE
+	return summary
+}
+
 // FinishCyclesResponse is the response of GET /productivity/finish-cycles: the machine's
 // completed cycles of the day (in the shifts and program picked), the totals of every cycle
 // started then, and the programs it ran that day.

@@ -164,8 +164,9 @@ func (userService *UserService) Create(ctx context.Context, actor model.AuthUser
 // Update replaces the user and its customer details. Customer details the user
 // does not have yet are created. User profile fields that are not part of the
 // customer form (designation, birth date, ...) keep their values; an empty
-// theme keeps the current theme. The machine access is replaced with the
-// request's. actor must be allowed to manage the user and give the new role.
+// theme keeps the current theme and an empty password the current password.
+// The machine access is replaced with the request's. actor must be allowed to
+// manage the user and give the new role.
 func (userService *UserService) Update(ctx context.Context, actor model.AuthUser, id int64, userRequest dto.UpdateUserRequest) (dto.UserResponse, error) {
 	if err := userService.checkCanManage(ctx, actor, id); err != nil {
 		return dto.UserResponse{}, err
@@ -181,6 +182,14 @@ func (userService *UserService) Update(ctx context.Context, actor model.AuthUser
 	if err != nil {
 		return dto.UserResponse{}, response.NewError(http.StatusBadRequest, "Please enter valid day start time")
 	}
+	hashedPassword := ""
+	if userRequest.Password != "" {
+		hash, err := bcrypt.GenerateFromPassword([]byte(userRequest.Password), bcrypt.DefaultCost)
+		if err != nil {
+			return dto.UserResponse{}, fmt.Errorf("hash password: %w", err)
+		}
+		hashedPassword = string(hash)
+	}
 
 	var updated dto.UserResponse
 	err = db.WithTransaction(ctx, userService.dbPool, func(tx pgx.Tx) error {
@@ -190,6 +199,7 @@ func (userService *UserService) Update(ctx context.Context, actor model.AuthUser
 			ID:        id,
 			Username:  userRequest.Username,
 			Email:     userRequest.Email,
+			Password:  hashedPassword,
 			FirstName: userRequest.FirstName,
 			LastName:  userRequest.LastName,
 			Mobile:    userRequest.PrimaryPhone,
