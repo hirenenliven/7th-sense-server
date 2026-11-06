@@ -122,7 +122,7 @@ func (userStateHandler *UserStateHandler) Create(writer http.ResponseWriter, req
 // Delete handles DELETE /api/v1/user-state/{id}[?userId=<id>].
 //
 // @Summary      Delete user state
-// @Description  Soft-deletes the state. A state that still has cities is kept: its cities must be deleted first.
+// @Description  Soft-deletes the state. A state that still has cities is kept: its cities must be deleted first. A state a user's machine access names is kept too.
 // @Description  Roles: superadmin only (others get 403).
 // @Description
 // @Description  Used by pages: States

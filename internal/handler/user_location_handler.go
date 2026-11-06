@@ -170,7 +170,7 @@ func (userLocationHandler *UserLocationHandler) Update(writer http.ResponseWrite
 // Delete handles DELETE /api/v1/user-location/{id}[?userId=<id>].
 //
 // @Summary      Delete user location
-// @Description  Soft-deletes the location. A location that still has shops is kept: its shops must be deleted first.
+// @Description  Soft-deletes the location. A location that still has shops is kept: its shops must be deleted first. A location a user's machine access names is kept too.
 // @Description  Roles: superadmin, customer, admin (others get 403).
 // @Description
 // @Description  Used by pages: Locations

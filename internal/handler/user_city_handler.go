@@ -170,7 +170,7 @@ func (userCityHandler *UserCityHandler) Update(writer http.ResponseWriter, reque
 // Delete handles DELETE /api/v1/user-city/{id}[?userId=<id>].
 //
 // @Summary      Delete user city
-// @Description  Soft-deletes the city. A city that still has branches is kept: its branches must be deleted first.
+// @Description  Soft-deletes the city. A city that still has branches is kept: its branches must be deleted first. A city a user's machine access names is kept too.
 // @Description  Roles: superadmin, customer, admin (others get 403).
 // @Description
 // @Description  Used by pages: Cities

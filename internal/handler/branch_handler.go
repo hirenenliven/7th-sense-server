@@ -171,7 +171,7 @@ func (branchHandler *BranchHandler) Update(writer http.ResponseWriter, request *
 // Delete handles DELETE /api/v1/branches/{id}.
 //
 // @Summary      Delete branch
-// @Description  Soft-deletes the branch. A branch that still has locations is kept: its locations must be deleted first.
+// @Description  Soft-deletes the branch. A branch that still has locations is kept: its locations must be deleted first. A branch a user's machine access names is kept too.
 // @Description  Roles: superadmin only (others get 403).
 // @Description
 // @Description  Used by pages: Branches

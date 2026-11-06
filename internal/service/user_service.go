@@ -522,6 +522,12 @@ func (userService *UserService) checkMachineFilter(ctx context.Context, companyI
 	return &filter, nil
 }
 
+// levelInMachineFilterError refuses deleting an organization level a user's machine filter names:
+// the user would lose the machines and could not be saved until the filter is changed.
+func levelInMachineFilterError(level string) error {
+	return response.NewError(http.StatusBadRequest, "This "+level+" is used in a user's machine access. Change that user first")
+}
+
 // checkCustomer returns "Please select valid customer" unless customerID is an
 // existing customer.
 func (userService *UserService) checkCustomer(ctx context.Context, customerID *int64) error {

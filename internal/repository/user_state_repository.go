@@ -100,6 +100,11 @@ func (userStateRepository *UserStateRepository) Delete(ctx context.Context, user
 	return nil
 }
 
+// IsInMachineFilter reports whether a user's machine filter names the state id.
+func (userStateRepository *UserStateRepository) IsInMachineFilter(ctx context.Context, id int64) (bool, error) {
+	return levelInMachineFilter(ctx, userStateRepository.database, "user_state_id", id)
+}
+
 // HasCities reports whether the state id owned by userID has active cities.
 func (userStateRepository *UserStateRepository) HasCities(ctx context.Context, userID, id int64) (bool, error) {
 	query := `SELECT EXISTS (

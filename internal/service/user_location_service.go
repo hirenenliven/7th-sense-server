@@ -71,6 +71,13 @@ func (userLocationService *UserLocationService) Delete(ctx context.Context, user
 	if hasShops {
 		return response.NewError(http.StatusBadRequest, "This location has shops. Delete its shops first")
 	}
+	inFilter, err := userLocationService.userLocationRepository.IsInMachineFilter(ctx, id)
+	if err != nil {
+		return err
+	}
+	if inFilter {
+		return levelInMachineFilterError("location")
+	}
 	return toUserLocationResponseError(userLocationService.userLocationRepository.Delete(ctx, userID, id))
 }
 

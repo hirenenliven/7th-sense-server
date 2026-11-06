@@ -25,7 +25,7 @@ func NewDowntimeReasonHandler(downtimeReasonService *service.DowntimeReasonServi
 // @Summary      Get downtime reasons
 // @Description  Returns the downtime reasons the user may read. A non-nil customerID keeps only that customer's reasons.
 // @Description
-// @Description  Used by pages: Downtime / idle reasons
+// @Description  Used by pages: Downtime / idle reasons, Operations Center, Productivity, Plant Intelligence
 // @Tags         Reasons
 // @ID           getDowntimeReasons
 // @Produce      json

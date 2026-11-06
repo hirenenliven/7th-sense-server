@@ -25,7 +25,7 @@ func NewIdleReasonHandler(idleReasonService *service.IdleReasonService) *IdleRea
 // @Summary      Get idle reasons
 // @Description  Returns the idle reasons the user may read. A non-nil customerID keeps only that customer's reasons.
 // @Description
-// @Description  Used by pages: Downtime / idle reasons
+// @Description  Used by pages: Downtime / idle reasons, Productivity
 // @Tags         Reasons
 // @ID           getIdleReasons
 // @Produce      json

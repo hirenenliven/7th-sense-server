@@ -121,6 +121,11 @@ func (userCityRepository *UserCityRepository) Delete(ctx context.Context, userID
 	return nil
 }
 
+// IsInMachineFilter reports whether a user's machine filter names the city id.
+func (userCityRepository *UserCityRepository) IsInMachineFilter(ctx context.Context, id int64) (bool, error) {
+	return levelInMachineFilter(ctx, userCityRepository.database, "user_city_id", id)
+}
+
 // HasBranches reports whether the city id has active branches (branches.user_city_id).
 func (userCityRepository *UserCityRepository) HasBranches(ctx context.Context, id int64) (bool, error) {
 	query := `SELECT EXISTS (

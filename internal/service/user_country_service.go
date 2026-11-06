@@ -48,6 +48,13 @@ func (userCountryService *UserCountryService) Delete(ctx context.Context, userID
 	if hasStates {
 		return response.NewError(http.StatusBadRequest, "This country has states. Delete its states first")
 	}
+	inFilter, err := userCountryService.userCountryRepository.IsInMachineFilter(ctx, id)
+	if err != nil {
+		return err
+	}
+	if inFilter {
+		return levelInMachineFilterError("country")
+	}
 	return toUserCountryResponseError(userCountryService.userCountryRepository.Delete(ctx, userID, id))
 }
 

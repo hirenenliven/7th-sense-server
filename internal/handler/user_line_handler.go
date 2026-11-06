@@ -170,7 +170,7 @@ func (userLineHandler *UserLineHandler) Update(writer http.ResponseWriter, reque
 // Delete handles DELETE /api/v1/user-line/{id}[?userId=<id>].
 //
 // @Summary      Delete user line
-// @Description  Soft-deletes the line. A line that still has cells is kept: its cells must be deleted first.
+// @Description  Soft-deletes the line. A line that still has cells is kept: its cells must be deleted first. A line with machines, or that a user's machine access names, is kept too.
 // @Description  Roles: superadmin, customer, admin (others get 403).
 // @Description
 // @Description  Used by pages: Lines

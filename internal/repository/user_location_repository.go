@@ -121,6 +121,11 @@ func (userLocationRepository *UserLocationRepository) Delete(ctx context.Context
 	return nil
 }
 
+// IsInMachineFilter reports whether a user's machine filter names the location id.
+func (userLocationRepository *UserLocationRepository) IsInMachineFilter(ctx context.Context, id int64) (bool, error) {
+	return levelInMachineFilter(ctx, userLocationRepository.database, "user_location_id", id)
+}
+
 // HasShops reports whether the location id owned by userID has active shops.
 func (userLocationRepository *UserLocationRepository) HasShops(ctx context.Context, userID, id int64) (bool, error) {
 	query := `SELECT EXISTS (

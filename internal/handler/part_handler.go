@@ -33,7 +33,7 @@ func NewPartHandler(partService *service.PartService) *PartHandler {
 // @Summary      Get parts
 // @Description  Returns the parts the user may read (see companyOwner), without their processes. A non-nil customerID keeps only that customer's parts.
 // @Description
-// @Description  Used by pages: Parts, Add / edit production schedule
+// @Description  Used by pages: Parts, Add / edit production schedule, Operations Center, Plant Intelligence
 // @Tags         Parts
 // @ID           getParts
 // @Produce      json

@@ -25,7 +25,7 @@ func NewShiftHandler(shiftService *service.ShiftService) *ShiftHandler {
 // @Summary      Get shifts
 // @Description  Returns the shifts the user may read, each with its breaks. A non-nil customerID keeps only that customer's shifts.
 // @Description
-// @Description  Used by pages: Productivity, Add / edit production schedule, Shifts, Breaks
+// @Description  Used by pages: Productivity, Add / edit production schedule, Shifts, Breaks, Operations Center, Plant Intelligence
 // @Tags         Shifts
 // @ID           getShifts
 // @Produce      json

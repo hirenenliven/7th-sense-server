@@ -95,6 +95,11 @@ func (userCountryRepository *UserCountryRepository) Delete(ctx context.Context, 
 	return nil
 }
 
+// IsInMachineFilter reports whether a user's machine filter names the country id.
+func (userCountryRepository *UserCountryRepository) IsInMachineFilter(ctx context.Context, id int64) (bool, error) {
+	return levelInMachineFilter(ctx, userCountryRepository.database, "user_country_id", id)
+}
+
 // HasStates reports whether the country id owned by userID has active states.
 func (userCountryRepository *UserCountryRepository) HasStates(ctx context.Context, userID, id int64) (bool, error) {
 	query := `SELECT EXISTS (

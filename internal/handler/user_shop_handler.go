@@ -170,7 +170,7 @@ func (userShopHandler *UserShopHandler) Update(writer http.ResponseWriter, reque
 // Delete handles DELETE /api/v1/user-shop/{id}[?userId=<id>].
 //
 // @Summary      Delete user shop
-// @Description  Soft-deletes the shop. A shop that still has lines is kept: its lines must be deleted first.
+// @Description  Soft-deletes the shop. A shop that still has lines is kept: its lines must be deleted first. A shop a user's machine access names is kept too.
 // @Description  Roles: superadmin, customer, admin (others get 403).
 // @Description
 // @Description  Used by pages: Shops

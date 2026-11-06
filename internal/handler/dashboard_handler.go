@@ -30,7 +30,7 @@ func NewDashboardHandler(dashboardService *service.DashboardService) *DashboardH
 // @Summary      Get home dashboard
 // @Description  GetHomeDashboard handles GET /api/v1/dashboard/home?date=YYYY-MM-DD[&userId=<customer id>] (date defaults to today; userId narrows the superadmin's machines to one customer): the active machines together, the fleet now and the day's OEE, cycles, parts vs plan, time per mode group, parts per hour, per-machine rows and the most raised alarms.
 // @Description
-// @Description  Used by pages: Home
+// @Description  Used by pages: Home, Operations Center, Plant Intelligence
 // @Tags         Dashboard
 // @ID           getHomeDashboard
 // @Produce      json
@@ -110,7 +110,7 @@ func (dashboardHandler *DashboardHandler) GetModeTimeline(writer http.ResponseWr
 // @Summary      Get oee
 // @Description  GetOEE handles GET /api/v1/productivity/oee?machineIds=1,2&from=&to=&shiftIds=&program=&schedule=with: one OEE row per day over the machines together, weighted by their planned / run time and closed cycles.
 // @Description
-// @Description  Used by pages: Productivity
+// @Description  Used by pages: Productivity, Operations Center
 // @Tags         Productivity
 // @ID           getOee
 // @Produce      json
@@ -148,7 +148,7 @@ func (dashboardHandler *DashboardHandler) GetOEE(writer http.ResponseWriter, req
 // @Summary      Get cycle counts
 // @Description  GetCycleCounts handles GET /api/v1/productivity/cycle-counts?machineIds=1,2&from=&to=&shiftIds=: cycles started, finished and unfinished per day.
 // @Description
-// @Description  Used by pages: Productivity
+// @Description  Used by pages: Productivity, Operations Center
 // @Tags         Productivity
 // @ID           getCycleCounts
 // @Produce      json

@@ -121,6 +121,11 @@ func (userShopRepository *UserShopRepository) Delete(ctx context.Context, userID
 	return nil
 }
 
+// IsInMachineFilter reports whether a user's machine filter names the shop id.
+func (userShopRepository *UserShopRepository) IsInMachineFilter(ctx context.Context, id int64) (bool, error) {
+	return levelInMachineFilter(ctx, userShopRepository.database, "user_shop_id", id)
+}
+
 // HasLines reports whether the shop id owned by userID has active lines.
 func (userShopRepository *UserShopRepository) HasLines(ctx context.Context, userID, id int64) (bool, error) {
 	query := `SELECT EXISTS (

@@ -57,6 +57,13 @@ func (userStateService *UserStateService) Delete(ctx context.Context, userID, id
 	if hasCities {
 		return response.NewError(http.StatusBadRequest, "This state has cities. Delete its cities first")
 	}
+	inFilter, err := userStateService.userStateRepository.IsInMachineFilter(ctx, id)
+	if err != nil {
+		return err
+	}
+	if inFilter {
+		return levelInMachineFilterError("state")
+	}
 	return toUserStateResponseError(userStateService.userStateRepository.Delete(ctx, userID, id))
 }
 

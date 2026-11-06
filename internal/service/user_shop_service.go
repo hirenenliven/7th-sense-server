@@ -71,6 +71,13 @@ func (userShopService *UserShopService) Delete(ctx context.Context, userID, id i
 	if hasLines {
 		return response.NewError(http.StatusBadRequest, "This shop has lines. Delete its lines first")
 	}
+	inFilter, err := userShopService.userShopRepository.IsInMachineFilter(ctx, id)
+	if err != nil {
+		return err
+	}
+	if inFilter {
+		return levelInMachineFilterError("shop")
+	}
 	return toUserShopResponseError(userShopService.userShopRepository.Delete(ctx, userID, id))
 }
 

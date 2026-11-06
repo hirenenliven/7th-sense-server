@@ -26,7 +26,7 @@ func NewLicenceKeyHandler(licenceKeyService *service.LicenceKeyService) *Licence
 // @Description  Returns the licence keys the user may read. A non-nil customerID keeps only that customer's.
 // @Description  Roles: superadmin, customer, admin (others get 403).
 // @Description
-// @Description  Used by pages: Licence keys
+// @Description  Used by pages: Licence keys, Operations Center, Plant Intelligence
 // @Tags         Licence keys
 // @ID           getLicenceKeys
 // @Produce      json

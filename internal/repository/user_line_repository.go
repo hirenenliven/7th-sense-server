@@ -121,6 +121,26 @@ func (userLineRepository *UserLineRepository) Delete(ctx context.Context, userID
 	return nil
 }
 
+// HasMachines reports whether active machines stand on the line id.
+func (userLineRepository *UserLineRepository) HasMachines(ctx context.Context, id int64) (bool, error) {
+	query := `SELECT EXISTS (SELECT 1 FROM machines WHERE line_id = $1 AND is_deleted = false)`
+
+	rows, err := db.Execute(ctx, userLineRepository.database, query, id)
+	if err != nil {
+		return false, fmt.Errorf("check line machines: %w", err)
+	}
+	found, err := pgx.CollectOneRow(rows, pgx.RowTo[bool])
+	if err != nil {
+		return false, fmt.Errorf("check line machines: %w", err)
+	}
+	return found, nil
+}
+
+// IsInMachineFilter reports whether a user's machine filter names the line id.
+func (userLineRepository *UserLineRepository) IsInMachineFilter(ctx context.Context, id int64) (bool, error) {
+	return levelInMachineFilter(ctx, userLineRepository.database, "user_line_id", id)
+}
+
 // HasCells reports whether the line id owned by userID has active cells.
 func (userLineRepository *UserLineRepository) HasCells(ctx context.Context, userID, id int64) (bool, error) {
 	query := `SELECT EXISTS (

@@ -25,7 +25,7 @@ func NewClienteleHandler(clienteleService *service.ClienteleService) *ClienteleH
 // @Summary      Get clienteles
 // @Description  Returns the clienteles the user may read. A non-nil customerID keeps only that customer's clienteles.
 // @Description
-// @Description  Used by pages: Clientele, Add / edit part
+// @Description  Used by pages: Clientele, Add / edit part, Operations Center, Plant Intelligence
 // @Tags         Clienteles
 // @ID           getClienteles
 // @Produce      json

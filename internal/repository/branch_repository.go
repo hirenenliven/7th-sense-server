@@ -141,6 +141,11 @@ func (branchRepository *BranchRepository) Delete(ctx context.Context, id int64) 
 	return nil
 }
 
+// IsInMachineFilter reports whether a user's machine filter names the branch id.
+func (branchRepository *BranchRepository) IsInMachineFilter(ctx context.Context, id int64) (bool, error) {
+	return levelInMachineFilter(ctx, branchRepository.dbPool, "branch_id", id)
+}
+
 // HasLocations reports whether the branch id has active locations (user_location.branch_id).
 func (branchRepository *BranchRepository) HasLocations(ctx context.Context, id int64) (bool, error) {
 	query := `SELECT EXISTS (

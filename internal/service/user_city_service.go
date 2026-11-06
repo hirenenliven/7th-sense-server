@@ -71,6 +71,13 @@ func (userCityService *UserCityService) Delete(ctx context.Context, userID, id i
 	if hasBranches {
 		return response.NewError(http.StatusBadRequest, "This city has branches. Delete its branches first")
 	}
+	inFilter, err := userCityService.userCityRepository.IsInMachineFilter(ctx, id)
+	if err != nil {
+		return err
+	}
+	if inFilter {
+		return levelInMachineFilterError("city")
+	}
 	return toUserCityResponseError(userCityService.userCityRepository.Delete(ctx, userID, id))
 }
 

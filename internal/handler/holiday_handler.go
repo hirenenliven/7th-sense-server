@@ -25,7 +25,7 @@ func NewHolidayHandler(holidayService *service.HolidayService) *HolidayHandler {
 // @Summary      Get holidays
 // @Description  Returns the holidays and week offs the user may read. A non-nil customerID keeps only that customer's.
 // @Description
-// @Description  Used by pages: Holidays / week off
+// @Description  Used by pages: Holidays / week off, Operations Center, Plant Intelligence
 // @Tags         Holidays
 // @ID           getHolidays
 // @Produce      json

@@ -85,6 +85,13 @@ func (branchService *BranchService) Delete(ctx context.Context, id int64) error 
 	if hasLocations {
 		return response.NewError(http.StatusBadRequest, "This branch has locations. Delete its locations first")
 	}
+	inFilter, err := branchService.branchRepository.IsInMachineFilter(ctx, id)
+	if err != nil {
+		return err
+	}
+	if inFilter {
+		return levelInMachineFilterError("branch")
+	}
 	return toBranchResponseError(branchService.branchRepository.Delete(ctx, id))
 }
 

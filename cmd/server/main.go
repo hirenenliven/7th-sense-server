@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -136,6 +137,9 @@ func run() error {
 			repository.NewDowntimeReasonRepository(dbPool), repository.NewUserRepository(dbPool))),
 		IdleReason: handler.NewIdleReasonHandler(service.NewIdleReasonService(
 			repository.NewIdleReasonRepository(dbPool), repository.NewUserRepository(dbPool))),
+		MachineDiagnostics: handler.NewMachineDiagnosticsHandler(service.NewMachineDiagnosticsService(repository.NewMachineDiagnosticsRepository(dbPool),
+			machineService, telemetryService, liveHub, appConfig.CNC, runtime.GOARCH)),
+		MachineModeReason: handler.NewMachineModeReasonHandler(service.NewMachineModeReasonService(dbPool, machineService)),
 		Shift: handler.NewShiftHandler(service.NewShiftService(dbPool, repository.NewUserRepository(dbPool))),
 		Break: handler.NewBreakHandler(service.NewBreakService(dbPool, repository.NewUserRepository(dbPool))),
 		Holiday: handler.NewHolidayHandler(service.NewHolidayService(repository.NewHolidayRepository(dbPool),

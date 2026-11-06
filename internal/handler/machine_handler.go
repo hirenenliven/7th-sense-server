@@ -26,7 +26,7 @@ func NewMachineHandler(machineService *service.MachineService) *MachineHandler {
 // @Summary      Get machines
 // @Description  Returns the machines the user may access (see machineScope): a supervisor, operator, qc or shop head gets the machines assigned to them plus, when their machine filter has allMachines, every company machine under its organization levels. A non-nil customerID keeps only that customer's machines.
 // @Description
-// @Description  Used by pages: Add / edit customer or user, Customer / user detail, All machines, Machine health, Productivity, Add / edit part, Add / edit production schedule
+// @Description  Used by pages: Add / edit customer or user, Customer / user detail, All machines, Machine health, Productivity, Add / edit part, Add / edit production schedule, Operations Center, Plant Intelligence
 // @Tags         Machines
 // @ID           getMachines
 // @Produce      json

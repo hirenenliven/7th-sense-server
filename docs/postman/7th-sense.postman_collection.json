@@ -361,7 +361,7 @@
           ],
           "name": "Delete branch",
           "request": {
-            "description": "Soft-deletes the branch. A branch that still has locations is kept: its locations must be deleted first.\nRoles: superadmin only (others get 403).\n\nUsed by pages: Branches",
+            "description": "Soft-deletes the branch. A branch that still has locations is kept: its locations must be deleted first. A branch a user's machine access names is kept too.\nRoles: superadmin only (others get 403).\n\nUsed by pages: Branches",
             "header": [],
             "method": "DELETE",
             "url": {
@@ -594,7 +594,7 @@
           ],
           "name": "Get clienteles",
           "request": {
-            "description": "Returns the clienteles the user may read. A non-nil customerID keeps only that customer's clienteles.\n\nUsed by pages: Clientele, Add / edit part",
+            "description": "Returns the clienteles the user may read. A non-nil customerID keeps only that customer's clienteles.\n\nUsed by pages: Clientele, Add / edit part, Operations Center, Plant Intelligence",
             "header": [],
             "method": "GET",
             "url": {
@@ -830,7 +830,7 @@
           ],
           "name": "Get home dashboard",
           "request": {
-            "description": "GetHomeDashboard handles GET /api/v1/dashboard/home?date=YYYY-MM-DD[\u0026userId=\u003ccustomer id\u003e] (date defaults to today; userId narrows the superadmin's machines to one customer): the active machines together, the fleet now and the day's OEE, cycles, parts vs plan, time per mode group, parts per hour, per-machine rows and the most raised alarms.\n\nUsed by pages: Home",
+            "description": "GetHomeDashboard handles GET /api/v1/dashboard/home?date=YYYY-MM-DD[\u0026userId=\u003ccustomer id\u003e] (date defaults to today; userId narrows the superadmin's machines to one customer): the active machines together, the fleet now and the day's OEE, cycles, parts vs plan, time per mode group, parts per hour, per-machine rows and the most raised alarms.\n\nUsed by pages: Home, Operations Center, Plant Intelligence",
             "header": [],
             "method": "GET",
             "url": {
@@ -887,7 +887,7 @@
           ],
           "name": "Get holidays",
           "request": {
-            "description": "Returns the holidays and week offs the user may read. A non-nil customerID keeps only that customer's.\n\nUsed by pages: Holidays / week off",
+            "description": "Returns the holidays and week offs the user may read. A non-nil customerID keeps only that customer's.\n\nUsed by pages: Holidays / week off, Operations Center, Plant Intelligence",
             "header": [],
             "method": "GET",
             "url": {
@@ -1077,7 +1077,7 @@
           ],
           "name": "Get licence keys",
           "request": {
-            "description": "Returns the licence keys the user may read. A non-nil customerID keeps only that customer's.\nRoles: superadmin, customer, admin (others get 403).\n\nUsed by pages: Licence keys",
+            "description": "Returns the licence keys the user may read. A non-nil customerID keeps only that customer's.\nRoles: superadmin, customer, admin (others get 403).\n\nUsed by pages: Licence keys, Operations Center, Plant Intelligence",
             "header": [],
             "method": "GET",
             "url": {
@@ -1933,7 +1933,7 @@
           ],
           "name": "Get machines",
           "request": {
-            "description": "Returns the machines the user may access (see machineScope): a supervisor, operator, qc or shop head gets the machines assigned to them plus, when their machine filter has allMachines, every company machine under its organization levels. A non-nil customerID keeps only that customer's machines.\n\nUsed by pages: Add / edit customer or user, Customer / user detail, All machines, Machine health, Productivity, Add / edit part, Add / edit production schedule",
+            "description": "Returns the machines the user may access (see machineScope): a supervisor, operator, qc or shop head gets the machines assigned to them plus, when their machine filter has allMachines, every company machine under its organization levels. A non-nil customerID keeps only that customer's machines.\n\nUsed by pages: Add / edit customer or user, Customer / user detail, All machines, Machine health, Productivity, Add / edit part, Add / edit production schedule, Operations Center, Plant Intelligence",
             "header": [],
             "method": "GET",
             "url": {
@@ -1953,6 +1953,85 @@
                 }
               ],
               "raw": "{{baseUrl}}/v1/machines"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('status is 200', () =\u003e pm.response.to.have.status(200));",
+                  "pm.test('response time \u003c 2000ms', () =\u003e pm.expect(pm.response.responseTime).to.be.below(2000));",
+                  "const json = pm.response.json();",
+                  "pm.test('envelope fields', () =\u003e {",
+                  "  pm.expect(json).to.have.property('success', true);",
+                  "  pm.expect(json.statusCode).to.be.a('number');",
+                  "  pm.expect(json.message).to.be.a('string');",
+                  "});",
+                  "pm.test('data is an object', () =\u003e pm.expect(json.data).to.be.an('object'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "Get machine diagnostics",
+          "request": {
+            "description": "What the server knows about one machine's data collection now: set-up, collector status, current mode, every variable (readable or why not, latest value, last stored number), recent machine events, and the checks worked out from them with the reason and what to do for each problem. Sends nothing to the machine.\nRoles: superadmin (others get 403).\n\nUsed by pages: Machine diagnostics",
+            "header": [],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "machines",
+                "{{machineId}}",
+                "diagnostics"
+              ],
+              "raw": "{{baseUrl}}/v1/machines/{{machineId}}/diagnostics"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('status is 200', () =\u003e pm.response.to.have.status(200));",
+                  "pm.test('response time \u003c 2000ms', () =\u003e pm.expect(pm.response.responseTime).to.be.below(2000));",
+                  "const json = pm.response.json();",
+                  "pm.test('envelope fields', () =\u003e {",
+                  "  pm.expect(json).to.have.property('success', true);",
+                  "  pm.expect(json.statusCode).to.be.a('number');",
+                  "  pm.expect(json.message).to.be.a('string');",
+                  "});",
+                  "pm.test('data is an object', () =\u003e pm.expect(json.data).to.be.an('object'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "Check machine network",
+          "request": {
+            "description": "Tests the machine's stored live IP and port from this server, where the collector connects from: one ping and one TCP connect that sends no data. Takes up to a few seconds, so the page runs it on opening and when asked, not on a timer.\nRoles: superadmin (others get 403).\n\nUsed by pages: Machine diagnostics",
+            "header": [],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "machines",
+                "{{machineId}}",
+                "diagnostics",
+                "network"
+              ],
+              "raw": "{{baseUrl}}/v1/machines/{{machineId}}/diagnostics/network"
             }
           }
         },
@@ -2553,7 +2632,7 @@
           ],
           "name": "Delete user city",
           "request": {
-            "description": "Soft-deletes the city. A city that still has branches is kept: its branches must be deleted first.\nRoles: superadmin, customer, admin (others get 403).\n\nUsed by pages: Cities",
+            "description": "Soft-deletes the city. A city that still has branches is kept: its branches must be deleted first. A city a user's machine access names is kept too.\nRoles: superadmin, customer, admin (others get 403).\n\nUsed by pages: Cities",
             "header": [],
             "method": "DELETE",
             "url": {
@@ -2702,7 +2781,7 @@
           ],
           "name": "Delete user country",
           "request": {
-            "description": "Soft-deletes the country. A country that still has states is kept: its states must be deleted first.\nRoles: superadmin only (others get 403).\n\nUsed by pages: Countries",
+            "description": "Soft-deletes the country. A country that still has states is kept: its states must be deleted first. A country a user's machine access names is kept too.\nRoles: superadmin only (others get 403).\n\nUsed by pages: Countries",
             "header": [],
             "method": "DELETE",
             "url": {
@@ -2917,7 +2996,7 @@
           ],
           "name": "Delete user line",
           "request": {
-            "description": "Soft-deletes the line. A line that still has cells is kept: its cells must be deleted first.\nRoles: superadmin, customer, admin (others get 403).\n\nUsed by pages: Lines",
+            "description": "Soft-deletes the line. A line that still has cells is kept: its cells must be deleted first. A line with machines, or that a user's machine access names, is kept too.\nRoles: superadmin, customer, admin (others get 403).\n\nUsed by pages: Lines",
             "header": [],
             "method": "DELETE",
             "url": {
@@ -3132,7 +3211,7 @@
           ],
           "name": "Delete user location",
           "request": {
-            "description": "Soft-deletes the location. A location that still has shops is kept: its shops must be deleted first.\nRoles: superadmin, customer, admin (others get 403).\n\nUsed by pages: Locations",
+            "description": "Soft-deletes the location. A location that still has shops is kept: its shops must be deleted first. A location a user's machine access names is kept too.\nRoles: superadmin, customer, admin (others get 403).\n\nUsed by pages: Locations",
             "header": [],
             "method": "DELETE",
             "url": {
@@ -3347,7 +3426,7 @@
           ],
           "name": "Delete user shop",
           "request": {
-            "description": "Soft-deletes the shop. A shop that still has lines is kept: its lines must be deleted first.\nRoles: superadmin, customer, admin (others get 403).\n\nUsed by pages: Shops",
+            "description": "Soft-deletes the shop. A shop that still has lines is kept: its lines must be deleted first. A shop a user's machine access names is kept too.\nRoles: superadmin, customer, admin (others get 403).\n\nUsed by pages: Shops",
             "header": [],
             "method": "DELETE",
             "url": {
@@ -3502,7 +3581,7 @@
           ],
           "name": "Delete user state",
           "request": {
-            "description": "Soft-deletes the state. A state that still has cities is kept: its cities must be deleted first.\nRoles: superadmin only (others get 403).\n\nUsed by pages: States",
+            "description": "Soft-deletes the state. A state that still has cities is kept: its cities must be deleted first. A state a user's machine access names is kept too.\nRoles: superadmin only (others get 403).\n\nUsed by pages: States",
             "header": [],
             "method": "DELETE",
             "url": {
@@ -3768,7 +3847,7 @@
           ],
           "name": "Get parts",
           "request": {
-            "description": "Returns the parts the user may read (see companyOwner), without their processes. A non-nil customerID keeps only that customer's parts.\n\nUsed by pages: Parts, Add / edit production schedule",
+            "description": "Returns the parts the user may read (see companyOwner), without their processes. A non-nil customerID keeps only that customer's parts.\n\nUsed by pages: Parts, Add / edit production schedule, Operations Center, Plant Intelligence",
             "header": [],
             "method": "GET",
             "url": {
@@ -4086,7 +4165,7 @@
           ],
           "name": "Get production schedules",
           "request": {
-            "description": "Returns the schedules the user may read (see companyOwner), without their items. A non-nil customerID keeps only that customer's schedules.\n\nUsed by pages: Production schedules",
+            "description": "Returns the schedules the user may read (see companyOwner), without their items. A non-nil customerID keeps only that customer's schedules.\n\nUsed by pages: Production schedules, Operations Center, Plant Intelligence",
             "header": [],
             "method": "GET",
             "url": {
@@ -4321,7 +4400,7 @@
           ],
           "name": "Get cycle counts",
           "request": {
-            "description": "GetCycleCounts handles GET /api/v1/productivity/cycle-counts?machineIds=1,2\u0026from=\u0026to=\u0026shiftIds=: cycles started, finished and unfinished per day.\n\nUsed by pages: Productivity",
+            "description": "GetCycleCounts handles GET /api/v1/productivity/cycle-counts?machineIds=1,2\u0026from=\u0026to=\u0026shiftIds=: cycles started, finished and unfinished per day.\n\nUsed by pages: Productivity, Operations Center",
             "header": [],
             "method": "GET",
             "url": {
@@ -4620,7 +4699,7 @@
           ],
           "name": "Get oee",
           "request": {
-            "description": "GetOEE handles GET /api/v1/productivity/oee?machineIds=1,2\u0026from=\u0026to=\u0026shiftIds=\u0026program=\u0026schedule=with: one OEE row per day over the machines together, weighted by their planned / run time and closed cycles.\n\nUsed by pages: Productivity",
+            "description": "GetOEE handles GET /api/v1/productivity/oee?machineIds=1,2\u0026from=\u0026to=\u0026shiftIds=\u0026program=\u0026schedule=with: one OEE row per day over the machines together, weighted by their planned / run time and closed cycles.\n\nUsed by pages: Productivity, Operations Center",
             "header": [],
             "method": "GET",
             "url": {
@@ -4747,7 +4826,7 @@
           ],
           "name": "Get downtime reasons",
           "request": {
-            "description": "Returns the downtime reasons the user may read. A non-nil customerID keeps only that customer's reasons.\n\nUsed by pages: Downtime / idle reasons",
+            "description": "Returns the downtime reasons the user may read. A non-nil customerID keeps only that customer's reasons.\n\nUsed by pages: Downtime / idle reasons, Operations Center, Productivity, Plant Intelligence",
             "header": [],
             "method": "GET",
             "url": {
@@ -4932,7 +5011,7 @@
           ],
           "name": "Get idle reasons",
           "request": {
-            "description": "Returns the idle reasons the user may read. A non-nil customerID keeps only that customer's reasons.\n\nUsed by pages: Downtime / idle reasons",
+            "description": "Returns the idle reasons the user may read. A non-nil customerID keeps only that customer's reasons.\n\nUsed by pages: Downtime / idle reasons, Productivity",
             "header": [],
             "method": "GET",
             "url": {
@@ -5094,6 +5173,191 @@
               "raw": "{{baseUrl}}/v1/idle-reasons/{{idleReasonId}}"
             }
           }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('status is 200', () =\u003e pm.response.to.have.status(200));",
+                  "pm.test('response time \u003c 2000ms', () =\u003e pm.expect(pm.response.responseTime).to.be.below(2000));",
+                  "const json = pm.response.json();",
+                  "pm.test('envelope fields', () =\u003e {",
+                  "  pm.expect(json).to.have.property('success', true);",
+                  "  pm.expect(json.statusCode).to.be.a('number');",
+                  "  pm.expect(json.message).to.be.a('string');",
+                  "});",
+                  "pm.test('data is an object', () =\u003e pm.expect(json.data).to.be.an('object'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "Get machine mode reasons",
+          "request": {
+            "description": "Returns the whole Downtime or Idle period (not clipped to a chart window), which master list its reasons come from, the machine's customer and the reasons recorded so far in time order. A period of another mode, or one still running, answers 400 with the message to show.\nRoles: anyone who may read the machine (others get 404).\n\nUsed by pages: Productivity",
+            "header": [],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "machine-mode-reasons"
+              ],
+              "query": [
+                {
+                  "description": "machine_mode_log id (a Gantt bar's id)",
+                  "disabled": false,
+                  "key": "periodId",
+                  "value": ""
+                }
+              ],
+              "raw": "{{baseUrl}}/v1/machine-mode-reasons"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('status is 201', () =\u003e pm.response.to.have.status(201));",
+                  "pm.test('response time \u003c 2000ms', () =\u003e pm.expect(pm.response.responseTime).to.be.below(2000));",
+                  "const json = pm.response.json();",
+                  "pm.test('envelope fields', () =\u003e {",
+                  "  pm.expect(json).to.have.property('success', true);",
+                  "  pm.expect(json.statusCode).to.be.a('number');",
+                  "  pm.expect(json.message).to.be.a('string');",
+                  "});",
+                  "pm.test('data is an object', () =\u003e pm.expect(json.data).to.be.an('object'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "Create machine mode reason",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              },
+              "raw": "{\n  \"endedAt\": \"Postman sample\",\n  \"periodId\": 1,\n  \"reasonId\": 1,\n  \"startedAt\": \"Postman sample\"\n}"
+            },
+            "description": "Records a reason for a part of a finished Downtime or Idle period.\nRoles: anyone who may read the machine (others get 404).\nValidation: the time lies inside the period and overlaps no other reason of it; the reason is active, of the machine's customer, in the list the period's mode uses.\n\nUsed by pages: Productivity",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "machine-mode-reasons"
+              ],
+              "raw": "{{baseUrl}}/v1/machine-mode-reasons"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('status is 200', () =\u003e pm.response.to.have.status(200));",
+                  "pm.test('response time \u003c 2000ms', () =\u003e pm.expect(pm.response.responseTime).to.be.below(2000));",
+                  "const json = pm.response.json();",
+                  "pm.test('envelope fields', () =\u003e {",
+                  "  pm.expect(json).to.have.property('success', true);",
+                  "  pm.expect(json.statusCode).to.be.a('number');",
+                  "  pm.expect(json.message).to.be.a('string');",
+                  "});",
+                  "pm.test('data is an object', () =\u003e pm.expect(json.data).to.be.an('object'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "Update machine mode reason",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              },
+              "raw": "{\n  \"endedAt\": \"Postman sample\",\n  \"reasonId\": 1,\n  \"startedAt\": \"Postman sample\"\n}"
+            },
+            "description": "Replaces the reason and the time of a recorded row, by the rules of create. The reason the row already has stays allowed when it has since been made inactive or deleted from its list.\nRoles: anyone who may read the machine (others get 404).\n\nUsed by pages: Productivity",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "method": "PUT",
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "machine-mode-reasons",
+                "{{machineModeReasonId}}"
+              ],
+              "raw": "{{baseUrl}}/v1/machine-mode-reasons/{{machineModeReasonId}}"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('status is 200', () =\u003e pm.response.to.have.status(200));",
+                  "pm.test('response time \u003c 2000ms', () =\u003e pm.expect(pm.response.responseTime).to.be.below(2000));",
+                  "const json = pm.response.json();",
+                  "pm.test('envelope fields', () =\u003e {",
+                  "  pm.expect(json).to.have.property('success', true);",
+                  "  pm.expect(json.statusCode).to.be.a('number');",
+                  "  pm.expect(json.message).to.be.a('string');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "Delete machine mode reason",
+          "request": {
+            "description": "Soft-deletes a recorded row.\nRoles: anyone who may read the machine (others get 404).\n\nUsed by pages: Productivity",
+            "header": [],
+            "method": "DELETE",
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "machine-mode-reasons",
+                "{{machineModeReasonId}}"
+              ],
+              "raw": "{{baseUrl}}/v1/machine-mode-reasons/{{machineModeReasonId}}"
+            }
+          }
         }
       ],
       "name": "Reasons"
@@ -5122,7 +5386,7 @@
           ],
           "name": "Get shifts",
           "request": {
-            "description": "Returns the shifts the user may read, each with its breaks. A non-nil customerID keeps only that customer's shifts.\n\nUsed by pages: Productivity, Add / edit production schedule, Shifts, Breaks",
+            "description": "Returns the shifts the user may read, each with its breaks. A non-nil customerID keeps only that customer's shifts.\n\nUsed by pages: Productivity, Add / edit production schedule, Shifts, Breaks, Operations Center, Plant Intelligence",
             "header": [],
             "method": "GET",
             "url": {

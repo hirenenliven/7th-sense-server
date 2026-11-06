@@ -26,7 +26,7 @@ func NewProductionScheduleHandler(scheduleService *service.ProductionScheduleSer
 // @Summary      Get production schedules
 // @Description  Returns the schedules the user may read (see companyOwner), without their items. A non-nil customerID keeps only that customer's schedules.
 // @Description
-// @Description  Used by pages: Production schedules
+// @Description  Used by pages: Production schedules, Operations Center, Plant Intelligence
 // @Tags         Production schedules
 // @ID           getProductionSchedules
 // @Produce      json

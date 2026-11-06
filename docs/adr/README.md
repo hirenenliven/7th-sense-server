@@ -15,5 +15,7 @@ Server (backend) decisions, one file each (Michael Nygard template). Never edit 
 | 0009 | [Socket.IO live data: the collector pushes each screen's variables, checked per user](0009-socketio-live-data.md) | Accepted | 2026-11-05 |
 | 0010 | [Machine access by an organization filter, worked out on every request](0010-machine-access-by-organization-filter.md) | Accepted | 2026-11-05 |
 | 0011 | [Ponytail plugin for Claude Code, under this repo's rules](0011-ponytail-plugin.md) | Accepted | 2026-11-06 |
+| 0012 | [Downtime and idle reasons on a period: one table, tied to machine_mode_log](0012-machine-mode-reasons-one-table.md) | Accepted | 2026-11-06 |
+| 0013 | [Machine diagnostics: reasons from what the collector recorded, network tested from the server](0013-machine-diagnostics-from-collector-evidence.md) | Accepted | 2026-11-06 |
 
 New ADR: copy the newest file, take the next number, status "Proposed" until agreed, then "Accepted"; add a row here.

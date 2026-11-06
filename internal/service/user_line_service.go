@@ -61,8 +61,8 @@ func (userLineService *UserLineService) Update(ctx context.Context, userID, id i
 	return updated, toUserLineResponseError(err)
 }
 
-// Delete soft-deletes the line. A line that still has cells is kept:
-// its cells must be deleted first.
+// Delete soft-deletes the line. A line that still has cells or machines, or that a user's machine
+// filter names, is kept: without it the machines drop out of the filters and the user cannot be saved.
 func (userLineService *UserLineService) Delete(ctx context.Context, userID, id int64) error {
 	hasCells, err := userLineService.userLineRepository.HasCells(ctx, userID, id)
 	if err != nil {
@@ -70,6 +70,20 @@ func (userLineService *UserLineService) Delete(ctx context.Context, userID, id i
 	}
 	if hasCells {
 		return response.NewError(http.StatusBadRequest, "This line has cells. Delete its cells first")
+	}
+	hasMachines, err := userLineService.userLineRepository.HasMachines(ctx, id)
+	if err != nil {
+		return err
+	}
+	if hasMachines {
+		return response.NewError(http.StatusBadRequest, "This line has machines. Move or delete them first")
+	}
+	inFilter, err := userLineService.userLineRepository.IsInMachineFilter(ctx, id)
+	if err != nil {
+		return err
+	}
+	if inFilter {
+		return levelInMachineFilterError("line")
 	}
 	return toUserLineResponseError(userLineService.userLineRepository.Delete(ctx, userID, id))
 }

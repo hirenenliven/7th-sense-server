@@ -69,6 +69,25 @@ func (filterRepository *UserMachineFilterRepository) Replace(ctx context.Context
 	return nil
 }
 
+// levelInMachineFilter reports whether a user who is not deleted has a machine filter that names
+// the organization level id in column (a column of user_machine_filters).
+func levelInMachineFilter(ctx context.Context, database db.Querier, column string, id int64) (bool, error) {
+	query := `SELECT EXISTS (
+			SELECT 1 FROM user_machine_filters f
+			JOIN users u ON u.id = f.user_id AND u.is_deleted = false
+			WHERE f.` + column + ` = $1)`
+
+	rows, err := db.Execute(ctx, database, query, id)
+	if err != nil {
+		return false, fmt.Errorf("check machine filter level: %w", err)
+	}
+	found, err := pgx.CollectOneRow(rows, pgx.RowTo[bool])
+	if err != nil {
+		return false, fmt.Errorf("check machine filter level: %w", err)
+	}
+	return found, nil
+}
+
 // IsInOrganization reports whether the levels of filter are one chain of companyID's
 // organization (organization_paths), e.g. the state is under the country and the line
 // under the shop.

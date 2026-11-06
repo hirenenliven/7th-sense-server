@@ -28,10 +28,14 @@ type Handlers struct {
 	// DowntimeReason / IdleReason serve /downtime-reasons and /idle-reasons
 	DowntimeReason *handler.DowntimeReasonHandler
 	IdleReason     *handler.IdleReasonHandler
-	Shift          *handler.ShiftHandler
-	Break          *handler.BreakHandler
-	Holiday        *handler.HolidayHandler
-	LicenceKey     *handler.LicenceKeyHandler
+	// MachineDiagnostics serves /machines/{id}/diagnostics (superadmin)
+	MachineDiagnostics *handler.MachineDiagnosticsHandler
+	// MachineModeReason serves /machine-mode-reasons (a reason recorded against a mode period)
+	MachineModeReason *handler.MachineModeReasonHandler
+	Shift             *handler.ShiftHandler
+	Break             *handler.BreakHandler
+	Holiday           *handler.HolidayHandler
+	LicenceKey        *handler.LicenceKeyHandler
 	// ProductionSchedule serves /production-schedules
 	ProductionSchedule *handler.ProductionScheduleHandler
 	// Organization (per user): country → state → city → … → supervisor
@@ -142,6 +146,12 @@ func registerV1Routes(router *http.ServeMux, handlers Handlers) {
 	}
 	if handlers.IdleReason != nil {
 		registerIdleReasonRoutes(router, v1Prefix, handlers.IdleReason)
+	}
+	if handlers.MachineDiagnostics != nil {
+		registerMachineDiagnosticsRoutes(router, v1Prefix, handlers.MachineDiagnostics)
+	}
+	if handlers.MachineModeReason != nil {
+		registerMachineModeReasonRoutes(router, v1Prefix, handlers.MachineModeReason)
 	}
 	if handlers.Shift != nil {
 		registerShiftRoutes(router, v1Prefix, handlers.Shift)
