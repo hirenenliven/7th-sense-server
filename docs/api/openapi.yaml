@@ -135,6 +135,17 @@ components:
           description: customer the keys belong to
           type: integer
       type: object
+    dto.CreateMachineModeReasonRequest:
+      properties:
+        endedAt:
+          type: string
+        periodId:
+          type: integer
+        reasonId:
+          type: integer
+        startedAt:
+          type: string
+      type: object
     dto.CreateMachineRequest:
       properties:
         accuracyId:
@@ -399,6 +410,75 @@ components:
         userCellId:
           type: integer
       type: object
+    dto.DiagnosticCheck:
+      properties:
+        hint:
+          type: string
+        key:
+          type: string
+        message:
+          type: string
+        status:
+          type: string
+      type: object
+    dto.DiagnosticMachine:
+      properties:
+        brandName:
+          type: string
+        companyName:
+          type: string
+        controllerName:
+          type: string
+        controllerVersion:
+          type: string
+        customerName:
+          type: string
+        engine:
+          description: '"" when the controller has none'
+          type: string
+        id:
+          type: integer
+        liveIp:
+          type: string
+        localIp:
+          type: string
+        modelName:
+          type: string
+        name:
+          type: string
+        port:
+          type: integer
+        status:
+          type: string
+      type: object
+    dto.DiagnosticVariableRow:
+      properties:
+        address:
+          type: string
+        category:
+          type: string
+        code:
+          type: string
+        dataType:
+          type: string
+        id:
+          type: integer
+        name:
+          type: string
+        readable:
+          type: boolean
+        reason:
+          type: string
+        source:
+          type: string
+        storedAt:
+          type: string
+        storedValue:
+          type: number
+        unit:
+          type: string
+        value: {}
+      type: object
     dto.GenerateLicenceKeysRequest:
       properties:
         count:
@@ -582,6 +662,41 @@ components:
         username:
           type: string
       type: object
+    dto.MachineDiagnosticsResponse:
+      properties:
+        checks:
+          items:
+            $ref: '#/components/schemas/dto.DiagnosticCheck'
+          type: array
+        events:
+          items:
+            $ref: '#/components/schemas/model.DiagnosticEvent'
+          type: array
+        liveEnabled:
+          description: 'LIVE_ENABLED: the socket exists'
+          type: boolean
+        machine:
+          $ref: '#/components/schemas/dto.DiagnosticMachine'
+        mode:
+          allOf:
+            - $ref: '#/components/schemas/model.DiagnosticMode'
+          description: nil without an open period
+        opMode:
+          type: string
+        quietSec:
+          description: CNC_QUIET_SEC
+          type: integer
+        serverTime:
+          type: string
+        status:
+          allOf:
+            - $ref: '#/components/schemas/model.DiagnosticLiveStatus'
+          description: nil before the first report
+        variables:
+          items:
+            $ref: '#/components/schemas/dto.DiagnosticVariableRow'
+          type: array
+      type: object
     dto.MachineFilter:
       properties:
         allMachines:
@@ -601,12 +716,40 @@ components:
         userStateId:
           type: integer
       type: object
+    dto.MachineModeReasonsResponse:
+      properties:
+        customerId:
+          type: integer
+        period:
+          $ref: '#/components/schemas/model.ReasonPeriod'
+        reasonType:
+          type: string
+        reasons:
+          items:
+            $ref: '#/components/schemas/model.MachineModeReason'
+          type: array
+      type: object
     dto.MachineModelRequest:
       properties:
         controllerId:
           type: integer
         name:
           type: string
+      type: object
+    dto.MachineNetworkResponse:
+      properties:
+        address:
+          description: ip:port as tested
+          type: string
+        checkedAt:
+          type: string
+        ip:
+          $ref: '#/components/schemas/dto.DiagnosticCheck'
+        latencyMs:
+          description: the TCP connect, nil when it failed
+          type: integer
+        port:
+          $ref: '#/components/schemas/dto.DiagnosticCheck'
       type: object
     dto.MachineSummary:
       properties:
@@ -885,6 +1028,15 @@ components:
           type: string
         userId:
           type: integer
+      type: object
+    dto.UpdateMachineModeReasonRequest:
+      properties:
+        endedAt:
+          type: string
+        reasonId:
+          type: integer
+        startedAt:
+          type: string
       type: object
     dto.UpdateMachineRequest:
       properties:
@@ -1497,6 +1649,53 @@ components:
         updatedAt:
           type: string
       type: object
+    model.DiagnosticEvent:
+      properties:
+        at:
+          type: string
+        code:
+          type: integer
+        id:
+          type: integer
+        message:
+          type: string
+        type:
+          type: string
+      type: object
+    model.DiagnosticLiveStatus:
+      properties:
+        callbackCount:
+          type: integer
+        connectedSince:
+          type: string
+        droppedCount:
+          type: integer
+        errorCount:
+          type: integer
+        isConnected:
+          type: boolean
+        lastChangeAt:
+          type: string
+        lastError:
+          type: string
+        lastSeenAt:
+          type: string
+        storedCount:
+          type: integer
+        updatedAt:
+          type: string
+      type: object
+    model.DiagnosticMode:
+      properties:
+        modeId:
+          type: integer
+        modeName:
+          type: string
+        programName:
+          type: string
+        since:
+          type: string
+      type: object
     model.DowntimeReason:
       properties:
         companyName:
@@ -1755,6 +1954,33 @@ components:
         message:
           type: string
       type: object
+    model.MachineModeReason:
+      properties:
+        createdAt:
+          type: string
+        deletedAt:
+          type: string
+        endedAt:
+          type: string
+        id:
+          type: integer
+        isDeleted:
+          type: boolean
+        periodId:
+          type: integer
+        reason:
+          type: string
+        reasonCode:
+          type: string
+        reasonId:
+          type: integer
+        reasonType:
+          type: string
+        startedAt:
+          type: string
+        updatedAt:
+          type: string
+      type: object
     model.MachineModel:
       properties:
         brandId:
@@ -1993,6 +2219,21 @@ components:
         totalMinutes:
           type: integer
         updatedAt:
+          type: string
+      type: object
+    model.ReasonPeriod:
+      properties:
+        endedAt:
+          type: string
+        id:
+          type: integer
+        machineId:
+          type: integer
+        modeId:
+          type: integer
+        modeName:
+          type: string
+        startedAt:
           type: string
       type: object
     model.Role:
@@ -2732,7 +2973,7 @@ paths:
   /v1/branches/{id}:
     delete:
       description: |-
-        Soft-deletes the branch. A branch that still has locations is kept: its locations must be deleted first.
+        Soft-deletes the branch. A branch that still has locations is kept: its locations must be deleted first. A branch a user's machine access names is kept too.
         Roles: superadmin only (others get 403).
 
         Used by pages: Branches
@@ -3626,7 +3867,7 @@ paths:
       description: |-
         Returns the clienteles the user may read. A non-nil customerID keeps only that customer's clienteles.
 
-        Used by pages: Clientele, Add / edit part
+        Used by pages: Clientele, Add / edit part, Operations Center, Plant Intelligence
       operationId: getClienteles
       parameters:
         - description: User id
@@ -4363,7 +4604,7 @@ paths:
       description: |-
         GetHomeDashboard handles GET /api/v1/dashboard/home?date=YYYY-MM-DD[&userId=<customer id>] (date defaults to today; userId narrows the superadmin's machines to one customer): the active machines together, the fleet now and the day's OEE, cycles, parts vs plan, time per mode group, parts per hour, per-machine rows and the most raised alarms.
 
-        Used by pages: Home
+        Used by pages: Home, Operations Center, Plant Intelligence
       operationId: getHomeDashboard
       parameters:
         - description: Day YYYY-MM-DD (default today, not after today)
@@ -4442,7 +4683,7 @@ paths:
       description: |-
         Returns the downtime reasons the user may read. A non-nil customerID keeps only that customer's reasons.
 
-        Used by pages: Downtime / idle reasons
+        Used by pages: Downtime / idle reasons, Operations Center, Productivity, Plant Intelligence
       operationId: getDowntimeReasons
       parameters:
         - description: User id
@@ -4766,7 +5007,7 @@ paths:
       description: |-
         Returns the holidays and week offs the user may read. A non-nil customerID keeps only that customer's.
 
-        Used by pages: Holidays / week off
+        Used by pages: Holidays / week off, Operations Center, Plant Intelligence
       operationId: getHolidays
       parameters:
         - description: User id
@@ -5096,7 +5337,7 @@ paths:
       description: |-
         Returns the idle reasons the user may read. A non-nil customerID keeps only that customer's reasons.
 
-        Used by pages: Downtime / idle reasons
+        Used by pages: Downtime / idle reasons, Productivity
       operationId: getIdleReasons
       parameters:
         - description: User id
@@ -5421,7 +5662,7 @@ paths:
         Returns the licence keys the user may read. A non-nil customerID keeps only that customer's.
         Roles: superadmin, customer, admin (others get 403).
 
-        Used by pages: Licence keys
+        Used by pages: Licence keys, Operations Center, Plant Intelligence
       operationId: getLicenceKeys
       parameters:
         - description: User id
@@ -5912,12 +6153,326 @@ paths:
       summary: Get machine time by day
       tags:
         - Machine health
+  /v1/machine-mode-reasons:
+    get:
+      description: |-
+        Returns the whole Downtime or Idle period (not clipped to a chart window), which master list its reasons come from, the machine's customer and the reasons recorded so far in time order. A period of another mode, or one still running, answers 400 with the message to show.
+        Roles: anyone who may read the machine (others get 404).
+
+        Used by pages: Productivity
+      operationId: getMachineModeReasons
+      parameters:
+        - description: machine_mode_log id (a Gantt bar's id)
+          in: query
+          name: periodId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              example:
+                message: success
+                statusCode: 200
+                success: true
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/response.Envelope'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/dto.MachineModeReasonsResponse'
+                    type: object
+          description: OK
+        "400":
+          content:
+            application/json:
+              example:
+                message: Validation error
+                statusCode: 400
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Validation error
+        "401":
+          content:
+            application/json:
+              example:
+                message: Not logged in
+                statusCode: 401
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not logged in
+        "404":
+          content:
+            application/json:
+              example:
+                message: Not found
+                statusCode: 404
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not found
+        "500":
+          content:
+            application/json:
+              example:
+                message: Server error
+                statusCode: 500
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Server error
+      security:
+        - cookieAuth: []
+      summary: Get machine mode reasons
+      tags:
+        - Reasons
+    post:
+      description: |-
+        Records a reason for a part of a finished Downtime or Idle period.
+        Roles: anyone who may read the machine (others get 404).
+        Validation: the time lies inside the period and overlaps no other reason of it; the reason is active, of the machine's customer, in the list the period's mode uses.
+
+        Used by pages: Productivity
+      operationId: createMachineModeReason
+      requestBody:
+        content:
+          application/json:
+            example:
+              endedAt: Postman sample
+              periodId: 1
+              reasonId: 1
+              startedAt: Postman sample
+            schema:
+              $ref: '#/components/schemas/dto.CreateMachineModeReasonRequest'
+        description: Request body
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              example:
+                message: created
+                statusCode: 201
+                success: true
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/response.Envelope'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/model.MachineModeReason'
+                    type: object
+          description: Created
+        "400":
+          content:
+            application/json:
+              example:
+                message: Validation error
+                statusCode: 400
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Validation error
+        "401":
+          content:
+            application/json:
+              example:
+                message: Not logged in
+                statusCode: 401
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not logged in
+        "404":
+          content:
+            application/json:
+              example:
+                message: Not found
+                statusCode: 404
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not found
+        "500":
+          content:
+            application/json:
+              example:
+                message: Server error
+                statusCode: 500
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Server error
+      security:
+        - cookieAuth: []
+      summary: Create machine mode reason
+      tags:
+        - Reasons
+  /v1/machine-mode-reasons/{id}:
+    delete:
+      description: |-
+        Soft-deletes a recorded row.
+        Roles: anyone who may read the machine (others get 404).
+
+        Used by pages: Productivity
+      operationId: deleteMachineModeReason
+      parameters:
+        - description: Id
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              example:
+                message: success
+                statusCode: 200
+                success: true
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              example:
+                message: Validation error
+                statusCode: 400
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Validation error
+        "401":
+          content:
+            application/json:
+              example:
+                message: Not logged in
+                statusCode: 401
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not logged in
+        "404":
+          content:
+            application/json:
+              example:
+                message: Not found
+                statusCode: 404
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not found
+        "500":
+          content:
+            application/json:
+              example:
+                message: Server error
+                statusCode: 500
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Server error
+      security:
+        - cookieAuth: []
+      summary: Delete machine mode reason
+      tags:
+        - Reasons
+    put:
+      description: |-
+        Replaces the reason and the time of a recorded row, by the rules of create. The reason the row already has stays allowed when it has since been made inactive or deleted from its list.
+        Roles: anyone who may read the machine (others get 404).
+
+        Used by pages: Productivity
+      operationId: updateMachineModeReason
+      parameters:
+        - description: Id
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            example:
+              endedAt: Postman sample
+              reasonId: 1
+              startedAt: Postman sample
+            schema:
+              $ref: '#/components/schemas/dto.UpdateMachineModeReasonRequest'
+        description: Request body
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              example:
+                message: success
+                statusCode: 200
+                success: true
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/response.Envelope'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/model.MachineModeReason'
+                    type: object
+          description: OK
+        "400":
+          content:
+            application/json:
+              example:
+                message: Validation error
+                statusCode: 400
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Validation error
+        "401":
+          content:
+            application/json:
+              example:
+                message: Not logged in
+                statusCode: 401
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not logged in
+        "404":
+          content:
+            application/json:
+              example:
+                message: Not found
+                statusCode: 404
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not found
+        "500":
+          content:
+            application/json:
+              example:
+                message: Server error
+                statusCode: 500
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Server error
+      security:
+        - cookieAuth: []
+      summary: Update machine mode reason
+      tags:
+        - Reasons
   /v1/machines:
     get:
       description: |-
         Returns the machines the user may access (see machineScope): a supervisor, operator, qc or shop head gets the machines assigned to them plus, when their machine filter has allMachines, every company machine under its organization levels. A non-nil customerID keeps only that customer's machines.
 
-        Used by pages: Add / edit customer or user, Customer / user detail, All machines, Machine health, Productivity, Add / edit part, Add / edit production schedule
+        Used by pages: Add / edit customer or user, Customer / user detail, All machines, Machine health, Productivity, Add / edit part, Add / edit production schedule, Operations Center, Plant Intelligence
       operationId: getMachines
       parameters:
         - description: User id
@@ -6364,6 +6919,178 @@ paths:
       summary: Update machine
       tags:
         - Machines
+  /v1/machines/{id}/diagnostics:
+    get:
+      description: |-
+        What the server knows about one machine's data collection now: set-up, collector status, current mode, every variable (readable or why not, latest value, last stored number), recent machine events, and the checks worked out from them with the reason and what to do for each problem. Sends nothing to the machine.
+        Roles: superadmin (others get 403).
+
+        Used by pages: Machine diagnostics
+      operationId: getMachineDiagnostics
+      parameters:
+        - description: Machine id
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              example:
+                message: success
+                statusCode: 200
+                success: true
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/response.Envelope'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/dto.MachineDiagnosticsResponse'
+                    type: object
+          description: OK
+        "400":
+          content:
+            application/json:
+              example:
+                message: Validation error
+                statusCode: 400
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Validation error
+        "401":
+          content:
+            application/json:
+              example:
+                message: Not logged in
+                statusCode: 401
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not logged in
+        "403":
+          content:
+            application/json:
+              example:
+                message: Role not allowed
+                statusCode: 403
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Role not allowed
+        "404":
+          content:
+            application/json:
+              example:
+                message: Not found
+                statusCode: 404
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not found
+        "500":
+          content:
+            application/json:
+              example:
+                message: Server error
+                statusCode: 500
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Server error
+      security:
+        - cookieAuth: []
+      summary: Get machine diagnostics
+      tags:
+        - Machines
+  /v1/machines/{id}/diagnostics/network:
+    get:
+      description: |-
+        Tests the machine's stored live IP and port from this server, where the collector connects from: one ping and one TCP connect that sends no data. Takes up to a few seconds, so the page runs it on opening and when asked, not on a timer.
+        Roles: superadmin (others get 403).
+
+        Used by pages: Machine diagnostics
+      operationId: checkMachineNetwork
+      parameters:
+        - description: Machine id
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              example:
+                message: success
+                statusCode: 200
+                success: true
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/response.Envelope'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/dto.MachineNetworkResponse'
+                    type: object
+          description: OK
+        "400":
+          content:
+            application/json:
+              example:
+                message: Validation error
+                statusCode: 400
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Validation error
+        "401":
+          content:
+            application/json:
+              example:
+                message: Not logged in
+                statusCode: 401
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not logged in
+        "403":
+          content:
+            application/json:
+              example:
+                message: Role not allowed
+                statusCode: 403
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Role not allowed
+        "404":
+          content:
+            application/json:
+              example:
+                message: Not found
+                statusCode: 404
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not found
+        "500":
+          content:
+            application/json:
+              example:
+                message: Server error
+                statusCode: 500
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Server error
+      security:
+        - cookieAuth: []
+      summary: Check machine network
+      tags:
+        - Machines
   /v1/me:
     get:
       description: |-
@@ -6807,7 +7534,7 @@ paths:
       description: |-
         Returns the parts the user may read (see companyOwner), without their processes. A non-nil customerID keeps only that customer's parts.
 
-        Used by pages: Parts, Add / edit production schedule
+        Used by pages: Parts, Add / edit production schedule, Operations Center, Plant Intelligence
       operationId: getParts
       parameters:
         - description: User id
@@ -7387,7 +8114,7 @@ paths:
       description: |-
         Returns the schedules the user may read (see companyOwner), without their items. A non-nil customerID keeps only that customer's schedules.
 
-        Used by pages: Production schedules
+        Used by pages: Production schedules, Operations Center, Plant Intelligence
       operationId: getProductionSchedules
       parameters:
         - description: User id
@@ -7818,7 +8545,7 @@ paths:
       description: |-
         GetCycleCounts handles GET /api/v1/productivity/cycle-counts?machineIds=1,2&from=&to=&shiftIds=: cycles started, finished and unfinished per day.
 
-        Used by pages: Productivity
+        Used by pages: Productivity, Operations Center
       operationId: getCycleCounts
       parameters:
         - description: Machine ids, comma separated
@@ -8229,7 +8956,7 @@ paths:
       description: |-
         GetOEE handles GET /api/v1/productivity/oee?machineIds=1,2&from=&to=&shiftIds=&program=&schedule=with: one OEE row per day over the machines together, weighted by their planned / run time and closed cycles.
 
-        Used by pages: Productivity
+        Used by pages: Productivity, Operations Center
       operationId: getOee
       parameters:
         - description: Machine ids, comma separated
@@ -8449,7 +9176,7 @@ paths:
       description: |-
         Returns the shifts the user may read, each with its breaks. A non-nil customerID keeps only that customer's shifts.
 
-        Used by pages: Productivity, Add / edit production schedule, Shifts, Breaks
+        Used by pages: Productivity, Add / edit production schedule, Shifts, Breaks, Operations Center, Plant Intelligence
       operationId: getShifts
       parameters:
         - description: User id
@@ -9279,7 +10006,7 @@ paths:
   /v1/user-city/{id}:
     delete:
       description: |-
-        Soft-deletes the city. A city that still has branches is kept: its branches must be deleted first.
+        Soft-deletes the city. A city that still has branches is kept: its branches must be deleted first. A city a user's machine access names is kept too.
         Roles: superadmin, customer, admin (others get 403).
 
         Used by pages: Cities
@@ -9615,7 +10342,7 @@ paths:
   /v1/user-country/{id}:
     delete:
       description: |-
-        Soft-deletes the country. A country that still has states is kept: its states must be deleted first.
+        Soft-deletes the country. A country that still has states is kept: its states must be deleted first. A country a user's machine access names is kept too.
         Roles: superadmin only (others get 403).
 
         Used by pages: Countries
@@ -9856,7 +10583,7 @@ paths:
   /v1/user-line/{id}:
     delete:
       description: |-
-        Soft-deletes the line. A line that still has cells is kept: its cells must be deleted first.
+        Soft-deletes the line. A line that still has cells is kept: its cells must be deleted first. A line with machines, or that a user's machine access names, is kept too.
         Roles: superadmin, customer, admin (others get 403).
 
         Used by pages: Lines
@@ -10197,7 +10924,7 @@ paths:
   /v1/user-location/{id}:
     delete:
       description: |-
-        Soft-deletes the location. A location that still has shops is kept: its shops must be deleted first.
+        Soft-deletes the location. A location that still has shops is kept: its shops must be deleted first. A location a user's machine access names is kept too.
         Roles: superadmin, customer, admin (others get 403).
 
         Used by pages: Locations
@@ -10538,7 +11265,7 @@ paths:
   /v1/user-shop/{id}:
     delete:
       description: |-
-        Soft-deletes the shop. A shop that still has lines is kept: its lines must be deleted first.
+        Soft-deletes the shop. A shop that still has lines is kept: its lines must be deleted first. A shop a user's machine access names is kept too.
         Roles: superadmin, customer, admin (others get 403).
 
         Used by pages: Shops
@@ -10879,7 +11606,7 @@ paths:
   /v1/user-state/{id}:
     delete:
       description: |-
-        Soft-deletes the state. A state that still has cities is kept: its cities must be deleted first.
+        Soft-deletes the state. A state that still has cities is kept: its cities must be deleted first. A state a user's machine access names is kept too.
         Roles: superadmin only (others get 403).
 
         Used by pages: States
