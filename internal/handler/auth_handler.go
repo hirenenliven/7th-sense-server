@@ -16,13 +16,19 @@ const sessionCookiePath = "/api"
 // session token travels only in an HttpOnly cookie, never in a response body.
 type AuthHandler struct {
 	service      *service.AuthService
-	secureCookie bool // send the cookie over HTTPS only
+	secureCookie bool         // send the cookie over HTTPS only
+	live         *LiveHandler // closes a session's live sockets at logout; nil = live data off
 }
 
 // NewAuthHandler creates an AuthHandler that uses authService. secureCookie
 // must be true when the API is served over HTTPS.
 func NewAuthHandler(authService *service.AuthService, secureCookie bool) *AuthHandler {
 	return &AuthHandler{service: authService, secureCookie: secureCookie}
+}
+
+// SetLiveHandler makes Logout close the ended session's live sockets.
+func (authHandler *AuthHandler) SetLiveHandler(liveHandler *LiveHandler) {
+	authHandler.live = liveHandler
 }
 
 // Login handles POST /api/v1/auth/login: checks the credentials, sets the
@@ -73,13 +79,14 @@ func (authHandler *AuthHandler) Login(writer http.ResponseWriter, request *http.
 	response.SendResponse(writer, request, response.Success, session.User)
 }
 
-// Logout handles POST /api/v1/auth/logout: ends the session and clears the
-// cookie. It succeeds without a session, so it is safe to call twice. Under
+// Logout handles POST /api/v1/auth/logout: ends the session, closes its live
+// sockets and clears the cookie. It succeeds without a session, so it is safe to call twice. Under
 // /api/as/<key>/ it ends only that "log in as" session and clears its cookie;
 // the superadmin's own session is not touched.
 //
 // @Summary      Logout
 // @Description  Ends the session of token. An unknown or empty token is not an error. Called as /api/as/{key}/v1/auth/logout it ends only that "log in as" session.
+// @Description  The session's live data sockets (Socket.IO, /api/v1/socket.io/) get session:expired and are closed; the user's other sessions keep theirs.
 // @Description
 // @Description  Used by pages: App shell (session, logout, theme)
 // @Tags         Auth
@@ -90,9 +97,14 @@ func (authHandler *AuthHandler) Login(writer http.ResponseWriter, request *http.
 // @Failure      500 {object} response.Envelope "Server error"
 // @Router       /v1/auth/logout [post]
 func (authHandler *AuthHandler) Logout(writer http.ResponseWriter, request *http.Request) {
-	if err := authHandler.service.Logout(request.Context(), middleware.SessionToken(request)); err != nil {
+	token := middleware.SessionToken(request)
+	if err := authHandler.service.Logout(request.Context(), token); err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
+	}
+	// Every tab of this session stops at once; the user's other sessions keep their sockets.
+	if authHandler.live != nil {
+		authHandler.live.DisconnectSession(token)
 	}
 
 	cookie := authHandler.sessionCookie("")

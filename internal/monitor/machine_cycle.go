@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"7th-sense-server/internal/cnc"
+	"7th-sense-server/internal/live"
 	"7th-sense-server/internal/model"
 	"7th-sense-server/internal/response"
 )
@@ -537,6 +538,7 @@ func (machineWorker *worker) openCycle(current cycleReading, openedByLoop bool) 
 		return
 	}
 	tracker.begin(cycle)
+	machineWorker.collector.hub.PublishEvent(machineWorker.machine.ID, live.EventCycleOpened, nil, "", current.at)
 	machineWorker.log(logTypeCycle, slog.LevelInfo, "cnc: cycle opened", "cycleId", cycle.ID, "program", cycle.ProgramName,
 		"partCount", current.partCount, "byLoop", openedByLoop, "scheduleItemId", cycle.ScheduleItemID,
 		"partId", cycle.PartID, "processId", cycle.ProcessID, "shiftId", cycle.ShiftID, "shiftDate", cycle.ShiftDate,
@@ -565,6 +567,8 @@ func (machineWorker *worker) closeCycle(current cycleReading, step cycleStep) {
 func (machineWorker *worker) finishCycle(now time.Time, reason string, partCount, parts int, endAtOffline bool) {
 	cycle := machineWorker.cycles.close(now, reason, partCount, parts, endAtOffline)
 	machineWorker.saveCycle(cycle, "cnc: close cycle")
+	// After the write: the screens reload the cycle and job from the REST API on this event.
+	machineWorker.collector.hub.PublishEvent(machineWorker.machine.ID, live.EventCycleClosed, nil, "", now)
 	machineWorker.log(logTypeCycle, slog.LevelInfo, "cnc: cycle "+cycle.Status, "cycleId", cycle.ID, "endReason", reason,
 		"program", cycle.ProgramName, "startedAt", cycle.StartedAt, "endedAt", *cycle.EndedAt,
 		"durationSec", secondsOf(cycle.EndedAt.Sub(cycle.StartedAt)), "productionSec", cycle.ProductionSec,

@@ -65,7 +65,10 @@ type CreateUserRequest struct {
 	CompanyID *int64 `json:"companyId"` // customer of a member; only the superadmin chooses it
 	// MachineIDs are the machines a supervisor, operator, qc or shop head may access.
 	MachineIDs []int64 `json:"machineIds"`
-	Theme      string  `json:"theme"` // ThemeDark or ThemeLight; empty uses the default
+	// MachineFilter narrows the machines by organization; with allMachines it gives them
+	// every machine under it (machines added later included). nil = none.
+	MachineFilter *MachineFilter `json:"machineFilter"`
+	Theme         string         `json:"theme"` // ThemeDark or ThemeLight; empty uses the default
 	CustomerDetails
 }
 
@@ -82,7 +85,7 @@ func (request *CreateUserRequest) Validate() error {
 	if !validPassword(request.Password) {
 		return response.NewError(http.StatusBadRequest, "Please enter valid password")
 	}
-	if err := validateAccess(request.RoleID, request.CompanyID, &request.MachineIDs); err != nil {
+	if err := validateAccess(request.RoleID, request.CompanyID, &request.MachineIDs, request.MachineFilter); err != nil {
 		return err
 	}
 	theme, err := normalizeTheme(request.Theme)
@@ -113,7 +116,10 @@ type UpdateUserRequest struct {
 	Status    string `json:"status"`
 	// MachineIDs are the machines a supervisor, operator, qc or shop head may access.
 	MachineIDs []int64 `json:"machineIds"`
-	Theme      string  `json:"theme"` // ThemeDark or ThemeLight; empty keeps the current theme
+	// MachineFilter narrows the machines by organization; with allMachines it gives them
+	// every machine under it (machines added later included). nil = none.
+	MachineFilter *MachineFilter `json:"machineFilter"`
+	Theme         string         `json:"theme"` // ThemeDark or ThemeLight; empty keeps the current theme
 	CustomerDetails
 }
 
@@ -134,7 +140,7 @@ func (request *UpdateUserRequest) Validate() error {
 	if request.Status != "" && request.Status != UserStatusActive && request.Status != UserStatusInactive {
 		return response.NewError(http.StatusBadRequest, "Please enter valid status")
 	}
-	if err := validateAccess(request.RoleID, request.CompanyID, &request.MachineIDs); err != nil {
+	if err := validateAccess(request.RoleID, request.CompanyID, &request.MachineIDs, request.MachineFilter); err != nil {
 		return err
 	}
 	theme, err := normalizeTheme(request.Theme)
@@ -343,11 +349,11 @@ func validateProfile(username, email, firstName, lastName string) error {
 // maxMachineIDs caps the machines sent for one user.
 const maxMachineIDs = 1000
 
-// validateAccess checks the role, company and machines shared by create and
-// update: the role is mandatory, the ids must be positive, and duplicate machine
-// ids are dropped (keeping the order). Whether the actor may give them is checked
-// by the service.
-func validateAccess(roleID int64, companyID *int64, machineIDs *[]int64) error {
+// validateAccess checks the role, company, machines and machine filter shared by
+// create and update: the role is mandatory, the ids must be positive, and duplicate
+// machine ids are dropped (keeping the order). Whether the actor may give them is
+// checked by the service.
+func validateAccess(roleID int64, companyID *int64, machineIDs *[]int64, machineFilter *MachineFilter) error {
 	if roleID <= 0 {
 		return response.NewError(http.StatusBadRequest, "Please enter valid role")
 	}
@@ -369,6 +375,35 @@ func validateAccess(roleID int64, companyID *int64, machineIDs *[]int64) error {
 		}
 	}
 	*machineIDs = unique
+	return machineFilter.validate()
+}
+
+// MachineFilter is the organization (Country → State → City → Branch → Location → Shop →
+// Line, nil = any level) that narrows a user's machines. With AllMachines the user may
+// access every company machine on a line under it; whether the levels are one chain of the
+// company's organization is checked by the service.
+type MachineFilter struct {
+	UserCountryID  *int64 `json:"userCountryId"`
+	UserStateID    *int64 `json:"userStateId"`
+	UserCityID     *int64 `json:"userCityId"`
+	BranchID       *int64 `json:"branchId"`
+	UserLocationID *int64 `json:"userLocationId"`
+	UserShopID     *int64 `json:"userShopId"`
+	UserLineID     *int64 `json:"userLineId"`
+	AllMachines    bool   `json:"allMachines"`
+}
+
+// validate checks that the levels named are positive ids; a nil filter is valid.
+func (filter *MachineFilter) validate() error {
+	if filter == nil {
+		return nil
+	}
+	for _, level := range []*int64{filter.UserCountryID, filter.UserStateID, filter.UserCityID, filter.BranchID,
+		filter.UserLocationID, filter.UserShopID, filter.UserLineID} {
+		if level != nil && *level <= 0 {
+			return response.NewError(http.StatusBadRequest, "Please select valid machine filter")
+		}
+	}
 	return nil
 }
 
@@ -428,6 +463,8 @@ type UserResponse struct {
 	// MachineIDs are the machines assigned to the user (user_machine_access); empty
 	// for customers and admins, who see all of their company's machines.
 	MachineIDs []int64 `json:"machineIds"`
+	// MachineFilter is the user's machine filter (user_machine_filters); null when none.
+	MachineFilter *model.UserMachineFilter `json:"machineFilter"`
 }
 
 // UserListFilter narrows GET /users: by role name (e.g. "customer"), by the

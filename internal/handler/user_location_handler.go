@@ -25,7 +25,7 @@ func NewUserLocationHandler(userLocationService *service.UserLocationService) *U
 // @Summary      Get user locations
 // @Description  Returns the user's locations. A non-nil branchID keeps only that branch's locations.
 // @Description
-// @Description  Used by pages: Locations, Shops
+// @Description  Used by pages: Locations, Shops, Add / edit customer or user, Customer / user detail
 // @Tags         Organization
 // @ID           getUserLocations
 // @Produce      json

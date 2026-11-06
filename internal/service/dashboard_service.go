@@ -297,7 +297,7 @@ func (dashboardService *DashboardService) GetHomeDashboard(ctx context.Context, 
 
 	windows := dayWindows(day, nil, false, now)
 	fleetOEE, fleetCycles := oeeSum{}, dto.MachineCycleSummary{}
-	groupSeconds := map[string]float64{}
+	groupSeconds, modeSeconds := map[string]float64{}, map[int]float64{}
 	modeCounts := map[int]int{}
 	for _, machine := range active {
 		modeID, since := currentMode(machine, openPeriods)
@@ -333,7 +333,9 @@ func (dashboardService *DashboardService) GetHomeDashboard(ctx context.Context, 
 			for _, window := range windows {
 				home.Time.SpanSec += int64(window.To.Sub(window.From).Seconds())
 				for _, period := range periods {
-					groupSeconds[modeGroup(period.ModeID)] += overlapSeconds(period, window, now)
+					overlap := overlapSeconds(period, window, now)
+					groupSeconds[modeGroup(period.ModeID)] += overlap
+					modeSeconds[period.ModeID] += overlap
 				}
 			}
 			if dayOEE, ok := machineDayOEE(periods, dayCycles, windows, "", now); ok {
@@ -349,6 +351,7 @@ func (dashboardService *DashboardService) GetHomeDashboard(ctx context.Context, 
 	home.Fleet.Modes = homeModeCounts(modeCounts)
 	home.Cycles = dto.NewHomeCycles(fleetCycles)
 	home.Time.Groups = homeTimeGroups(groupSeconds)
+	home.Time.Modes = homeTimeModes(modeSeconds)
 	if fleetOEE.plannedSec > 0 {
 		row := fleetOEE.row(home.Date)
 		home.OEE = &row
@@ -423,6 +426,17 @@ func homeModeCounts(counts map[int]int) []dto.HomeModeCount {
 	modes := make([]dto.HomeModeCount, 0, len(counts))
 	for _, modeID := range slices.Sorted(maps.Keys(counts)) {
 		modes = append(modes, dto.HomeModeCount{ModeID: modeID, Count: counts[modeID]})
+	}
+	return modes
+}
+
+// homeTimeModes returns the seconds of every machine mode with time, by mode id.
+func homeTimeModes(seconds map[int]float64) []dto.HomeTimeMode {
+	modes := make([]dto.HomeTimeMode, 0, len(seconds))
+	for _, modeID := range slices.Sorted(maps.Keys(seconds)) {
+		if duration := int64(seconds[modeID]); duration > 0 {
+			modes = append(modes, dto.HomeTimeMode{ModeID: modeID, DurationSec: duration})
+		}
 	}
 	return modes
 }

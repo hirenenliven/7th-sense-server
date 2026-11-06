@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"7th-sense-server/internal/cnc"
+	"7th-sense-server/internal/live"
 	"7th-sense-server/internal/model"
 )
 
@@ -218,6 +219,7 @@ func (machineWorker *worker) loadVariableConfig(ctx context.Context) error {
 	}
 	variables := make([]boundVariable, 0, len(configs))
 	variableMap := make([]string, 0, len(configs)) // "14:opMode<-MachineMode", for the log
+	codes := make([]string, 0, len(configs))       // the codes screens may subscribe to (live.Hub)
 	var unreadable []string                        // active variables without a readable address
 	for _, variable := range configs {
 		if variable.Address == "" {
@@ -232,8 +234,10 @@ func (machineWorker *worker) loadVariableConfig(ctx context.Context) error {
 		}
 		variables = append(variables, boundVariable{config: variable, field: field})
 		variableMap = append(variableMap, fmt.Sprintf("%d:%s<-%s", variable.ID, variable.Code, variable.Address))
+		codes = append(codes, variable.Code)
 	}
 	machineWorker.variables = variables
+	machineWorker.collector.hub.SetMachineCodes(machineWorker.machine.ID, codes)
 	// Clear live values cache on reload - will be reloaded on next reading
 	machineWorker.liveValues = nil
 	machineWorker.log(logTypeOther, slog.LevelInfo, "cnc: variables loaded", "variables", len(variables), "map", variableMap)
@@ -362,6 +366,8 @@ func (machineWorker *worker) processReading(reading cnc.Reading) bool {
 		machineWorker.statusDirty = true
 		machineWorker.log(logTypeOther, slog.LevelInfo, "cnc: controller data started", "missingNodes", reading.MissingNodes)
 	}
+	// The screens get the reading before any database write, so they never wait for one.
+	machineWorker.publishValues(reading)
 
 	// Load live values if not already cached
 	if machineWorker.liveValues == nil {
@@ -488,6 +494,24 @@ func roundToTenth(value float64) float64 {
 	return math.Round(value*10) / 10
 }
 
+// publishValues hands every variable of a connected reading, numbers and text, to the live hub,
+// which keeps the latest values and pushes the changed ones to the screens watching them.
+func (machineWorker *worker) publishValues(reading cnc.Reading) {
+	if machineWorker.collector.hub == nil {
+		return
+	}
+	values := make(map[string]any, len(machineWorker.variables))
+	for _, variable := range machineWorker.variables {
+		value := reading.Values[variable.field]
+		if variable.config.IsText() {
+			values[variable.config.Code] = value.Text
+		} else {
+			values[variable.config.Code] = value.Number
+		}
+	}
+	machineWorker.collector.hub.PublishValues(machineWorker.machine.ID, reading.ReceivedAt, values)
+}
+
 // liveValueRow is the machine_variable_values row of value, read at readAt.
 // Only numeric values are cached here (text variables are not stored in this table).
 func (machineWorker *worker) liveValueRow(variable model.VariableConfig, value cnc.Value, readAt time.Time) model.LiveValue {
@@ -580,6 +604,9 @@ func (machineWorker *worker) recordModeChange(at time.Time, decision modeDecisio
 	}
 	machineWorker.logModeChange(decision)
 	machineWorker.mode = mode
+	machineWorker.collector.hub.PublishStatus(machineWorker.machine.ID, live.Status{
+		Online: mode != model.ModeOffline, ModeID: mode, ModeSince: at, ProgramName: machineWorker.program,
+	})
 	machineWorker.cycles.changeMode(at, mode)
 	// The open cycle's row follows each mode change, so its seconds per mode are never older than
 	// the last change (the checkpoint only covers a mode that lasts long).
@@ -673,6 +700,8 @@ func (machineWorker *worker) recordEventAt(at time.Time, eventType string, code 
 	if err != nil {
 		machineWorker.log(logTypeEvent, slog.LevelError, "cnc: store event", "event", eventType, "error", err)
 	}
+	// After the write: a screen reloads its REST data on an alarm event and must find it stored.
+	machineWorker.collector.hub.PublishEvent(machineID, eventType, code, message, at)
 
 	machineWorker.logMachineEvent(eventType, code, message)
 }

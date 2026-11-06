@@ -203,8 +203,9 @@ func (userHandler *UserHandler) GetByID(writer http.ResponseWriter, request *htt
 //
 // @Summary      Create user
 // @Description  Adds a user with its customer details and machine access. the user must be allowed to give the role (see accessFor).
+// @Description  machineFilter (supervisor, operator, qc, shop head) names the company's organization levels userCountryId … userLineId (null = any) that narrow the form's machine list; with allMachines the user may access every company machine on a line under them, machines added later included, and machineIds are not stored.
 // @Description  Roles: superadmin, customer, admin (others get 403).
-// @Description  Validation: Please enter valid password.
+// @Description  Validation: Please enter valid password, Please select valid machines, Please select valid machine filter (a level that is not one chain of the company's organization).
 // @Description
 // @Description  Used by pages: Add / edit customer or user
 // @Tags         Users
@@ -243,9 +244,10 @@ func (userHandler *UserHandler) Create(writer http.ResponseWriter, request *http
 // Update handles PUT /api/v1/users/{id}.
 //
 // @Summary      Update user
-// @Description  Replaces the user and its customer details. Customer details the user does not have yet are created. password sets a new password (8 to 72 characters); empty keeps the current one.
+// @Description  Replaces the user and its customer details. Customer details the user does not have yet are created. password sets a new password (8 to 72 characters); empty keeps the current one. The machine access and machineFilter are replaced (null removes the filter).
+// @Description  machineFilter (supervisor, operator, qc, shop head) names the company's organization levels userCountryId … userLineId (null = any) that narrow the form's machine list; with allMachines the user may access every company machine on a line under them, machines added later included, and machineIds are not stored.
 // @Description  Roles: superadmin, customer, admin (others get 403).
-// @Description  Validation: Please enter valid password, Please enter valid status.
+// @Description  Validation: Please enter valid password, Please enter valid status, Please select valid machines, Please select valid machine filter.
 // @Description
 // @Description  Used by pages: Customers / Users list, Add / edit customer or user
 // @Tags         Users
@@ -292,7 +294,7 @@ func (userHandler *UserHandler) Update(writer http.ResponseWriter, request *http
 // Delete handles DELETE /api/v1/users/{id}.
 //
 // @Summary      Delete user
-// @Description  Soft-deletes the user with its profiles and addresses, and removes its machine access. the user must be allowed to manage the user.
+// @Description  Soft-deletes the user with its profiles and addresses, and removes its machine access and machine filter. the user must be allowed to manage the user.
 // @Description  Roles: superadmin, customer, admin (others get 403).
 // @Description
 // @Description  Used by pages: Customers / Users list

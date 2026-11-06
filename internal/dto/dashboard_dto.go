@@ -337,11 +337,18 @@ type HomePlan struct {
 }
 
 // HomeTime is where the machines' time went in the day: seconds per mode group (ModeGroup*)
-// out of SpanSec, the day so far times the active machines. Time with no record is SpanSec
-// minus the groups.
+// and per machine mode out of SpanSec, the day so far times the active machines. Time with no
+// record is SpanSec minus the groups (or the modes, which add up to the same).
 type HomeTime struct {
 	SpanSec int64           `json:"spanSec"`
 	Groups  []HomeTimeGroup `json:"groups"`
+	Modes   []HomeTimeMode  `json:"modes"`
+}
+
+// HomeTimeMode is the seconds the machines spent in machine mode ModeID (only modes with time).
+type HomeTimeMode struct {
+	ModeID      int   `json:"modeId"`
+	DurationSec int64 `json:"durationSec"`
 }
 
 // HomeTimeGroup is the seconds the machines spent in one mode group.

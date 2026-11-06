@@ -25,7 +25,7 @@ func NewUserShopHandler(userShopService *service.UserShopService) *UserShopHandl
 // @Summary      Get user shops
 // @Description  Returns the user's shops. A non-nil userLocationID keeps only that location's shops.
 // @Description
-// @Description  Used by pages: Shops, Lines
+// @Description  Used by pages: Shops, Lines, Add / edit customer or user, Customer / user detail
 // @Tags         Organization
 // @ID           getUserShops
 // @Produce      json

@@ -62,6 +62,16 @@ func (accessRepository *UserMachineAccessRepository) Replace(ctx context.Context
 	return nil
 }
 
+// NotifyChanged sends NOTIFY channel with userID as payload. Inside a transaction Postgres
+// delivers it at commit, so listeners never see an assignment that was rolled back.
+func (accessRepository *UserMachineAccessRepository) NotifyChanged(ctx context.Context, channel string, userID int64) error {
+	query := `SELECT pg_notify($1, $2::bigint::text)`
+	if err := execute(ctx, accessRepository.database, query, channel, userID); err != nil {
+		return fmt.Errorf("notify machine access changed: %w", err)
+	}
+	return nil
+}
+
 // execute runs a query whose rows are not needed.
 func execute(ctx context.Context, database db.Querier, query string, args ...any) error {
 	rows, err := db.Execute(ctx, database, query, args...)

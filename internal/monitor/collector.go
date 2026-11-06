@@ -17,6 +17,7 @@ import (
 
 	"7th-sense-server/internal/cnc"
 	"7th-sense-server/internal/config"
+	"7th-sense-server/internal/live"
 	"7th-sense-server/internal/model"
 	"7th-sense-server/internal/response"
 	"7th-sense-server/internal/service"
@@ -27,6 +28,7 @@ type Collector struct {
 	config         config.CNCConfig
 	service        *service.MachineTelemetryService
 	cycleService   *service.MachineCycleService // opens, updates and closes machine_cycles
+	hub            *live.Hub                    // pushes readings to the screens; nil = live data off
 	driver         *cnc.Driver
 	shard          int
 	shards         int
@@ -37,13 +39,15 @@ type Collector struct {
 	workerCtx context.Context   // parent of every worker's context; cancelled on stop
 }
 
-// NewCollector creates a Collector for shard of shards.
+// NewCollector creates a Collector for shard of shards. Its workers publish their readings to
+// hub (nil = live data off).
 func NewCollector(cncConfig config.CNCConfig, telemetryService *service.MachineTelemetryService,
-	cycleService *service.MachineCycleService, driver *cnc.Driver, shard, shards int) *Collector {
+	cycleService *service.MachineCycleService, hub *live.Hub, driver *cnc.Driver, shard, shards int) *Collector {
 	return &Collector{
 		config:         cncConfig,
 		service:        telemetryService,
 		cycleService:   cycleService,
+		hub:            hub,
 		driver:         driver,
 		shard:          shard,
 		shards:         shards,

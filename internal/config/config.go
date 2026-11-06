@@ -25,6 +25,25 @@ type Config struct {
 	UploadDir string
 	// CNC holds the settings of the CNC data collectors (docs/cnc-telemetry-collector-plan.md).
 	CNC CNCConfig
+	// Live holds the settings of the Socket.IO live data (docs/live-socket-events.md).
+	Live LiveConfig
+}
+
+// LiveConfig holds the LIVE_* settings of the Socket.IO server that pushes machine values to the
+// screens (ADR 0009).
+type LiveConfig struct {
+	// Enabled serves /api/v1/socket.io/ and publishes the collector's readings (LIVE_ENABLED);
+	// off, the screens fall back to their REST refresh.
+	Enabled bool
+	// MinInterval is the shortest interval a screen may ask for: at most one message per room
+	// this often (LIVE_MIN_INTERVAL_MS).
+	MinInterval time.Duration
+	// Revalidate is how often every socket's session and machine access are checked again
+	// (LIVE_REVALIDATE_SEC), in case a notification was missed.
+	Revalidate time.Duration
+	// MaxSocketsPerUser bounds the open sockets (tabs, devices) of one user; the oldest is
+	// closed beyond it (LIVE_MAX_SOCKETS_PER_USER).
+	MaxSocketsPerUser int
 }
 
 // CNCConfig holds the CNC_* settings of the data collection the API server runs in-process.
@@ -111,6 +130,12 @@ func Load() Config {
 				Cycles:     getEnvBool("CNC_LOG_CYCLES", true),
 			},
 			CertDir: getEnv("CNC_CERT_DIR", ""),
+		},
+		Live: LiveConfig{
+			Enabled:           getEnvBool("LIVE_ENABLED", true),
+			MinInterval:       time.Duration(getEnvInt("LIVE_MIN_INTERVAL_MS", 200)) * time.Millisecond,
+			Revalidate:        time.Duration(getEnvInt("LIVE_REVALIDATE_SEC", 60)) * time.Second,
+			MaxSocketsPerUser: getEnvInt("LIVE_MAX_SOCKETS_PER_USER", 10),
 		},
 	}
 }

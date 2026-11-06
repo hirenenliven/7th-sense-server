@@ -25,7 +25,7 @@ func NewUserCityHandler(userCityService *service.UserCityService) *UserCityHandl
 // @Summary      Get user cities
 // @Description  Returns the user's cities. A non-nil userStateID keeps only that state's cities.
 // @Description
-// @Description  Used by pages: Add / edit branch, Cities
+// @Description  Used by pages: Add / edit branch, Cities, Add / edit customer or user, Customer / user detail
 // @Tags         Organization
 // @ID           getUserCities
 // @Produce      json

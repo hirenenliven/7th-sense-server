@@ -341,6 +341,12 @@ components:
           type: string
         lastName:
           type: string
+        machineFilter:
+          allOf:
+            - $ref: '#/components/schemas/dto.MachineFilter'
+          description: |-
+            MachineFilter narrows the machines by organization; with allMachines it gives them
+            every machine under it (machines added later included). nil = none.
         machineIds:
           description: MachineIDs are the machines a supervisor, operator, qc or shop head may access.
           items:
@@ -533,6 +539,10 @@ components:
           items:
             $ref: '#/components/schemas/dto.HomeTimeGroup'
           type: array
+        modes:
+          items:
+            $ref: '#/components/schemas/dto.HomeTimeMode'
+          type: array
         spanSec:
           type: integer
       type: object
@@ -542,6 +552,13 @@ components:
           type: integer
         group:
           type: string
+      type: object
+    dto.HomeTimeMode:
+      properties:
+        durationSec:
+          type: integer
+        modeId:
+          type: integer
       type: object
     dto.LoginAsRequest:
       properties:
@@ -564,6 +581,25 @@ components:
           type: boolean
         username:
           type: string
+      type: object
+    dto.MachineFilter:
+      properties:
+        allMachines:
+          type: boolean
+        branchId:
+          type: integer
+        userCityId:
+          type: integer
+        userCountryId:
+          type: integer
+        userLineId:
+          type: integer
+        userLocationId:
+          type: integer
+        userShopId:
+          type: integer
+        userStateId:
+          type: integer
       type: object
     dto.MachineModelRequest:
       properties:
@@ -1065,6 +1101,12 @@ components:
           type: string
         lastName:
           type: string
+        machineFilter:
+          allOf:
+            - $ref: '#/components/schemas/dto.MachineFilter'
+          description: |-
+            MachineFilter narrows the machines by organization; with allMachines it gives them
+            every machine under it (machines added later included). nil = none.
         machineIds:
           description: MachineIDs are the machines a supervisor, operator, qc or shop head may access.
           items:
@@ -1134,6 +1176,10 @@ components:
           type: integer
         lastName:
           type: string
+        machineFilter:
+          allOf:
+            - $ref: '#/components/schemas/model.UserMachineFilter'
+          description: MachineFilter is the user's machine filter (user_machine_filters); null when none.
         machineIds:
           description: |-
             MachineIDs are the machines assigned to the user (user_machine_access); empty
@@ -2151,6 +2197,33 @@ components:
         userId:
           type: integer
       type: object
+    model.UserMachineFilter:
+      properties:
+        allMachines:
+          type: boolean
+        branchId:
+          type: integer
+        createdAt:
+          type: string
+        id:
+          type: integer
+        updatedAt:
+          type: string
+        userCityId:
+          type: integer
+        userCountryId:
+          type: integer
+        userId:
+          type: integer
+        userLineId:
+          type: integer
+        userLocationId:
+          type: integer
+        userShopId:
+          type: integer
+        userStateId:
+          type: integer
+      type: object
     model.UserProfile:
       properties:
         birthDate:
@@ -2466,6 +2539,7 @@ paths:
     post:
       description: |-
         Ends the session of token. An unknown or empty token is not an error. Called as /api/as/{key}/v1/auth/logout it ends only that "log in as" session.
+        The session's live data sockets (Socket.IO, /api/v1/socket.io/) get session:expired and are closed; the user's other sessions keep theirs.
 
         Used by pages: App shell (session, logout, theme)
       operationId: logout
@@ -5841,7 +5915,7 @@ paths:
   /v1/machines:
     get:
       description: |-
-        Returns the machines the user may access (see machineScope). A non-nil customerID keeps only that customer's machines.
+        Returns the machines the user may access (see machineScope): a supervisor, operator, qc or shop head gets the machines assigned to them plus, when their machine filter has allMachines, every company machine under its organization levels. A non-nil customerID keeps only that customer's machines.
 
         Used by pages: Add / edit customer or user, Customer / user detail, All machines, Machine health, Productivity, Add / edit part, Add / edit production schedule
       operationId: getMachines
@@ -9052,7 +9126,7 @@ paths:
       description: |-
         Returns the user's cities. A non-nil userStateID keeps only that state's cities.
 
-        Used by pages: Add / edit branch, Cities
+        Used by pages: Add / edit branch, Cities, Add / edit customer or user, Customer / user detail
       operationId: getUserCities
       parameters:
         - description: User state id
@@ -9393,7 +9467,7 @@ paths:
       description: |-
         Returns the user's countries.
 
-        Used by pages: Countries, States
+        Used by pages: Countries, States, Add / edit customer or user, Customer / user detail
       operationId: getUserCountries
       parameters:
         - description: Customer / company user id (superadmin only)
@@ -9629,7 +9703,7 @@ paths:
       description: |-
         Returns the user's lines. A non-nil userShopID keeps only that shop's lines.
 
-        Used by pages: Add / edit machine, Lines, Cells
+        Used by pages: Add / edit machine, Lines, Cells, Add / edit customer or user, Customer / user detail
       operationId: getUserLines
       parameters:
         - description: User shop id
@@ -9970,7 +10044,7 @@ paths:
       description: |-
         Returns the user's locations. A non-nil branchID keeps only that branch's locations.
 
-        Used by pages: Locations, Shops
+        Used by pages: Locations, Shops, Add / edit customer or user, Customer / user detail
       operationId: getUserLocations
       parameters:
         - description: Branch id
@@ -10311,7 +10385,7 @@ paths:
       description: |-
         Returns the user's shops. A non-nil userLocationID keeps only that location's shops.
 
-        Used by pages: Shops, Lines
+        Used by pages: Shops, Lines, Add / edit customer or user, Customer / user detail
       operationId: getUserShops
       parameters:
         - description: User location id
@@ -10652,7 +10726,7 @@ paths:
       description: |-
         Returns the user's states. A non-nil userCountryID keeps only that country's states.
 
-        Used by pages: States, Cities
+        Used by pages: States, Cities, Add / edit customer or user, Customer / user detail
       operationId: getUserStates
       parameters:
         - description: User country id
@@ -11319,8 +11393,9 @@ paths:
     post:
       description: |-
         Adds a user with its customer details and machine access. the user must be allowed to give the role (see accessFor).
+        machineFilter (supervisor, operator, qc, shop head) names the company's organization levels userCountryId … userLineId (null = any) that narrow the form's machine list; with allMachines the user may access every company machine on a line under them, machines added later included, and machineIds are not stored.
         Roles: superadmin, customer, admin (others get 403).
-        Validation: Please enter valid password.
+        Validation: Please enter valid password, Please select valid machines, Please select valid machine filter (a level that is not one chain of the company's organization).
 
         Used by pages: Add / edit customer or user
       operationId: createUser
@@ -11345,6 +11420,15 @@ paths:
               firstName: Postman sample
               gstNumber: Postman sample
               lastName: Postman sample
+              machineFilter:
+                allMachines: false
+                branchId: 1
+                userCityId: 1
+                userCountryId: 1
+                userLineId: 1
+                userLocationId: 1
+                userShopId: 1
+                userStateId: 1
               machineIds:
                 - 1
               panNumber: Postman sample
@@ -11426,7 +11510,7 @@ paths:
   /v1/users/{id}:
     delete:
       description: |-
-        Soft-deletes the user with its profiles and addresses, and removes its machine access. the user must be allowed to manage the user.
+        Soft-deletes the user with its profiles and addresses, and removes its machine access and machine filter. the user must be allowed to manage the user.
         Roles: superadmin, customer, admin (others get 403).
 
         Used by pages: Customers / Users list
@@ -11591,9 +11675,10 @@ paths:
         - Users
     put:
       description: |-
-        Replaces the user and its customer details. Customer details the user does not have yet are created. password sets a new password (8 to 72 characters); empty keeps the current one.
+        Replaces the user and its customer details. Customer details the user does not have yet are created. password sets a new password (8 to 72 characters); empty keeps the current one. The machine access and machineFilter are replaced (null removes the filter).
+        machineFilter (supervisor, operator, qc, shop head) names the company's organization levels userCountryId … userLineId (null = any) that narrow the form's machine list; with allMachines the user may access every company machine on a line under them, machines added later included, and machineIds are not stored.
         Roles: superadmin, customer, admin (others get 403).
-        Validation: Please enter valid password, Please enter valid status.
+        Validation: Please enter valid password, Please enter valid status, Please select valid machines, Please select valid machine filter.
 
         Used by pages: Customers / Users list, Add / edit customer or user
       operationId: updateUser
@@ -11625,6 +11710,15 @@ paths:
               firstName: Postman sample
               gstNumber: Postman sample
               lastName: Postman sample
+              machineFilter:
+                allMachines: false
+                branchId: 1
+                userCityId: 1
+                userCountryId: 1
+                userLineId: 1
+                userLocationId: 1
+                userShopId: 1
+                userStateId: 1
               machineIds:
                 - 1
               panNumber: Postman sample

@@ -58,13 +58,36 @@ func NewMachineRepository(dbPool *pgxpool.Pool) *MachineRepository {
 	return &MachineRepository{dbPool: dbPool}
 }
 
+// accessibleMachine is the condition "user <parameter> may access machine m" (NULL: every
+// machine): m is assigned to the user (user_machine_access), or the user's machine filter has
+// all machines on and m's line lies under every level the filter names (organization_paths;
+// a filter without levels takes every machine), so machines added later are included.
+func accessibleMachine(parameter string) string {
+	return `(` + parameter + `::integer IS NULL
+		OR EXISTS (SELECT 1 FROM user_machine_access a WHERE a.machine_id = m.id AND a.user_id = ` + parameter + `)
+		OR EXISTS (
+			SELECT 1 FROM user_machine_filters f
+			WHERE f.user_id = ` + parameter + ` AND f.all_machines
+				AND (num_nonnulls(f.user_country_id, f.user_state_id, f.user_city_id, f.branch_id,
+						f.user_location_id, f.user_shop_id, f.user_line_id) = 0
+					OR EXISTS (
+						SELECT 1 FROM organization_paths p
+						WHERE p.user_line_id = m.line_id AND p.user_id = m.user_id
+							AND (f.user_country_id IS NULL OR p.user_country_id = f.user_country_id)
+							AND (f.user_state_id IS NULL OR p.user_state_id = f.user_state_id)
+							AND (f.user_city_id IS NULL OR p.user_city_id = f.user_city_id)
+							AND (f.branch_id IS NULL OR p.branch_id = f.branch_id)
+							AND (f.user_location_id IS NULL OR p.user_location_id = f.user_location_id)
+							AND (f.user_shop_id IS NULL OR p.user_shop_id = f.user_shop_id)
+							AND (f.user_line_id IS NULL OR p.user_line_id = f.user_line_id)))))`
+}
+
 // FindAll returns the machines in scope, newest first.
 func (machineRepository *MachineRepository) FindAll(ctx context.Context, scope model.MachineScope) ([]model.Machine, error) {
 	query := machineSelect + `
 		WHERE m.is_deleted = false
 			AND ($1::integer IS NULL OR m.user_id = $1)
-			AND ($2::integer IS NULL OR EXISTS (
-				SELECT 1 FROM user_machine_access a WHERE a.machine_id = m.id AND a.user_id = $2))
+			AND ` + accessibleMachine("$2") + `
 		ORDER BY m.id DESC`
 
 	rows, err := db.Execute(ctx, machineRepository.dbPool, query, scope.OwnerID, scope.AssignedUserID)
@@ -83,8 +106,7 @@ func (machineRepository *MachineRepository) FindByID(ctx context.Context, scope 
 	query := machineSelect + `
 		WHERE m.id = $1 AND m.is_deleted = false
 			AND ($2::integer IS NULL OR m.user_id = $2)
-			AND ($3::integer IS NULL OR EXISTS (
-				SELECT 1 FROM user_machine_access a WHERE a.machine_id = m.id AND a.user_id = $3))`
+			AND ` + accessibleMachine("$3")
 
 	rows, err := db.Execute(ctx, machineRepository.dbPool, query, id, scope.OwnerID, scope.AssignedUserID)
 	if err != nil {

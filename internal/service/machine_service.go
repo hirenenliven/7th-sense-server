@@ -104,7 +104,8 @@ func ownCompanyMachine(actor model.AuthUser, fields *dto.MachineFields) error {
 // machineScope returns the machines actor may read. The superadmin reads every
 // machine (customerID narrows to one customer). A customer and its admins read
 // every machine of their company; other users only the machines assigned to them
-// (user_machine_access). Asking for another customer's machines is Forbidden.
+// (user_machine_access) and, with all machines on, the ones under their machine filter
+// (user_machine_filters). Asking for another customer's machines is Forbidden.
 func machineScope(actor model.AuthUser, customerID *int64) (model.MachineScope, error) {
 	if actor.Role == model.RoleSuperAdmin {
 		return model.MachineScope{OwnerID: customerID}, nil

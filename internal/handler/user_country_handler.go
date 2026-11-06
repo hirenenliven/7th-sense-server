@@ -25,7 +25,7 @@ func NewUserCountryHandler(userCountryService *service.UserCountryService) *User
 // @Summary      Get user countries
 // @Description  Returns the user's countries.
 // @Description
-// @Description  Used by pages: Countries, States
+// @Description  Used by pages: Countries, States, Add / edit customer or user, Customer / user detail
 // @Tags         Organization
 // @ID           getUserCountries
 // @Produce      json

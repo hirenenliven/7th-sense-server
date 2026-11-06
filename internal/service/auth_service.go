@@ -166,6 +166,12 @@ func (authService *AuthService) Logout(ctx context.Context, token string) error 
 	return authService.authRepository.DeleteSession(ctx, hashToken(token))
 }
 
+// SessionHash returns the id under which token's session is stored (auth_tokens.token), so
+// other parts of the server can name a session without keeping its token.
+func (authService *AuthService) SessionHash(token string) string {
+	return hashToken(token)
+}
+
 // newSessionToken returns a random URL-safe session token.
 func newSessionToken() (string, error) {
 	tokenBytes := make([]byte, sessionTokenBytes)

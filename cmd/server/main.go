@@ -17,6 +17,7 @@ import (
 	"7th-sense-server/internal/config"
 	"7th-sense-server/internal/db"
 	"7th-sense-server/internal/handler"
+	"7th-sense-server/internal/live"
 	"7th-sense-server/internal/logger"
 	"7th-sense-server/internal/middleware"
 	"7th-sense-server/internal/repository"
@@ -102,10 +103,26 @@ func run() error {
 		apiDocs = apidocs.Handler()
 		slog.Info("API docs at /api-docs/")
 	}
+	userService := service.NewUserService(dbPool, branchService, roleService, machineService)
+	authHandler := handler.NewAuthHandler(authService, appConfig.CookieSecure)
+	// Live data (ADR 0009): the collector publishes every reading to the hub, which pushes the
+	// changed values to the Socket.IO rooms of the screens watching them. Off, both stay nil.
+	var liveHub *live.Hub
+	var liveHandler *handler.LiveHandler
+	if appConfig.Live.Enabled {
+		liveHub = live.NewHub(appConfig.Live.MinInterval)
+		liveHandler = handler.NewLiveHandler(appConfig.Live, liveHub, authService, machineService, userService)
+		authHandler.SetLiveHandler(liveHandler)
+		go liveHub.Run(ctx)
+		go liveHandler.Run(ctx)
+		defer liveHandler.Close()
+		slog.Info("live data at /api/v1/socket.io/")
+	}
 	router := routes.New(routes.Handlers{
 		APIDocs:      apiDocs,
-		Auth:         handler.NewAuthHandler(authService, appConfig.CookieSecure),
-		User:         handler.NewUserHandler(service.NewUserService(dbPool, branchService, roleService, machineService)),
+		Auth:         authHandler,
+		User:         handler.NewUserHandler(userService),
+		Live:         liveHandler,
 		Branch:       handler.NewBranchHandler(branchService),
 		Category:     handler.NewCategoryHandler(service.NewCategoryService(categoryRepository)),
 		Brand:        handler.NewBrandHandler(brandService),
@@ -153,7 +170,7 @@ func run() error {
 	// collectors manages CNC data collection from machines: loads the 32-bit CNC DLL, runs the collector
 	// in a background goroutine, handles restarts on failure, and gracefully stops on shutdown.
 	// Needed because collection runs inside this API server process (no separate service).
-	collectors := collector.NewSupervisor(appConfig.CNC, dbPool, cycleService)
+	collectors := collector.NewSupervisor(appConfig.CNC, dbPool, cycleService, liveHub)
 
 	// CNC data collection runs inside this process: starting the server connects the machines
 	// (CNC_ENABLED, needs a GOARCH=386 build for the 32-bit DLL; docs/cnc-telemetry-collector-plan.md)

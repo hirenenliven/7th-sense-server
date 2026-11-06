@@ -18,6 +18,10 @@ import (
 	"7th-sense-server/internal/response"
 )
 
+// UserAccessChangedChannel is NOTIFYed with a user id whenever that user's role, status or
+// machine access may have changed, so the live sockets (handler.LiveHandler) follow at once.
+const UserAccessChangedChannel = "user_access_changed"
+
 // UserService holds the business rules for users. A user is saved together
 // with its customer details (company profile, user profile and address) and
 // machine access in one transaction, so a failure never leaves a half-created user.
@@ -42,6 +46,7 @@ type userServices struct {
 	companyProfileService       *CompanyProfileService
 	addressService              *AddressService
 	userMachineAccessRepository *repository.UserMachineAccessRepository
+	userMachineFilterRepository *repository.UserMachineFilterRepository
 }
 
 // newUserServices creates the user services on database (a pool or a transaction).
@@ -52,6 +57,7 @@ func newUserServices(database db.Querier) userServices {
 		companyProfileService:       NewCompanyProfileService(repository.NewCompanyProfileRepository(database)),
 		addressService:              NewAddressService(repository.NewAddressRepository(database)),
 		userMachineAccessRepository: repository.NewUserMachineAccessRepository(database),
+		userMachineFilterRepository: repository.NewUserMachineFilterRepository(database),
 	}
 }
 
@@ -99,10 +105,10 @@ func (userService *UserService) GetCurrent(ctx context.Context, userID int64) (d
 	return userService.services.details(ctx, userID)
 }
 
-// Create adds a user with its customer details and machine access. actor must
+// Create adds a user with its customer details, machine access and machine filter. actor must
 // be allowed to give the role (see accessFor).
 func (userService *UserService) Create(ctx context.Context, actor model.AuthUser, userRequest dto.CreateUserRequest) (dto.UserResponse, error) {
-	access, err := userService.accessFor(ctx, actor, userRequest.RoleID, userRequest.CompanyID, userRequest.MachineIDs)
+	access, err := userService.accessFor(ctx, actor, userRequest.RoleID, userRequest.CompanyID, userRequest.MachineIDs, userRequest.MachineFilter)
 	if err != nil {
 		return dto.UserResponse{}, err
 	}
@@ -139,6 +145,9 @@ func (userService *UserService) Create(ctx context.Context, actor model.AuthUser
 		if err := services.userMachineAccessRepository.Replace(ctx, user.ID, access.machineIDs); err != nil {
 			return err
 		}
+		if err := services.userMachineFilterRepository.Replace(ctx, user.ID, access.machineFilter); err != nil {
+			return err
+		}
 
 		if _, err := services.companyProfileService.Create(ctx, companyProfileFrom(user.ID, userRequest.CustomerDetails)); err != nil {
 			return err
@@ -171,7 +180,7 @@ func (userService *UserService) Update(ctx context.Context, actor model.AuthUser
 	if err := userService.checkCanManage(ctx, actor, id); err != nil {
 		return dto.UserResponse{}, err
 	}
-	access, err := userService.accessFor(ctx, actor, userRequest.RoleID, userRequest.CompanyID, userRequest.MachineIDs)
+	access, err := userService.accessFor(ctx, actor, userRequest.RoleID, userRequest.CompanyID, userRequest.MachineIDs, userRequest.MachineFilter)
 	if err != nil {
 		return dto.UserResponse{}, err
 	}
@@ -211,6 +220,12 @@ func (userService *UserService) Update(ctx context.Context, actor model.AuthUser
 			return toUserResponseError(err)
 		}
 		if err := services.userMachineAccessRepository.Replace(ctx, id, access.machineIDs); err != nil {
+			return err
+		}
+		if err := services.userMachineFilterRepository.Replace(ctx, id, access.machineFilter); err != nil {
+			return err
+		}
+		if err := services.userMachineAccessRepository.NotifyChanged(ctx, UserAccessChangedChannel, id); err != nil {
 			return err
 		}
 
@@ -282,6 +297,12 @@ func (userService *UserService) Delete(ctx context.Context, actor model.AuthUser
 		if err := services.userMachineAccessRepository.Replace(ctx, id, nil); err != nil {
 			return err
 		}
+		if err := services.userMachineFilterRepository.Replace(ctx, id, nil); err != nil {
+			return err
+		}
+		if err := services.userMachineAccessRepository.NotifyChanged(ctx, UserAccessChangedChannel, id); err != nil {
+			return err
+		}
 		if err := services.userProfileService.Delete(ctx, id); err != nil && err.Error() != "User profile not found" {
 			return err
 		}
@@ -299,6 +320,14 @@ func (userService *UserService) Delete(ctx context.Context, actor model.AuthUser
 		}
 		return nil
 	})
+}
+
+// ListenForAccessChanges LISTENs for user_access_changed (payload: user id) and machines_changed
+// (payload: machine id) until ctx ends or the connection is lost, calling ready once listening
+// and notify for each notification. The live sockets follow access with it.
+func (userService *UserService) ListenForAccessChanges(ctx context.Context, ready func(), notify func(channel, payload string)) error {
+	return db.ListenForDatabaseNotifications(ctx, userService.dbPool,
+		[]string{UserAccessChangedChannel, MachinesChangedChannel}, ready, notify)
 }
 
 // SaveTheme sets the UI theme of userID (the logged-in user).
@@ -364,6 +393,14 @@ func (services userServices) details(ctx context.Context, id int64) (dto.UserRes
 		return dto.UserResponse{}, err
 	}
 	userResponse.MachineIDs = append([]int64{}, machineIDs...) // [] rather than null in JSON
+
+	machineFilter, err := services.userMachineFilterRepository.FindByUserID(ctx, id)
+	switch {
+	case err == nil:
+		userResponse.MachineFilter = &machineFilter
+	case !errors.Is(err, repository.ErrNotFound):
+		return dto.UserResponse{}, err
+	}
 	return userResponse, nil
 }
 
@@ -398,10 +435,11 @@ func (userService *UserService) checkCanManage(ctx context.Context, actor model.
 	return nil
 }
 
-// userAccess is the company and machines a user is saved with.
+// userAccess is the company, machines and machine filter a user is saved with.
 type userAccess struct {
-	companyID  *int64
-	machineIDs []int64
+	companyID     *int64
+	machineIDs    []int64
+	machineFilter *model.UserMachineFilter
 }
 
 // accessFor checks that actor may give roleID and returns the company and
@@ -410,8 +448,10 @@ type userAccess struct {
 //   - a member belongs to the actor's company; the superadmin names the company
 //     (companyID), which must be a customer;
 //   - an admin sees all of the company's machines, so only other members keep
-//     machineIDs, which must all be machines of the company.
-func (userService *UserService) accessFor(ctx context.Context, actor model.AuthUser, roleID int64, companyID *int64, machineIDs []int64) (userAccess, error) {
+//     machineIDs, which must all be machines of the company, and machineFilter, whose
+//     levels must be one chain of the company's organization. A filter with all
+//     machines gives them every machine under it, so no machines are stored with it.
+func (userService *UserService) accessFor(ctx context.Context, actor model.AuthUser, roleID int64, companyID *int64, machineIDs []int64, machineFilter *dto.MachineFilter) (userAccess, error) {
 	role, err := userService.roleService.GetByID(ctx, roleID)
 	if err != nil {
 		return userAccess{}, asInvalidSelection(err, "Role not found", "Please enter valid role")
@@ -436,10 +476,50 @@ func (userService *UserService) accessFor(ctx context.Context, actor model.AuthU
 	if model.SeesAllCompanyMachines(role.Name) {
 		return userAccess{companyID: company}, nil
 	}
+	filter, err := userService.checkMachineFilter(ctx, *company, machineFilter)
+	if err != nil {
+		return userAccess{}, err
+	}
+	if filter != nil && filter.AllMachines {
+		return userAccess{companyID: company, machineFilter: filter}, nil
+	}
 	if err := userService.machineService.CheckOwnedBy(ctx, *company, machineIDs); err != nil {
 		return userAccess{}, err
 	}
-	return userAccess{companyID: company, machineIDs: machineIDs}, nil
+	return userAccess{companyID: company, machineIDs: machineIDs, machineFilter: filter}, nil
+}
+
+// checkMachineFilter returns the filter to save from machineFilter: nil when it names no
+// level and does not give all machines (nothing to keep), else "Please select valid machine
+// filter" unless its levels are one chain of companyID's organization.
+func (userService *UserService) checkMachineFilter(ctx context.Context, companyID int64, machineFilter *dto.MachineFilter) (*model.UserMachineFilter, error) {
+	if machineFilter == nil {
+		return nil, nil
+	}
+	filter := model.UserMachineFilter{
+		UserCountryID:  machineFilter.UserCountryID,
+		UserStateID:    machineFilter.UserStateID,
+		UserCityID:     machineFilter.UserCityID,
+		BranchID:       machineFilter.BranchID,
+		UserLocationID: machineFilter.UserLocationID,
+		UserShopID:     machineFilter.UserShopID,
+		UserLineID:     machineFilter.UserLineID,
+		AllMachines:    machineFilter.AllMachines,
+	}
+	if !filter.HasLevels() {
+		if !filter.AllMachines {
+			return nil, nil
+		}
+		return &filter, nil
+	}
+	inOrganization, err := userService.services.userMachineFilterRepository.IsInOrganization(ctx, companyID, filter)
+	if err != nil {
+		return nil, err
+	}
+	if !inOrganization {
+		return nil, response.NewError(http.StatusBadRequest, "Please select valid machine filter")
+	}
+	return &filter, nil
 }
 
 // checkCustomer returns "Please select valid customer" unless customerID is an

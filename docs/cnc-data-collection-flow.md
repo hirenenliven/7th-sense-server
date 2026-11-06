@@ -302,6 +302,13 @@ so the worker needs no locks for its own data.
   `recordAlarmChanges`, `recordModeChange`, and `decideMachineMode` in `internal/monitor/machine_mode.go`
 - **What it does:**
   1. If the DLL says the machine is **not connected**: set mode Offline and stop here.
+  1a. **Before any database write**, every variable of the reading (numbers **and** text) goes to
+     the live hub (`publishValues` → `live.Hub.PublishValues`), which keeps the latest values and
+     pushes the changed ones to the screens subscribed to them (ADR 0009,
+     `docs/live-socket-events.md`). It only merges under a lock: the worker never waits for a
+     socket. Mode changes (`recordModeChange`) publish the status the same way; alarm / emergency
+     events (`recordEventAt`) and cycle opened / closed (`machine_cycle.go`) are published **after**
+     their write, because screens reload their REST data on them.
   2. The first time (or after a variable reload) load the current values from
      `machine_variable_values` into memory (`GetLiveValues`).
   3. For every variable:
@@ -480,6 +487,8 @@ Errors are always written, whatever the switch.
 | `CNC_LOG_VARIABLES` | `false` | Log the changed values of every reading (step 15). For analysis only: many lines per second |
 | `CNC_LOG_OTHER` | `true` | Log everything else: start / stop, connections, reading rate, … |
 | `SIEMENS_USER`, `SIEMENS_PASS` | – | Set per machine by the server from the machine's login (step 12) |
+| `LIVE_ENABLED` | `true` | Publish readings to the Socket.IO live data (step 15, 1a); `false` = no hub, screens poll REST |
+| `LIVE_MIN_INTERVAL_MS` | `200` | Shortest interval between two live messages of one room |
 
 ### Tables
 
@@ -542,6 +551,7 @@ that worker. The fix is to start with an empty map when the load fails.
 
 ### Related documents
 - `docs/cnc-communication.md` — the DLL API (`CNCConnect`, callbacks, snapshot layout)
+- `docs/live-socket-events.md` — the live data pushed to screens from step 15 (Socket.IO events, rooms, access)
 
 ---
 

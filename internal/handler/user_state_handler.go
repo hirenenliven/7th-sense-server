@@ -25,7 +25,7 @@ func NewUserStateHandler(userStateService *service.UserStateService) *UserStateH
 // @Summary      Get user states
 // @Description  Returns the user's states. A non-nil userCountryID keeps only that country's states.
 // @Description
-// @Description  Used by pages: States, Cities
+// @Description  Used by pages: States, Cities, Add / edit customer or user, Customer / user detail
 // @Tags         Organization
 // @ID           getUserStates
 // @Produce      json

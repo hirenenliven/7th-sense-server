@@ -17,6 +17,7 @@ import (
 
 	"7th-sense-server/internal/cnc"
 	"7th-sense-server/internal/config"
+	"7th-sense-server/internal/live"
 	"7th-sense-server/internal/monitor"
 	"7th-sense-server/internal/repository"
 	"7th-sense-server/internal/service"
@@ -34,14 +35,16 @@ type Supervisor struct {
 	config       config.CNCConfig
 	dbPool       *pgxpool.Pool
 	cycleService *service.MachineCycleService
+	hub          *live.Hub
 	cancel       context.CancelFunc
 	wg           sync.WaitGroup
 }
 
 // NewSupervisor creates a Supervisor for cncConfig that stores through dbPool; the collector
-// writes machine cycles through cycleService.
-func NewSupervisor(cncConfig config.CNCConfig, dbPool *pgxpool.Pool, cycleService *service.MachineCycleService) *Supervisor {
-	return &Supervisor{config: cncConfig, dbPool: dbPool, cycleService: cycleService}
+// writes machine cycles through cycleService and publishes its readings to hub (nil = live data
+// off).
+func NewSupervisor(cncConfig config.CNCConfig, dbPool *pgxpool.Pool, cycleService *service.MachineCycleService, hub *live.Hub) *Supervisor {
+	return &Supervisor{config: cncConfig, dbPool: dbPool, cycleService: cycleService, hub: hub}
 }
 
 // StartCNCDataCollection loads the CNC DLL and starts the collector in a background goroutine,
@@ -107,7 +110,7 @@ func (supervisor *Supervisor) Stop() {
 func (supervisor *Supervisor) runCollectorWithRetry(ctx context.Context, telemetryService *service.MachineTelemetryService, driver *cnc.Driver) {
 	retryWait := time.Second
 	for ctx.Err() == nil {
-		collector := monitor.NewCollector(supervisor.config, telemetryService, supervisor.cycleService, driver,
+		collector := monitor.NewCollector(supervisor.config, telemetryService, supervisor.cycleService, supervisor.hub, driver,
 			collectorShard, collectorShardCount)
 		err := collector.RunCollection(ctx)
 		if ctx.Err() != nil {

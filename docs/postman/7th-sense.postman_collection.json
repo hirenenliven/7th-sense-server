@@ -1933,7 +1933,7 @@
           ],
           "name": "Get machines",
           "request": {
-            "description": "Returns the machines the user may access (see machineScope). A non-nil customerID keeps only that customer's machines.\n\nUsed by pages: Add / edit customer or user, Customer / user detail, All machines, Machine health, Productivity, Add / edit part, Add / edit production schedule",
+            "description": "Returns the machines the user may access (see machineScope): a supervisor, operator, qc or shop head gets the machines assigned to them plus, when their machine filter has allMachines, every company machine under its organization levels. A non-nil customerID keeps only that customer's machines.\n\nUsed by pages: Add / edit customer or user, Customer / user detail, All machines, Machine health, Productivity, Add / edit part, Add / edit production schedule",
             "header": [],
             "method": "GET",
             "url": {
@@ -2384,7 +2384,7 @@
           ],
           "name": "Get user cities",
           "request": {
-            "description": "Returns the user's cities. A non-nil userStateID keeps only that state's cities.\n\nUsed by pages: Add / edit branch, Cities",
+            "description": "Returns the user's cities. A non-nil userStateID keeps only that state's cities.\n\nUsed by pages: Add / edit branch, Cities, Add / edit customer or user, Customer / user detail",
             "header": [],
             "method": "GET",
             "url": {
@@ -2599,7 +2599,7 @@
           ],
           "name": "Get user countries",
           "request": {
-            "description": "Returns the user's countries.\n\nUsed by pages: Countries, States",
+            "description": "Returns the user's countries.\n\nUsed by pages: Countries, States, Add / edit customer or user, Customer / user detail",
             "header": [],
             "method": "GET",
             "url": {
@@ -2748,7 +2748,7 @@
           ],
           "name": "Get user lines",
           "request": {
-            "description": "Returns the user's lines. A non-nil userShopID keeps only that shop's lines.\n\nUsed by pages: Add / edit machine, Lines, Cells",
+            "description": "Returns the user's lines. A non-nil userShopID keeps only that shop's lines.\n\nUsed by pages: Add / edit machine, Lines, Cells, Add / edit customer or user, Customer / user detail",
             "header": [],
             "method": "GET",
             "url": {
@@ -2963,7 +2963,7 @@
           ],
           "name": "Get user locations",
           "request": {
-            "description": "Returns the user's locations. A non-nil branchID keeps only that branch's locations.\n\nUsed by pages: Locations, Shops",
+            "description": "Returns the user's locations. A non-nil branchID keeps only that branch's locations.\n\nUsed by pages: Locations, Shops, Add / edit customer or user, Customer / user detail",
             "header": [],
             "method": "GET",
             "url": {
@@ -3178,7 +3178,7 @@
           ],
           "name": "Get user shops",
           "request": {
-            "description": "Returns the user's shops. A non-nil userLocationID keeps only that location's shops.\n\nUsed by pages: Shops, Lines",
+            "description": "Returns the user's shops. A non-nil userLocationID keeps only that location's shops.\n\nUsed by pages: Shops, Lines, Add / edit customer or user, Customer / user detail",
             "header": [],
             "method": "GET",
             "url": {
@@ -3393,7 +3393,7 @@
           ],
           "name": "Get user states",
           "request": {
-            "description": "Returns the user's states. A non-nil userCountryID keeps only that country's states.\n\nUsed by pages: States, Cities",
+            "description": "Returns the user's states. A non-nil userCountryID keeps only that country's states.\n\nUsed by pages: States, Cities, Add / edit customer or user, Customer / user detail",
             "header": [],
             "method": "GET",
             "url": {
@@ -5502,9 +5502,9 @@
                   "language": "json"
                 }
               },
-              "raw": "{\n  \"addressLine1\": \"Postman sample\",\n  \"addressLine2\": \"Postman sample\",\n  \"branchId\": 1,\n  \"city\": \"Postman sample\",\n  \"companyId\": 1,\n  \"companyLogo\": \"Postman sample\",\n  \"companyName\": \"Postman sample\",\n  \"contactPerson\": \"Postman sample\",\n  \"country\": \"Postman sample\",\n  \"dayStartFrom\": \"Postman sample\",\n  \"email\": \"Postman sample\",\n  \"filters\": [\n    \"Postman sample\"\n  ],\n  \"finixId\": 1,\n  \"firstName\": \"Postman sample\",\n  \"gstNumber\": \"Postman sample\",\n  \"lastName\": \"Postman sample\",\n  \"machineIds\": [\n    1\n  ],\n  \"panNumber\": \"Postman sample\",\n  \"password\": \"Postman sample\",\n  \"primaryPhone\": \"Postman sample\",\n  \"roleId\": 1,\n  \"secondaryPhone\": \"Postman sample\",\n  \"state\": \"Postman sample\",\n  \"theme\": \"Postman sample\",\n  \"timeZone\": \"Postman sample\",\n  \"username\": \"Postman sample\",\n  \"website\": \"Postman sample\",\n  \"zipCode\": \"Postman sample\"\n}"
+              "raw": "{\n  \"addressLine1\": \"Postman sample\",\n  \"addressLine2\": \"Postman sample\",\n  \"branchId\": 1,\n  \"city\": \"Postman sample\",\n  \"companyId\": 1,\n  \"companyLogo\": \"Postman sample\",\n  \"companyName\": \"Postman sample\",\n  \"contactPerson\": \"Postman sample\",\n  \"country\": \"Postman sample\",\n  \"dayStartFrom\": \"Postman sample\",\n  \"email\": \"Postman sample\",\n  \"filters\": [\n    \"Postman sample\"\n  ],\n  \"finixId\": 1,\n  \"firstName\": \"Postman sample\",\n  \"gstNumber\": \"Postman sample\",\n  \"lastName\": \"Postman sample\",\n  \"machineFilter\": {\n    \"allMachines\": false,\n    \"branchId\": 1,\n    \"userCityId\": 1,\n    \"userCountryId\": 1,\n    \"userLineId\": 1,\n    \"userLocationId\": 1,\n    \"userShopId\": 1,\n    \"userStateId\": 1\n  },\n  \"machineIds\": [\n    1\n  ],\n  \"panNumber\": \"Postman sample\",\n  \"password\": \"Postman sample\",\n  \"primaryPhone\": \"Postman sample\",\n  \"roleId\": 1,\n  \"secondaryPhone\": \"Postman sample\",\n  \"state\": \"Postman sample\",\n  \"theme\": \"Postman sample\",\n  \"timeZone\": \"Postman sample\",\n  \"username\": \"Postman sample\",\n  \"website\": \"Postman sample\",\n  \"zipCode\": \"Postman sample\"\n}"
             },
-            "description": "Adds a user with its customer details and machine access. the user must be allowed to give the role (see accessFor).\nRoles: superadmin, customer, admin (others get 403).\nValidation: Please enter valid password.\n\nUsed by pages: Add / edit customer or user",
+            "description": "Adds a user with its customer details and machine access. the user must be allowed to give the role (see accessFor).\nmachineFilter (supervisor, operator, qc, shop head) names the company's organization levels userCountryId … userLineId (null = any) that narrow the form's machine list; with allMachines the user may access every company machine on a line under them, machines added later included, and machineIds are not stored.\nRoles: superadmin, customer, admin (others get 403).\nValidation: Please enter valid password, Please select valid machines, Please select valid machine filter (a level that is not one chain of the company's organization).\n\nUsed by pages: Add / edit customer or user",
             "header": [
               {
                 "key": "Content-Type",
@@ -5591,9 +5591,9 @@
                   "language": "json"
                 }
               },
-              "raw": "{\n  \"addressLine1\": \"Postman sample\",\n  \"addressLine2\": \"Postman sample\",\n  \"branchId\": 1,\n  \"city\": \"Postman sample\",\n  \"companyId\": 1,\n  \"companyLogo\": \"Postman sample\",\n  \"companyName\": \"Postman sample\",\n  \"contactPerson\": \"Postman sample\",\n  \"country\": \"Postman sample\",\n  \"dayStartFrom\": \"Postman sample\",\n  \"email\": \"Postman sample\",\n  \"filters\": [\n    \"Postman sample\"\n  ],\n  \"finixId\": 1,\n  \"firstName\": \"Postman sample\",\n  \"gstNumber\": \"Postman sample\",\n  \"lastName\": \"Postman sample\",\n  \"machineIds\": [\n    1\n  ],\n  \"panNumber\": \"Postman sample\",\n  \"password\": \"Postman sample\",\n  \"primaryPhone\": \"Postman sample\",\n  \"roleId\": 1,\n  \"secondaryPhone\": \"Postman sample\",\n  \"state\": \"Postman sample\",\n  \"status\": \"Postman sample\",\n  \"theme\": \"Postman sample\",\n  \"timeZone\": \"Postman sample\",\n  \"username\": \"Postman sample\",\n  \"website\": \"Postman sample\",\n  \"zipCode\": \"Postman sample\"\n}"
+              "raw": "{\n  \"addressLine1\": \"Postman sample\",\n  \"addressLine2\": \"Postman sample\",\n  \"branchId\": 1,\n  \"city\": \"Postman sample\",\n  \"companyId\": 1,\n  \"companyLogo\": \"Postman sample\",\n  \"companyName\": \"Postman sample\",\n  \"contactPerson\": \"Postman sample\",\n  \"country\": \"Postman sample\",\n  \"dayStartFrom\": \"Postman sample\",\n  \"email\": \"Postman sample\",\n  \"filters\": [\n    \"Postman sample\"\n  ],\n  \"finixId\": 1,\n  \"firstName\": \"Postman sample\",\n  \"gstNumber\": \"Postman sample\",\n  \"lastName\": \"Postman sample\",\n  \"machineFilter\": {\n    \"allMachines\": false,\n    \"branchId\": 1,\n    \"userCityId\": 1,\n    \"userCountryId\": 1,\n    \"userLineId\": 1,\n    \"userLocationId\": 1,\n    \"userShopId\": 1,\n    \"userStateId\": 1\n  },\n  \"machineIds\": [\n    1\n  ],\n  \"panNumber\": \"Postman sample\",\n  \"password\": \"Postman sample\",\n  \"primaryPhone\": \"Postman sample\",\n  \"roleId\": 1,\n  \"secondaryPhone\": \"Postman sample\",\n  \"state\": \"Postman sample\",\n  \"status\": \"Postman sample\",\n  \"theme\": \"Postman sample\",\n  \"timeZone\": \"Postman sample\",\n  \"username\": \"Postman sample\",\n  \"website\": \"Postman sample\",\n  \"zipCode\": \"Postman sample\"\n}"
             },
-            "description": "Replaces the user and its customer details. Customer details the user does not have yet are created. password sets a new password (8 to 72 characters); empty keeps the current one.\nRoles: superadmin, customer, admin (others get 403).\nValidation: Please enter valid password, Please enter valid status.\n\nUsed by pages: Customers / Users list, Add / edit customer or user",
+            "description": "Replaces the user and its customer details. Customer details the user does not have yet are created. password sets a new password (8 to 72 characters); empty keeps the current one. The machine access and machineFilter are replaced (null removes the filter).\nmachineFilter (supervisor, operator, qc, shop head) names the company's organization levels userCountryId … userLineId (null = any) that narrow the form's machine list; with allMachines the user may access every company machine on a line under them, machines added later included, and machineIds are not stored.\nRoles: superadmin, customer, admin (others get 403).\nValidation: Please enter valid password, Please enter valid status, Please select valid machines, Please select valid machine filter.\n\nUsed by pages: Customers / Users list, Add / edit customer or user",
             "header": [
               {
                 "key": "Content-Type",
@@ -5635,7 +5635,7 @@
           ],
           "name": "Delete user",
           "request": {
-            "description": "Soft-deletes the user with its profiles and addresses, and removes its machine access. the user must be allowed to manage the user.\nRoles: superadmin, customer, admin (others get 403).\n\nUsed by pages: Customers / Users list",
+            "description": "Soft-deletes the user with its profiles and addresses, and removes its machine access and machine filter. the user must be allowed to manage the user.\nRoles: superadmin, customer, admin (others get 403).\n\nUsed by pages: Customers / Users list",
             "header": [],
             "method": "DELETE",
             "url": {

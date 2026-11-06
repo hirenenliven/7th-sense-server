@@ -25,7 +25,7 @@ func NewUserLineHandler(userLineService *service.UserLineService) *UserLineHandl
 // @Summary      Get user lines
 // @Description  Returns the user's lines. A non-nil userShopID keeps only that shop's lines.
 // @Description
-// @Description  Used by pages: Add / edit machine, Lines, Cells
+// @Description  Used by pages: Add / edit machine, Lines, Cells, Add / edit customer or user, Customer / user detail
 // @Tags         Organization
 // @ID           getUserLines
 // @Produce      json

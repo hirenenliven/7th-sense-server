@@ -191,6 +191,13 @@ func TestHomeDashboard(t *testing.T) {
 	if recorded > home.Time.SpanSec+int64(fleet.Total) {
 		t.Errorf("time: %d s recorded, more than the %d s span", recorded, home.Time.SpanSec)
 	}
+	byMode := int64(0)
+	for _, mode := range home.Time.Modes {
+		byMode += mode.DurationSec
+	}
+	if diff := recorded - byMode; diff < 0 || diff > int64(len(home.Time.Groups)+len(home.Time.Modes)) {
+		t.Errorf("time: %d s by mode, %d s by group", byMode, recorded)
+	}
 	if home.OEE != nil && home.OEE.OEE != nil && (*home.OEE.OEE < 0 || *home.OEE.OEE > 100) {
 		t.Errorf("fleet OEE %v out of range", *home.OEE.OEE)
 	}

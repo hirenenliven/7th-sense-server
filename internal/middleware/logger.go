@@ -1,7 +1,9 @@
 package middleware
 
 import (
+	"bufio"
 	"log/slog"
+	"net"
 	"net/http"
 	"time"
 )
@@ -21,6 +23,13 @@ func (recorder *statusRecorder) WriteHeader(status int) {
 // underlying ResponseWriter.
 func (recorder *statusRecorder) Unwrap() http.ResponseWriter {
 	return recorder.ResponseWriter
+}
+
+// Hijack hands the connection to a WebSocket upgrade (the Socket.IO live data, ADR 0009): its
+// library checks for http.Hijacker directly instead of going through Unwrap.
+func (recorder *statusRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	recorder.status = http.StatusSwitchingProtocols
+	return http.NewResponseController(recorder.ResponseWriter).Hijack()
 }
 
 // Logger logs the method, path, status and duration of every request.
