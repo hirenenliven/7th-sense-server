@@ -166,7 +166,7 @@ func (userHandler *UserHandler) UpdateLanguage(writer http.ResponseWriter, reque
 // @Description  Returns user id with its details, or "User not found" when the user may not see it.
 // @Description  Roles: superadmin, customer, admin (others get 403).
 // @Description
-// @Description  Used by pages: Customers / Users list, Add / edit customer or user, Customer / user detail
+// @Description  Used by pages: Customers / Users list, Add / edit customer or user, Customer / user detail, User sessions
 // @Tags         Users
 // @ID           getUserById
 // @Produce      json
@@ -314,6 +314,11 @@ func (userHandler *UserHandler) Delete(writer http.ResponseWriter, request *http
 	id, err := pathID(request)
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
+		return
+	}
+
+	if id == 0 {
+		response.SendResponse(writer, request, response.NotFound, nil)
 		return
 	}
 

@@ -54,6 +54,8 @@ type Handlers struct {
 	MachineCycle *handler.MachineCycleHandler
 	// Dashboard serves the page-wise charts /productivity/... and /machine-health/...
 	Dashboard *handler.DashboardHandler
+	// Session serves /sessions (own sessions) and /admin/.../sessions (superadmin)
+	Session *handler.SessionHandler
 	// Live serves the Socket.IO live data at /socket.io/ (nil = off, see config.LiveConfig)
 	Live *handler.LiveHandler
 	// APIDocs serves Swagger UI and the OpenAPI spec at /api-docs/ (nil = off, see config.APIDocs)
@@ -200,6 +202,9 @@ func registerV1Routes(router *http.ServeMux, handlers Handlers) {
 	}
 	if handlers.Dashboard != nil {
 		registerDashboardRoutes(router, v1Prefix, handlers.Dashboard)
+	}
+	if handlers.Session != nil {
+		registerSessionRoutes(router, v1Prefix, handlers.Session)
 	}
 	if handlers.Live != nil {
 		registerLiveRoutes(router, v1Prefix, handlers.Live)

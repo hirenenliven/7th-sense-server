@@ -45,7 +45,7 @@ A code never read is left out of `values`; `at` is null and the status fields ar
 | `machine:status` | Mode / online changed (status channel) | `{ machineId, seq, online, modeId, modeSince, programName }`; `online` = mode ≠ Offline |
 | `machine:event` | Alarm, E-stop or cycle (event channel) | `{ machineId, seq, type, code?, message?, at }`; `type` = `alarm_on`, `alarm_off`, `emergency_on`, `emergency_off`, `cycle_opened`, `cycle_closed` |
 | `access:changed` | The user's machines changed | `{ removed: [ids], added: [ids] }` — removed machines' rooms were already left |
-| `session:expired` | The session ended (logout, expiry, user deactivated / deleted) | `{}`, then the socket is closed |
+| `session:expired` | The session ended: logout, revoke (another login, the user, the superadmin; ADR 0014), expiry, user deactivated / deleted | `{ reason, revokeReason? }`, then the socket is closed. `reason` = `logged_out` (logout, user deactivated / deleted), `session_revoked` or `session_expired` (the API's 401 message codes); `revokeReason` = `replaced_by_new_login`, `user_revoked` or `admin_revoked` when revoked. Sent on each socket of the session just before its disconnect packet |
 
 ## Ordering
 
@@ -58,7 +58,7 @@ A code never read is left out of `values`; `at` is null and the status fields ar
 | `m:<machineId>:v:<hash of sorted codes>@<interval ms>` | Sockets that asked for exactly these codes of the machine at this interval | `machine:values` |
 | `m:<machineId>:status` / `m:<machineId>:event` | Sockets that asked for the channel | `machine:status` / `machine:event` |
 | `u:<userId>` | All sockets of a user | `access:changed` |
-| `s:<session hash>` | All sockets of one session | `session:expired` |
+| `s:<session hash>` | All sockets of one session | (membership only; `session:expired` is emitted per socket so it arrives before the close) |
 
 ## Settings
 

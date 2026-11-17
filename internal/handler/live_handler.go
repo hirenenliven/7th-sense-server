@@ -31,7 +31,7 @@ const (
 	liveEventSubscribe      = "subscribe"       // browser → server, acknowledged with dto.LiveSubscribeResponse
 	liveEventUnsubscribe    = "unsubscribe"     // browser → server, acknowledged with {ok: true}
 	liveEventAccessChanged  = "access:changed"  // server → browser: dto.LiveAccessChanged
-	liveEventSessionExpired = "session:expired" // server → browser, then the socket is closed
+	liveEventSessionExpired = "session:expired" // server → browser: dto.LiveSessionExpired, then the socket is closed
 )
 
 const (
@@ -152,7 +152,16 @@ func (liveHandler *LiveHandler) DisconnectSession(token string) {
 	if token == "" {
 		return
 	}
-	liveHandler.closeSession(liveHandler.authService.SessionHash(token))
+	liveHandler.closeSession(liveHandler.authService.SessionHash(token), dto.LiveSessionExpired{Reason: dto.LiveSessionReasonLoggedOut})
+}
+
+// CloseRevokedSessions closes every socket of the revoked sessions (their token hashes): each gets
+// session:expired with reason session_revoked and revokeReason, so a revoked browser stops
+// receiving machine data at once instead of at the next LIVE_REVALIDATE_SEC check.
+func (liveHandler *LiveHandler) CloseRevokedSessions(sessionHashes []string, revokeReason string) {
+	for _, sessionHash := range sessionHashes {
+		liveHandler.closeSession(sessionHash, dto.LiveSessionExpired{Reason: dto.LiveSessionReasonRevoked, RevokeReason: revokeReason})
+	}
 }
 
 // onConnection registers a new socket for the session's user with the machines they may read.
@@ -376,9 +385,14 @@ func (liveHandler *LiveHandler) revalidateUser(userID int64) {
 		ctx, cancel := context.WithTimeout(context.Background(), liveQueryTimeout)
 		user, err := liveHandler.authService.Authenticate(ctx, token)
 		cancel()
+		var revokedError *service.SessionRevokedError
 		switch {
+		case errors.As(err, &revokedError):
+			liveHandler.closeSession(sessionHash, dto.LiveSessionExpired{Reason: dto.LiveSessionReasonRevoked, RevokeReason: revokedError.RevokeReason})
+		case errors.Is(err, response.SessionExpired):
+			liveHandler.closeSession(sessionHash, dto.LiveSessionExpired{Reason: dto.LiveSessionReasonExpired})
 		case errors.Is(err, response.LoginRequired):
-			liveHandler.closeSession(sessionHash)
+			liveHandler.closeSession(sessionHash, dto.LiveSessionExpired{Reason: dto.LiveSessionReasonLoggedOut})
 		case err != nil:
 			slog.Error("live: check session", "userId", userID, "error", err)
 		default:
@@ -445,16 +459,20 @@ func (liveHandler *LiveHandler) reloadAccess(userID int64) {
 	}
 }
 
-// closeSession tells the session's sockets it ended and closes them.
-func (liveHandler *LiveHandler) closeSession(sessionHash string) {
+// closeSession tells the session's sockets why it ended and closes them.
+func (liveHandler *LiveHandler) closeSession(sessionHash string, ended dto.LiveSessionExpired) {
 	liveHandler.mu.Lock()
 	entries := slices.Clone(liveHandler.sessionSockets[sessionHash])
 	liveHandler.mu.Unlock()
 	if len(entries) == 0 {
 		return
 	}
-	liveHandler.emit(string(sessionRoom(sessionHash)), liveEventSessionExpired, map[string]any{})
+	// Emitted on each socket, not to the session room: a room broadcast can run after the
+	// disconnect below has taken the socket out of its rooms, and the browser would never hear why.
 	for _, entry := range entries {
+		if err := entry.socket.Emit(liveEventSessionExpired, ended); err != nil {
+			slog.Error("live: emit", "event", liveEventSessionExpired, "error", err)
+		}
 		closeLiveSocket(entry.socket)
 	}
 }

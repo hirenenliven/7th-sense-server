@@ -81,7 +81,8 @@ func run() error {
 	userLineService := service.NewUserLineService(repository.NewUserLineRepository(dbPool), userShopService)
 	userCellService := service.NewUserCellService(repository.NewUserCellRepository(dbPool), userLineService)
 	userSupervisorService := service.NewUserSupervisorService(repository.NewUserSupervisorRepository(dbPool), userCellService)
-	authService := service.NewAuthService(repository.NewAuthRepository(dbPool))
+	authService := service.NewAuthService(dbPool, appConfig.Session)
+	sessionService := service.NewSessionService(dbPool, appConfig.Session)
 	brandService := service.NewBrandService(brandRepository)
 	productService := service.NewProductService(productRepository)
 	// Machine catalog: Brand → Controller → Model
@@ -106,6 +107,11 @@ func run() error {
 	}
 	userService := service.NewUserService(dbPool, branchService, roleService, machineService)
 	authHandler := handler.NewAuthHandler(authService, appConfig.CookieSecure)
+	authHandler.SetTrustedProxies(appConfig.TrustedProxies)
+	sessionHandler := handler.NewSessionHandler(sessionService)
+	// Marks overdue sessions expired and purges old ended ones until shutdown (server ADR 0014).
+	go sessionService.RunCleanup(ctx)
+	slog.Info("session limits", "mode", appConfig.Session.Mode, "maxSessions", appConfig.Session.MaxSessions)
 	// Live data (ADR 0009): the collector publishes every reading to the hub, which pushes the
 	// changed values to the Socket.IO rooms of the screens watching them. Off, both stay nil.
 	var liveHub *live.Hub
@@ -114,6 +120,7 @@ func run() error {
 		liveHub = live.NewHub(appConfig.Live.MinInterval)
 		liveHandler = handler.NewLiveHandler(appConfig.Live, liveHub, authService, machineService, userService)
 		authHandler.SetLiveHandler(liveHandler)
+		sessionHandler.SetLiveHandler(liveHandler)
 		go liveHub.Run(ctx)
 		go liveHandler.Run(ctx)
 		defer liveHandler.Close()
@@ -122,6 +129,7 @@ func run() error {
 	router := routes.New(routes.Handlers{
 		APIDocs:      apiDocs,
 		Auth:         authHandler,
+		Session:      sessionHandler,
 		User:         handler.NewUserHandler(userService),
 		Live:         liveHandler,
 		Branch:       handler.NewBranchHandler(branchService),

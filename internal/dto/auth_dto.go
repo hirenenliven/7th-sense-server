@@ -13,6 +13,9 @@ type LoginRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 	Remember bool   `json:"remember"` // keep the session after the browser closes
+	// ForceLogoutOthers answers a session_conflict: revoke the sessions in the way (all others in
+	// single mode, the least recently used in multiple mode) and log in.
+	ForceLogoutOthers bool `json:"forceLogoutOthers"`
 }
 
 // Validate trims the username and checks both fields are present. The format

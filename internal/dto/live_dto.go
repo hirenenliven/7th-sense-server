@@ -97,3 +97,17 @@ type LiveAccessChanged struct {
 	Removed []int64 `json:"removed"`
 	Added   []int64 `json:"added"`
 }
+
+// Reasons of the Socket.IO "session:expired" message (LiveSessionExpired.Reason).
+const (
+	LiveSessionReasonLoggedOut = "logged_out"      // logged out, or the user was deactivated / deleted
+	LiveSessionReasonRevoked   = "session_revoked" // another login, the user or the superadmin ended it
+	LiveSessionReasonExpired   = "session_expired" // its lifetime is over
+)
+
+// LiveSessionExpired is the Socket.IO "session:expired" message, sent just before the server closes
+// the session's sockets. RevokeReason (model.RevokeReason*) is set when Reason is session_revoked.
+type LiveSessionExpired struct {
+	Reason       string `json:"reason"`
+	RevokeReason string `json:"revokeReason,omitempty"`
+}

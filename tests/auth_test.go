@@ -10,24 +10,17 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
-	"7th-sense-server/internal/handler"
+	"7th-sense-server/internal/config"
 	"7th-sense-server/internal/middleware"
 	"7th-sense-server/internal/model"
-	"7th-sense-server/internal/repository"
-	"7th-sense-server/internal/routes"
-	"7th-sense-server/internal/service"
 )
 
 const authTestPassword = "Secret#123"
 
 // newAuthRouter builds the real router with the real session middleware, the
-// auth handler and the user handler (user managers only).
+// auth, session and user handlers, in multiple session mode without a limit.
 func newAuthRouter() http.Handler {
-	authService := service.NewAuthService(repository.NewAuthRepository(testDBPool))
-	return routes.New(routes.Handlers{
-		Auth: handler.NewAuthHandler(authService, false),
-		User: newUserHandler(),
-	}, middleware.Authenticate(authService))
+	return newSessionRouter(config.SessionConfig{Mode: config.SessionModeMultiple}).router
 }
 
 // createAuthTestUser inserts a user with authTestPassword and role, and

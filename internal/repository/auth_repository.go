@@ -71,65 +71,96 @@ func (authRepository *AuthRepository) FindUserByID(ctx context.Context, id int64
 	return user, mapAuthError("find user by id", err)
 }
 
-// CreateSession stores a session of userID that expires after lifetime.
-// impersonatedBy is the superadmin who started it with "log in as" (nil for a
-// password login).
-func (authRepository *AuthRepository) CreateSession(ctx context.Context, userID int64, tokenHash, deviceInfo string, lifetime time.Duration, impersonatedBy *int64) error {
-	query := `INSERT INTO auth_tokens (user_id, token, token_type, device_type, device_info, expires_at, impersonated_by)
-		VALUES ($1, $2, $3, 'web', NULLIF($4, ''), NOW() + $5 * INTERVAL '1 second', $6)`
+// CreateSession stores an active session of userID that expires after lifetime and returns its
+// id. ipAddress is the client's address (empty = unknown). impersonatedBy is the superadmin who
+// started it with "log in as" (nil for a password login).
+func (authRepository *AuthRepository) CreateSession(ctx context.Context, userID int64, tokenHash, deviceInfo, ipAddress string, lifetime time.Duration, impersonatedBy *int64) (int64, error) {
+	query := `INSERT INTO auth_tokens (user_id, token, token_type, device_type, device_info, ip_address,
+			expires_at, last_used_at, impersonated_by, status)
+		VALUES ($1, $2, $3, 'web', NULLIF($4, ''), NULLIF($5, ''),
+			NOW() + $6 * INTERVAL '1 second', NOW(), $7, $8)
+		RETURNING id`
 
 	rows, err := db.Execute(ctx, authRepository.database, query,
-		userID, tokenHash, sessionTokenType, deviceInfo, int64(lifetime.Seconds()), impersonatedBy,
+		userID, tokenHash, sessionTokenType, deviceInfo, ipAddress, int64(lifetime.Seconds()), impersonatedBy,
+		model.SessionStatusActive,
 	)
 	if err != nil {
-		return fmt.Errorf("create session: %w", err)
+		return 0, fmt.Errorf("create session: %w", err)
 	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return fmt.Errorf("create session: %w", err)
+	id, err := pgx.CollectOneRow(rows, pgx.RowTo[int64])
+	if err != nil {
+		return 0, fmt.Errorf("create session: %w", err)
 	}
-	return nil
+	return id, nil
 }
 
-// FindUserBySession returns the user of a live session and marks the session
-// as used. A session is live when it is not deleted or expired and its user is
-// active and not deleted, so deactivating a user ends their sessions at once.
-func (authRepository *AuthRepository) FindUserBySession(ctx context.Context, tokenHash string) (model.AuthUser, error) {
-	query := `UPDATE auth_tokens
-		SET last_used_at = NOW()
-		FROM users
-		JOIN roles ON roles.id = users.role_id
-		WHERE auth_tokens.token = $1
-			AND auth_tokens.token_type = $2
-			AND auth_tokens.is_deleted = false
-			AND auth_tokens.expires_at > NOW()
-			AND users.id = auth_tokens.user_id
-			AND users.is_deleted = false
-			AND COALESCE(users.status, 'active') = 'active'
-		RETURNING users.id, users.username, users.email,
-			COALESCE(users.first_name, '') AS first_name,
-			COALESCE(users.last_name, '') AS last_name,
-			COALESCE(users.status, '') AS status,
-			users.company_id,
-			roles.name AS role`
+// FindUserBySession returns the user of a live session with the session's id. A session is live
+// when it is active, not deleted or expired, and its user is active and not deleted, so
+// deactivating a user ends their sessions at once. last_used_at is written only when it is older
+// than touchInterval, so a busy screen does not write on every request.
+func (authRepository *AuthRepository) FindUserBySession(ctx context.Context, tokenHash string, touchInterval time.Duration) (model.SessionUser, error) {
+	query := `WITH live AS (
+			SELECT auth_tokens.id AS session_id, auth_tokens.last_used_at,
+				users.id, users.username, users.email,
+				COALESCE(users.first_name, '') AS first_name,
+				COALESCE(users.last_name, '') AS last_name,
+				COALESCE(users.status, '') AS status,
+				users.company_id,
+				roles.name AS role
+			FROM auth_tokens
+			JOIN users ON users.id = auth_tokens.user_id
+			JOIN roles ON roles.id = users.role_id
+			WHERE auth_tokens.token = $1
+				AND auth_tokens.token_type = $2
+				AND auth_tokens.status = $3
+				AND auth_tokens.is_deleted = false
+				AND auth_tokens.expires_at > NOW()
+				AND users.is_deleted = false
+				AND COALESCE(users.status, 'active') = 'active'
+		), touched AS (
+			UPDATE auth_tokens SET last_used_at = NOW()
+			FROM live
+			WHERE auth_tokens.id = live.session_id
+				AND (live.last_used_at IS NULL OR live.last_used_at < NOW() - $4 * INTERVAL '1 second')
+		)
+		SELECT session_id, id, username, email, first_name, last_name, status, company_id, role FROM live`
 
-	rows, err := db.Execute(ctx, authRepository.database, query, tokenHash, sessionTokenType)
+	rows, err := db.Execute(ctx, authRepository.database, query,
+		tokenHash, sessionTokenType, model.SessionStatusActive, int64(touchInterval.Seconds()))
 	if err != nil {
-		return model.AuthUser{}, fmt.Errorf("find session user: %w", err)
+		return model.SessionUser{}, fmt.Errorf("find session user: %w", err)
 	}
 	// Lax: the password hash is not read for a session.
-	user, err := pgx.CollectOneRow(rows, pgx.RowToStructByNameLax[model.AuthUser])
+	user, err := pgx.CollectOneRow(rows, pgx.RowToStructByNameLax[model.SessionUser])
 	return user, mapAuthError("find session user", err)
 }
 
-// DeleteSession soft-deletes the session. Deleting a missing or already deleted
-// session succeeds, so logout is idempotent.
-func (authRepository *AuthRepository) DeleteSession(ctx context.Context, tokenHash string) error {
-	query := `UPDATE auth_tokens
-		SET is_deleted = true, deleted_at = NOW()
-		WHERE token = $1 AND token_type = $2 AND is_deleted = false`
+// FindSessionState returns the status of the session of tokenHash whatever it is, so a request
+// with an ended session can be told why. ErrNotFound when no such session exists (or it was purged).
+func (authRepository *AuthRepository) FindSessionState(ctx context.Context, tokenHash string) (model.SessionState, error) {
+	query := `SELECT status, expires_at <= NOW() AS expired, COALESCE(revoke_reason, '') AS revoke_reason
+		FROM auth_tokens
+		WHERE token = $1 AND token_type = $2`
 
 	rows, err := db.Execute(ctx, authRepository.database, query, tokenHash, sessionTokenType)
+	if err != nil {
+		return model.SessionState{}, fmt.Errorf("find session state: %w", err)
+	}
+	state, err := pgx.CollectOneRow(rows, pgx.RowToStructByName[model.SessionState])
+	return state, mapAuthError("find session state", err)
+}
+
+// DeleteSession logs the session out: an active one becomes logged_out, and it is soft-deleted.
+// Deleting a missing or already deleted session succeeds, so logout is idempotent.
+func (authRepository *AuthRepository) DeleteSession(ctx context.Context, tokenHash string) error {
+	query := `UPDATE auth_tokens
+		SET is_deleted = true, deleted_at = NOW(),
+			status = CASE WHEN status = $3 THEN $4 ELSE status END
+		WHERE token = $1 AND token_type = $2 AND is_deleted = false`
+
+	rows, err := db.Execute(ctx, authRepository.database, query, tokenHash, sessionTokenType,
+		model.SessionStatusActive, model.SessionStatusLoggedOut)
 	if err != nil {
 		return fmt.Errorf("delete session: %w", err)
 	}

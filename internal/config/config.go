@@ -2,6 +2,7 @@ package config
 
 import (
 	"log/slog"
+	"net/netip"
 	"os"
 	"strconv"
 	"strings"
@@ -27,6 +28,36 @@ type Config struct {
 	CNC CNCConfig
 	// Live holds the settings of the Socket.IO live data (docs/live-socket-events.md).
 	Live LiveConfig
+	// Session holds the login session rules (server ADR 0014).
+	Session SessionConfig
+	// TrustedProxies are the reverse proxies whose X-Forwarded-For is believed when reading a
+	// client's IP (TRUSTED_PROXIES, IPs or CIDRs separated by commas). Empty: the TCP peer's
+	// address is the client's.
+	TrustedProxies []netip.Prefix
+}
+
+// Session modes (SESSION_MODE).
+const (
+	// SessionModeSingle allows one active session per user: a second login answers a conflict.
+	SessionModeSingle = "single"
+	// SessionModeMultiple allows several active sessions per user, up to SessionConfig.MaxSessions.
+	SessionModeMultiple = "multiple"
+)
+
+// SessionConfig holds the SESSION_* settings: how many sessions a user may have at once and how
+// long ended sessions are kept. A restart applies changes.
+type SessionConfig struct {
+	// Mode is SessionModeSingle or SessionModeMultiple (SESSION_MODE, default multiple).
+	Mode string
+	// MaxSessions bounds a user's active sessions in multiple mode; 0 = unlimited (MAX_SESSIONS).
+	// "Log in as" sessions never count.
+	MaxSessions int
+	// CleanupInterval is how often overdue sessions are marked expired and old ones purged
+	// (SESSION_CLEANUP_MINUTES, default 15).
+	CleanupInterval time.Duration
+	// Retention is how long logged out, revoked and expired sessions are kept before they are
+	// deleted (SESSION_RETENTION_DAYS, default 30).
+	Retention time.Duration
 }
 
 // LiveConfig holds the LIVE_* settings of the Socket.IO server that pushes machine values to the
@@ -137,7 +168,47 @@ func Load() Config {
 			Revalidate:        time.Duration(getEnvInt("LIVE_REVALIDATE_SEC", 60)) * time.Second,
 			MaxSocketsPerUser: getEnvInt("LIVE_MAX_SOCKETS_PER_USER", 10),
 		},
+		Session: SessionConfig{
+			Mode:            getEnvSessionMode("SESSION_MODE"),
+			MaxSessions:     getEnvInt("MAX_SESSIONS", 0),
+			CleanupInterval: time.Duration(getEnvInt("SESSION_CLEANUP_MINUTES", 15)) * time.Minute,
+			Retention:       time.Duration(getEnvInt("SESSION_RETENTION_DAYS", 30)) * 24 * time.Hour,
+		},
+		TrustedProxies: getEnvPrefixes("TRUSTED_PROXIES"),
 	}
+}
+
+// getEnvSessionMode reads SessionModeSingle or SessionModeMultiple (any case); a missing value is
+// multiple, an invalid one is logged and multiple.
+func getEnvSessionMode(key string) string {
+	value := strings.ToLower(strings.TrimSpace(getEnv(key, SessionModeMultiple)))
+	if value != SessionModeSingle && value != SessionModeMultiple {
+		slog.Warn("invalid session mode, using multiple", "variable", key, "value", value)
+		return SessionModeMultiple
+	}
+	return value
+}
+
+// getEnvPrefixes reads IP addresses and CIDR ranges separated by commas or spaces ("10.0.0.1,
+// 192.168.0.0/16"); an invalid entry is logged and left out.
+func getEnvPrefixes(key string) []netip.Prefix {
+	var prefixes []netip.Prefix
+	for _, entry := range strings.FieldsFunc(getEnv(key, ""), func(character rune) bool {
+		return character == ',' || character == ' '
+	}) {
+		if prefix, err := netip.ParsePrefix(entry); err == nil {
+			prefixes = append(prefixes, prefix.Masked())
+			continue
+		}
+		address, err := netip.ParseAddr(entry)
+		if err != nil {
+			slog.Warn("invalid trusted proxy ignored", "variable", key, "value", entry)
+			continue
+		}
+		address = address.Unmap()
+		prefixes = append(prefixes, netip.PrefixFrom(address, address.BitLen()))
+	}
+	return prefixes
 }
 
 func getEnv(key, fallback string) string {

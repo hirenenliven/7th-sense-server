@@ -38,8 +38,15 @@ type liveTestServer struct {
 // hub; both stop when the test ends.
 func newLiveTestServer(t *testing.T) liveTestServer {
 	t.Helper()
+	return newLiveTestServerWith(t, config.SessionConfig{Mode: config.SessionModeMultiple})
+}
+
+// newLiveTestServerWith is newLiveTestServer with the session limits of sessionConfig and the
+// session routes, whose revokes close live sockets too.
+func newLiveTestServerWith(t *testing.T, sessionConfig config.SessionConfig) liveTestServer {
+	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
-	authService := service.NewAuthService(repository.NewAuthRepository(testDBPool))
+	authService := service.NewAuthService(testDBPool, sessionConfig)
 	machineService := newMachineService()
 	userCountryService := service.NewUserCountryService(repository.NewUserCountryRepository(testDBPool))
 	userStateService := service.NewUserStateService(repository.NewUserStateRepository(testDBPool), userCountryService)
@@ -53,7 +60,9 @@ func newLiveTestServer(t *testing.T) liveTestServer {
 	liveHandler := handler.NewLiveHandler(liveConfig, hub, authService, machineService, userService)
 	authHandler := handler.NewAuthHandler(authService, false)
 	authHandler.SetLiveHandler(liveHandler)
-	router := routes.New(routes.Handlers{Auth: authHandler, Live: liveHandler}, middleware.Authenticate(authService))
+	sessionHandler := handler.NewSessionHandler(service.NewSessionService(testDBPool, sessionConfig))
+	sessionHandler.SetLiveHandler(liveHandler)
+	router := routes.New(routes.Handlers{Auth: authHandler, Session: sessionHandler, Live: liveHandler}, middleware.Authenticate(authService))
 	go hub.Run(ctx)
 	go liveHandler.Run(ctx)
 

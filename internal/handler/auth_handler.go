@@ -1,10 +1,13 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
+	"net/netip"
 
 	"7th-sense-server/internal/dto"
 	"7th-sense-server/internal/middleware"
+	"7th-sense-server/internal/model"
 	"7th-sense-server/internal/response"
 	"7th-sense-server/internal/service"
 )
@@ -15,9 +18,10 @@ const sessionCookiePath = "/api"
 // AuthHandler handles login, logout, "log in as" and the logged-in user. The
 // session token travels only in an HttpOnly cookie, never in a response body.
 type AuthHandler struct {
-	service      *service.AuthService
-	secureCookie bool         // send the cookie over HTTPS only
-	live         *LiveHandler // closes a session's live sockets at logout; nil = live data off
+	service        *service.AuthService
+	secureCookie   bool           // send the cookie over HTTPS only
+	live           *LiveHandler   // closes a session's live sockets at logout; nil = live data off
+	trustedProxies []netip.Prefix // proxies whose X-Forwarded-For is believed (TRUSTED_PROXIES)
 }
 
 // NewAuthHandler creates an AuthHandler that uses authService. secureCookie
@@ -26,16 +30,28 @@ func NewAuthHandler(authService *service.AuthService, secureCookie bool) *AuthHa
 	return &AuthHandler{service: authService, secureCookie: secureCookie}
 }
 
-// SetLiveHandler makes Logout close the ended session's live sockets.
+// SetLiveHandler makes Logout close the ended session's live sockets, and Login those of the
+// sessions it revoked.
 func (authHandler *AuthHandler) SetLiveHandler(liveHandler *LiveHandler) {
 	authHandler.live = liveHandler
 }
 
-// Login handles POST /api/v1/auth/login: checks the credentials, sets the
-// session cookie and returns the user.
+// SetTrustedProxies makes the client IP stored with a session come from X-Forwarded-For when the
+// request arrives through one of trustedProxies (TRUSTED_PROXIES). Without it the TCP peer's
+// address is used.
+func (authHandler *AuthHandler) SetTrustedProxies(trustedProxies []netip.Prefix) {
+	authHandler.trustedProxies = trustedProxies
+}
+
+// Login handles POST /api/v1/auth/login: checks the credentials and the session limits, sets the
+// session cookie and returns the user. A login over the limit answers 409 session_conflict with
+// the sessions in the way; forceLogoutOthers revokes them and logs in.
 //
 // @Summary      Login
-// @Description  Checks the credentials and starts a session. deviceInfo (the browser's user agent) is stored with the session for auditing.
+// @Description  Checks the credentials and starts a session. The browser's user agent and IP address (X-Forwarded-For only behind TRUSTED_PROXIES) are stored with the session.
+// @Description  Session limits (SESSION_MODE, MAX_SESSIONS; "log in as" sessions never count): with valid credentials, a login while the user already has an active session (single mode) or MAX_SESSIONS of them (multiple mode) answers 409 with message session_conflict, creates no session and keeps the others; data lists the sessions in the way (id, device, browser, os, ipAddress, createdAt, lastUsedAt).
+// @Description  forceLogoutOthers: true re-checks the password, revokes the sessions in the way (single mode: all others; multiple mode: the least recently used) with reason replaced_by_new_login and creates the new session in one transaction; the revoked browsers get 401 session_revoked and their live sockets session:expired.
+// @Description  Too many wrong passwords (429) is checked before the session limits.
 // @Description  Validation: Invalid username or password; Please enter username; Please enter password.
 // @Description
 // @Description  Used by pages: Login
@@ -44,10 +60,11 @@ func (authHandler *AuthHandler) SetLiveHandler(liveHandler *LiveHandler) {
 // @Accept       json
 // @Produce      json
 // @Param        request body dto.LoginRequest true "Request body"
-// @Success      200 {object} response.Envelope{data=object}
+// @Success      200 {object} response.Envelope{data=model.AuthUser}
 // @Failure      400 {object} response.Envelope "Validation error"
 // @Failure      401 {object} response.Envelope "Invalid username or password"
 // @Failure      403 {object} response.Envelope "Account inactive"
+// @Failure      409 {object} response.Envelope{data=dto.SessionConflictResponse} "session_conflict: the user already has as many sessions as allowed"
 // @Failure      429 {object} response.Envelope "Too many login attempts"
 // @Failure      500 {object} response.Envelope "Server error"
 // @Router       /v1/auth/login [post]
@@ -63,10 +80,18 @@ func (authHandler *AuthHandler) Login(writer http.ResponseWriter, request *http.
 		return
 	}
 
-	session, err := authHandler.service.Login(request.Context(), loginRequest, request.UserAgent())
+	session, err := authHandler.service.Login(request.Context(), loginRequest, authHandler.sessionClient(request))
+	var conflictError *service.SessionConflictError
+	if errors.As(err, &conflictError) {
+		response.SendResponse(writer, request, err, conflictError.Conflict)
+		return
+	}
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
+	}
+	if authHandler.live != nil {
+		authHandler.live.CloseRevokedSessions(session.RevokedSessions, model.RevokeReasonReplacedByNewLogin)
 	}
 
 	cookie := authHandler.sessionCookie(session.Token)
@@ -85,8 +110,8 @@ func (authHandler *AuthHandler) Login(writer http.ResponseWriter, request *http.
 // the superadmin's own session is not touched.
 //
 // @Summary      Logout
-// @Description  Ends the session of token. An unknown or empty token is not an error. Called as /api/as/{key}/v1/auth/logout it ends only that "log in as" session.
-// @Description  The session's live data sockets (Socket.IO, /api/v1/socket.io/) get session:expired and are closed; the user's other sessions keep theirs.
+// @Description  Ends the session of token: its status becomes logged_out (auth_tokens, also soft-deleted). An unknown or empty token is not an error. Called as /api/as/{key}/v1/auth/logout it ends only that "log in as" session.
+// @Description  The session's live data sockets (Socket.IO, /api/v1/socket.io/) get session:expired {reason: logged_out} and are closed; the user's other sessions keep theirs.
 // @Description
 // @Description  Used by pages: App shell (session, logout, theme)
 // @Tags         Auth
@@ -151,7 +176,7 @@ func (authHandler *AuthHandler) LoginAs(writer http.ResponseWriter, request *htt
 		response.SendResponse(writer, request, err, nil)
 		return
 	}
-	session, err := authHandler.service.LoginAs(request.Context(), actor, loginAsRequest.CustomerID, request.UserAgent())
+	session, err := authHandler.service.LoginAs(request.Context(), actor, loginAsRequest.CustomerID, authHandler.sessionClient(request))
 	if err != nil {
 		response.SendResponse(writer, request, err, nil)
 		return
@@ -169,6 +194,11 @@ func (authHandler *AuthHandler) Me(writer http.ResponseWriter, request *http.Req
 		return
 	}
 	response.SendResponse(writer, request, response.Success, user)
+}
+
+// sessionClient returns the user agent and client IP stored with a new session.
+func (authHandler *AuthHandler) sessionClient(request *http.Request) dto.SessionClient {
+	return dto.SessionClient{UserAgent: request.UserAgent(), IPAddress: middleware.ClientIP(request, authHandler.trustedProxies)}
 }
 
 // sessionCookie returns the session cookie with value and the shared attributes.

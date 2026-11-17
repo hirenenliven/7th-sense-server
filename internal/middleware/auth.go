@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"encoding/hex"
+	"errors"
 	"net/http"
 	"slices"
 	"strings"
@@ -30,6 +31,8 @@ const LoginAsPathPrefix = "/api/as/"
 const loginAsKeyLength = 32
 
 type authUserKey struct{}
+
+type sessionIDKey struct{}
 
 type loginAsKey struct{}
 
@@ -87,20 +90,36 @@ func SessionToken(request *http.Request) string {
 	return ""
 }
 
-// Authenticate resolves the session cookie (see SessionToken) to the logged-in user and puts it
-// in the request context (read it with CurrentUser or UserID). Requests
-// without a valid session get 401 and never reach the handler.
+// Authenticate resolves the session cookie (see SessionToken) to the logged-in user and the
+// session's id and puts them in the request context (read them with CurrentUser, UserID and
+// SessionID). Requests without a valid session get 401 and never reach the handler: message
+// session_revoked (data {reason}) or session_expired when the session ended that way, else
+// "Please log in to continue".
 func Authenticate(authService *service.AuthService) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-			user, err := authService.Authenticate(request.Context(), SessionToken(request))
+			sessionUser, err := authService.AuthenticateSession(request.Context(), SessionToken(request))
 			if err != nil {
+				var revokedError *service.SessionRevokedError
+				if errors.As(err, &revokedError) {
+					response.SendResponse(writer, request, err, map[string]string{"reason": revokedError.RevokeReason})
+					return
+				}
 				response.SendResponse(writer, request, err, nil)
 				return
 			}
-			next.ServeHTTP(writer, request.WithContext(WithAuthUser(request.Context(), user)))
+			ctx := WithAuthUser(request.Context(), sessionUser.AuthUser)
+			ctx = context.WithValue(ctx, sessionIDKey{}, sessionUser.SessionID)
+			next.ServeHTTP(writer, request.WithContext(ctx))
 		})
 	}
+}
+
+// SessionID returns the id of the request's session set by Authenticate. ok is false when the
+// request was not authenticated with a session.
+func SessionID(ctx context.Context) (sessionID int64, ok bool) {
+	sessionID, ok = ctx.Value(sessionIDKey{}).(int64)
+	return sessionID, ok && sessionID > 0
 }
 
 // RequireRole lets only users with one of roles through; others get 403. It

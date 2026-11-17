@@ -58,6 +58,20 @@ var (
 	// SelectCustomer: log in as without a customer.
 	SelectCustomer = newResponse(http.StatusBadRequest, "Please select customer")
 
+	// Session responses (server ADR 0014). The three message codes are fixed strings the
+	// client tells apart and words itself; do not change them.
+	// SessionRevoked: the session was ended by another login, the user or the superadmin.
+	SessionRevoked = newResponse(http.StatusUnauthorized, "session_revoked")
+	// SessionExpired: the session outlived its lifetime.
+	SessionExpired = newResponse(http.StatusUnauthorized, "session_expired")
+	// SessionConflict: the login would exceed the user's sessions (SESSION_MODE / MAX_SESSIONS);
+	// data lists the active sessions.
+	SessionConflict = newResponse(http.StatusConflict, "session_conflict")
+	// SessionNotFound: the session does not exist, is not active or is not the caller's.
+	SessionNotFound = newResponse(http.StatusNotFound, "Session not found")
+	// SessionUserNotFound: the superadmin names a user that does not exist or is deleted.
+	SessionUserNotFound = newResponse(http.StatusNotFound, "User not found")
+
 	// Validation error responses
 	ValidName              = newResponse(http.StatusBadRequest, "Please enter valid name")
 	ValidCode              = newResponse(http.StatusBadRequest, "Please enter valid code")
