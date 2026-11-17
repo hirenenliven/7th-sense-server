@@ -72,6 +72,18 @@ var (
 	// SessionUserNotFound: the superadmin names a user that does not exist or is deleted.
 	SessionUserNotFound = newResponse(http.StatusNotFound, "User not found")
 
+	// Operator task responses (server ADR 0015)
+	OperatorTaskNotFound   = newResponse(http.StatusNotFound, "Operator task not found")
+	OperatorTaskExists     = newResponse(http.StatusBadRequest, "This task is already added for this customer and machine type")
+	SelectTask             = newResponse(http.StatusBadRequest, "Please select task")
+	SelectValidTask        = newResponse(http.StatusBadRequest, "Please select valid task")
+	SelectValidCustomer    = newResponse(http.StatusBadRequest, "Please select valid customer")
+	SelectValidMachineType = newResponse(http.StatusBadRequest, "Please select valid machine type")
+	EnterTask              = newResponse(http.StatusBadRequest, "Please enter task")
+	TaskTooLong            = newResponse(http.StatusBadRequest, "Task must be at most 100 characters")
+	MaintenanceTaskExists  = newResponse(http.StatusBadRequest, "This task already exists")
+	MaintenanceTaskMissing = newResponse(http.StatusNotFound, "Task not found")
+
 	// Validation error responses
 	ValidName              = newResponse(http.StatusBadRequest, "Please enter valid name")
 	ValidCode              = newResponse(http.StatusBadRequest, "Please enter valid code")

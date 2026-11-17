@@ -15,7 +15,6 @@ type Branch struct {
 	CustomerID *int64     `db:"customer_id" json:"customerId"`
 	GSTNumber  string     `db:"gst_number" json:"gstNumber"`
 	PANNumber  string     `db:"pan_number" json:"panNumber"`
-	ColorCode  string     `db:"color_code" json:"colorCode"`
 	Status     string     `db:"status" json:"status"`
 	IsDeleted  bool       `db:"is_deleted" json:"isDeleted"`
 	DeletedAt  *time.Time `db:"deleted_at" json:"deletedAt"`

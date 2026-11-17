@@ -10,10 +10,9 @@ import (
 )
 
 var (
-	codePattern      = regexp.MustCompile(`^[A-Z0-9]{2,20}$`)
-	gstPattern       = regexp.MustCompile(`^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[A-Z0-9]{1}[Z]{1}[A-Z0-9]{1}$`)
-	panPattern       = regexp.MustCompile(`^[A-Z]{5}[0-9]{4}[A-Z]{1}$`)
-	colorCodePattern = regexp.MustCompile(`^#[0-9A-Fa-f]{6}$`)
+	codePattern = regexp.MustCompile(`^[A-Z0-9]{2,20}$`)
+	gstPattern  = regexp.MustCompile(`^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[A-Z0-9]{1}[Z]{1}[A-Z0-9]{1}$`)
+	panPattern  = regexp.MustCompile(`^[A-Z]{5}[0-9]{4}[A-Z]{1}$`)
 )
 
 // Branch statuses accepted by UpdateBranchRequest.
@@ -32,7 +31,6 @@ type CreateBranchRequest struct {
 	CustomerID *int64 `json:"customerId"`
 	GSTNumber  string `json:"gstNumber"`
 	PANNumber  string `json:"panNumber"`
-	ColorCode  string `json:"colorCode"`
 	Status     string `json:"status"`
 }
 
@@ -44,10 +42,9 @@ func (request *CreateBranchRequest) Validate() error {
 	request.Address = strings.TrimSpace(request.Address)
 	request.GSTNumber = strings.TrimSpace(request.GSTNumber)
 	request.PANNumber = strings.TrimSpace(request.PANNumber)
-	request.ColorCode = strings.TrimSpace(request.ColorCode)
 	request.Status = strings.ToLower(strings.TrimSpace(request.Status))
 
-	if err := validateBranchFields(request.Code, request.Name, request.Email, request.Address, request.GSTNumber, request.PANNumber, request.ColorCode, request.Status); err != nil {
+	if err := validateBranchFields(request.Code, request.Name, request.Email, request.Address, request.GSTNumber, request.PANNumber, request.Status); err != nil {
 		return err
 	}
 	return nil
@@ -64,7 +61,6 @@ type UpdateBranchRequest struct {
 	CustomerID *int64 `json:"customerId"`
 	GSTNumber  string `json:"gstNumber"`
 	PANNumber  string `json:"panNumber"`
-	ColorCode  string `json:"colorCode"`
 	Status     string `json:"status"`
 }
 
@@ -76,17 +72,16 @@ func (request *UpdateBranchRequest) Validate() error {
 	request.Address = strings.TrimSpace(request.Address)
 	request.GSTNumber = strings.TrimSpace(request.GSTNumber)
 	request.PANNumber = strings.TrimSpace(request.PANNumber)
-	request.ColorCode = strings.TrimSpace(request.ColorCode)
 	request.Status = strings.ToLower(strings.TrimSpace(request.Status))
 
-	if err := validateBranchFields(request.Code, request.Name, request.Email, request.Address, request.GSTNumber, request.PANNumber, request.ColorCode, request.Status); err != nil {
+	if err := validateBranchFields(request.Code, request.Name, request.Email, request.Address, request.GSTNumber, request.PANNumber, request.Status); err != nil {
 		return err
 	}
 	return nil
 }
 
 // validateBranchFields checks the fields shared by create and update.
-func validateBranchFields(code, name, email, address, gstNumber, panNumber, colorCode, status string) error {
+func validateBranchFields(code, name, email, address, gstNumber, panNumber, status string) error {
 	if !codePattern.MatchString(code) {
 		return response.NewError(http.StatusBadRequest, "Please enter valid code")
 	}
@@ -106,9 +101,6 @@ func validateBranchFields(code, name, email, address, gstNumber, panNumber, colo
 	}
 	if panNumber != "" && !panPattern.MatchString(panNumber) {
 		return response.NewError(http.StatusBadRequest, "Please enter valid PAN number")
-	}
-	if colorCode != "" && !colorCodePattern.MatchString(colorCode) {
-		return response.NewError(http.StatusBadRequest, "Please enter valid color code")
 	}
 	if status != "" && status != BranchStatusActive && status != BranchStatusInactive {
 		return response.NewError(http.StatusBadRequest, "Please enter valid status")

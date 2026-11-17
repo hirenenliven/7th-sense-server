@@ -6,8 +6,6 @@ components:
           type: string
         code:
           type: string
-        colorCode:
-          type: string
         customerId:
           type: integer
         email:
@@ -208,6 +206,20 @@ components:
         warrantyDate:
           description: optional
           type: string
+      type: object
+    dto.CreateMaintenanceTaskRequest:
+      properties:
+        description:
+          type: string
+      type: object
+    dto.CreateOperatorTaskRequest:
+      properties:
+        maintenanceTaskId:
+          type: integer
+        modelId:
+          type: integer
+        userId:
+          type: integer
       type: object
     dto.CreatePartRequest:
       properties:
@@ -941,8 +953,6 @@ components:
           type: string
         code:
           type: string
-        colorCode:
-          type: string
         customerId:
           type: integer
         email:
@@ -1152,6 +1162,22 @@ components:
         warrantyDate:
           description: optional
           type: string
+      type: object
+    dto.UpdateMaintenanceTaskRequest:
+      properties:
+        description:
+          type: string
+        status:
+          type: string
+      type: object
+    dto.UpdateOperatorTaskRequest:
+      properties:
+        maintenanceTaskId:
+          type: integer
+        modelId:
+          type: integer
+        userId:
+          type: integer
       type: object
     dto.UpdatePartRequest:
       properties:
@@ -1535,8 +1561,6 @@ components:
           description: read from user_city
           type: string
         code:
-          type: string
-        colorCode:
           type: string
         createdAt:
           type: string
@@ -2055,6 +2079,26 @@ components:
         updatedAt:
           type: string
       type: object
+    model.MaintenanceTask:
+      properties:
+        createdAt:
+          type: string
+        deletedAt:
+          type: string
+        description:
+          type: string
+        id:
+          type: integer
+        isDeleted:
+          type: boolean
+        status:
+          type: string
+        updatedAt:
+          type: string
+        usageCount:
+          description: Read-only (join)
+          type: integer
+      type: object
     model.ModeDuration:
       properties:
         durationSec:
@@ -2063,6 +2107,83 @@ components:
           type: integer
         modeName:
           type: string
+      type: object
+    model.OperatorJob:
+      properties:
+        customerName:
+          type: string
+        endTime:
+          type: string
+        itemId:
+          type: integer
+        jobId:
+          type: string
+        machineId:
+          type: integer
+        machineName:
+          type: string
+        modelName:
+          type: string
+        operatorId:
+          type: integer
+        operatorName:
+          type: string
+        partId:
+          type: integer
+        partName:
+          type: string
+        partNo:
+          type: string
+        processName:
+          type: string
+        programName:
+          type: string
+        quantity:
+          type: integer
+        scheduleDate:
+          type: string
+        scheduleId:
+          type: integer
+        shiftId:
+          type: integer
+        shiftName:
+          type: string
+        startTime:
+          type: string
+        userId:
+          type: integer
+      type: object
+    model.OperatorTask:
+      properties:
+        brandName:
+          type: string
+        companyName:
+          type: string
+        controllerName:
+          type: string
+        createdAt:
+          type: string
+        customerName:
+          description: Read-only (joins)
+          type: string
+        deletedAt:
+          type: string
+        id:
+          type: integer
+        isDeleted:
+          type: boolean
+        maintenanceTaskId:
+          type: integer
+        modelId:
+          type: integer
+        modelName:
+          type: string
+        task:
+          type: string
+        updatedAt:
+          type: string
+        userId:
+          type: integer
       type: object
     model.Part:
       properties:
@@ -3220,7 +3341,6 @@ paths:
             example:
               address: Postman sample
               code: Postman sample
-              colorCode: Postman sample
               customerId: 1
               email: Postman sample
               gstNumber: Postman sample
@@ -3468,7 +3588,6 @@ paths:
             example:
               address: Postman sample
               code: Postman sample
-              colorCode: Postman sample
               customerId: 1
               email: Postman sample
               gstNumber: Postman sample
@@ -7414,6 +7533,311 @@ paths:
       summary: Check machine network
       tags:
         - Machines
+  /v1/maintenance-tasks:
+    get:
+      description: |-
+        Returns the master list of operator tasks (shared by every customer), ordered by description, active and inactive, each with usageCount (the operator tasks that use it). Every logged-in user reads it.
+
+        Used by pages: Operator tasks, Task list
+      operationId: getMaintenanceTasks
+      responses:
+        "200":
+          content:
+            application/json:
+              example:
+                message: success
+                statusCode: 200
+                success: true
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/response.Envelope'
+                  - properties:
+                      data:
+                        items:
+                          $ref: '#/components/schemas/model.MaintenanceTask'
+                        type: array
+                    type: object
+          description: OK
+        "401":
+          content:
+            application/json:
+              example:
+                message: Not logged in
+                statusCode: 401
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not logged in
+        "500":
+          content:
+            application/json:
+              example:
+                message: Server error
+                statusCode: 500
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Server error
+      security:
+        - cookieAuth: []
+      summary: Get maintenance tasks
+      tags:
+        - Operator tasks
+    post:
+      description: |-
+        Adds an active task to the master list (Task List screen, or the Task field's New task on the Add Operator Task form). Spaces are trimmed and joined; the description is unique, ignoring case.
+        Roles: superadmin (others get 403).
+        Validation: Please enter task; Task must be at most 100 characters; This task already exists.
+
+        Used by pages: Operator tasks, Task list
+      operationId: createMaintenanceTask
+      requestBody:
+        content:
+          application/json:
+            example:
+              description: Postman sample
+            schema:
+              $ref: '#/components/schemas/dto.CreateMaintenanceTaskRequest'
+        description: Request body
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              example:
+                message: created
+                statusCode: 201
+                success: true
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/response.Envelope'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/model.MaintenanceTask'
+                    type: object
+          description: Created
+        "400":
+          content:
+            application/json:
+              example:
+                message: Validation error
+                statusCode: 400
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Validation error
+        "401":
+          content:
+            application/json:
+              example:
+                message: Not logged in
+                statusCode: 401
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not logged in
+        "403":
+          content:
+            application/json:
+              example:
+                message: Role not allowed
+                statusCode: 403
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Role not allowed
+        "500":
+          content:
+            application/json:
+              example:
+                message: Server error
+                statusCode: 500
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Server error
+      security:
+        - cookieAuth: []
+      summary: Add maintenance task
+      tags:
+        - Operator tasks
+  /v1/maintenance-tasks/{id}:
+    delete:
+      description: |-
+        Soft-deletes the task. A task used by operator tasks is refused (400): remove it from them first, or make it inactive.
+        Roles: superadmin (others get 403).
+
+        Used by pages: Task list
+      operationId: deleteMaintenanceTask
+      parameters:
+        - description: Task id
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              example:
+                message: success
+                statusCode: 200
+                success: true
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              example:
+                message: Task in use
+                statusCode: 400
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Task in use
+        "401":
+          content:
+            application/json:
+              example:
+                message: Not logged in
+                statusCode: 401
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not logged in
+        "403":
+          content:
+            application/json:
+              example:
+                message: Role not allowed
+                statusCode: 403
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Role not allowed
+        "404":
+          content:
+            application/json:
+              example:
+                message: Task not found
+                statusCode: 404
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Task not found
+        "500":
+          content:
+            application/json:
+              example:
+                message: Server error
+                statusCode: 500
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Server error
+      security:
+        - cookieAuth: []
+      summary: Delete maintenance task
+      tags:
+        - Operator tasks
+    put:
+      description: |-
+        Changes the description and status (active / inactive; blank keeps it). An inactive task is left out of the Task dropdown; operator tasks that use it keep it. The new description shows on every operator task that uses it.
+        Roles: superadmin (others get 403).
+        Validation: Please enter task; Task must be at most 100 characters; Please enter valid status; This task already exists; Task not found.
+
+        Used by pages: Task list
+      operationId: updateMaintenanceTask
+      parameters:
+        - description: Task id
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            example:
+              description: Postman sample
+              status: Postman sample
+            schema:
+              $ref: '#/components/schemas/dto.UpdateMaintenanceTaskRequest'
+        description: Request body
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              example:
+                message: success
+                statusCode: 200
+                success: true
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/response.Envelope'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/model.MaintenanceTask'
+                    type: object
+          description: OK
+        "400":
+          content:
+            application/json:
+              example:
+                message: Validation error
+                statusCode: 400
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Validation error
+        "401":
+          content:
+            application/json:
+              example:
+                message: Not logged in
+                statusCode: 401
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not logged in
+        "403":
+          content:
+            application/json:
+              example:
+                message: Role not allowed
+                statusCode: 403
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Role not allowed
+        "404":
+          content:
+            application/json:
+              example:
+                message: Task not found
+                statusCode: 404
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Task not found
+        "500":
+          content:
+            application/json:
+              example:
+                message: Server error
+                statusCode: 500
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Server error
+      security:
+        - cookieAuth: []
+      summary: Update maintenance task
+      tags:
+        - Operator tasks
   /v1/me:
     get:
       description: |-
@@ -7535,7 +7959,7 @@ paths:
       description: |-
         Returns the models. A non-nil controllerID keeps only that controller's models.
 
-        Used by pages: Add / edit machine, Machine models
+        Used by pages: Add / edit machine, Machine models, Operator tasks
       operationId: getModels
       parameters:
         - description: Controller id
@@ -7852,6 +8276,414 @@ paths:
       summary: Update model
       tags:
         - Machine catalog
+  /v1/operator-tasks:
+    get:
+      description: |-
+        Returns the operator tasks the user may read: the superadmin every customer's (?userId= narrows to one), everyone else their company's. Each row has the customer, the machine type (model with controller and brand; modelId null = every machine of the customer) and the task.
+
+        Used by pages: Operator tasks
+      operationId: getOperatorTasks
+      parameters:
+        - description: Customer (superadmin)
+          in: query
+          name: userId
+          schema:
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              example:
+                message: success
+                statusCode: 200
+                success: true
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/response.Envelope'
+                  - properties:
+                      data:
+                        items:
+                          $ref: '#/components/schemas/model.OperatorTask'
+                        type: array
+                    type: object
+          description: OK
+        "400":
+          content:
+            application/json:
+              example:
+                message: Validation error
+                statusCode: 400
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Validation error
+        "401":
+          content:
+            application/json:
+              example:
+                message: Not logged in
+                statusCode: 401
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not logged in
+        "403":
+          content:
+            application/json:
+              example:
+                message: Another company's customer
+                statusCode: 403
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Another company's customer
+        "500":
+          content:
+            application/json:
+              example:
+                message: Server error
+                statusCode: 500
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Server error
+      security:
+        - cookieAuth: []
+      summary: Get operator tasks
+      tags:
+        - Operator tasks
+    post:
+      description: |-
+        Adds a task for a customer's machines of a model (modelId null = every machine of the customer). The customer must be a customer, the model a catalog model and the task an active task of the master list. A task is added once per customer and machine type.
+        Roles: superadmin (others get 403).
+        Validation: Please select customer; Please select valid customer; Please select valid machine type; Please select task; Please select valid task; This task is already added for this customer and machine type.
+
+        Used by pages: Operator tasks
+      operationId: createOperatorTask
+      requestBody:
+        content:
+          application/json:
+            example:
+              maintenanceTaskId: 1
+              modelId: 1
+              userId: 1
+            schema:
+              $ref: '#/components/schemas/dto.CreateOperatorTaskRequest'
+        description: Request body
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              example:
+                message: created
+                statusCode: 201
+                success: true
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/response.Envelope'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/model.OperatorTask'
+                    type: object
+          description: Created
+        "400":
+          content:
+            application/json:
+              example:
+                message: Validation error
+                statusCode: 400
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Validation error
+        "401":
+          content:
+            application/json:
+              example:
+                message: Not logged in
+                statusCode: 401
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not logged in
+        "403":
+          content:
+            application/json:
+              example:
+                message: Role not allowed
+                statusCode: 403
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Role not allowed
+        "500":
+          content:
+            application/json:
+              example:
+                message: Server error
+                statusCode: 500
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Server error
+      security:
+        - cookieAuth: []
+      summary: Add operator task
+      tags:
+        - Operator tasks
+  /v1/operator-tasks/{id}:
+    delete:
+      description: |-
+        Soft-deletes the operator task. The task stays in the master list.
+        Roles: superadmin (others get 403).
+
+        Used by pages: Operator tasks
+      operationId: deleteOperatorTask
+      parameters:
+        - description: Operator task id
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              example:
+                message: success
+                statusCode: 200
+                success: true
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              example:
+                message: Please enter valid id
+                statusCode: 400
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Please enter valid id
+        "401":
+          content:
+            application/json:
+              example:
+                message: Not logged in
+                statusCode: 401
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not logged in
+        "403":
+          content:
+            application/json:
+              example:
+                message: Role not allowed
+                statusCode: 403
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Role not allowed
+        "404":
+          content:
+            application/json:
+              example:
+                message: Operator task not found
+                statusCode: 404
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Operator task not found
+        "500":
+          content:
+            application/json:
+              example:
+                message: Server error
+                statusCode: 500
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Server error
+      security:
+        - cookieAuth: []
+      summary: Delete operator task
+      tags:
+        - Operator tasks
+    get:
+      description: |-
+        Returns the operator task when the user may read it (same rule as the list), else "Operator task not found".
+
+        Used by pages: Operator tasks
+      operationId: getOperatorTaskById
+      parameters:
+        - description: Operator task id
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              example:
+                message: success
+                statusCode: 200
+                success: true
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/response.Envelope'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/model.OperatorTask'
+                    type: object
+          description: OK
+        "400":
+          content:
+            application/json:
+              example:
+                message: Please enter valid id
+                statusCode: 400
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Please enter valid id
+        "401":
+          content:
+            application/json:
+              example:
+                message: Not logged in
+                statusCode: 401
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not logged in
+        "404":
+          content:
+            application/json:
+              example:
+                message: Operator task not found
+                statusCode: 404
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Operator task not found
+        "500":
+          content:
+            application/json:
+              example:
+                message: Server error
+                statusCode: 500
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Server error
+      security:
+        - cookieAuth: []
+      summary: Get operator task by id
+      tags:
+        - Operator tasks
+    put:
+      description: |-
+        Replaces the customer, machine type and task (same rules as Add).
+        Roles: superadmin (others get 403).
+        Validation: as Add operator task; Operator task not found.
+
+        Used by pages: Operator tasks
+      operationId: updateOperatorTask
+      parameters:
+        - description: Operator task id
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            example:
+              maintenanceTaskId: 1
+              modelId: 1
+              userId: 1
+            schema:
+              $ref: '#/components/schemas/dto.UpdateOperatorTaskRequest'
+        description: Request body
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              example:
+                message: success
+                statusCode: 200
+                success: true
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/response.Envelope'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/model.OperatorTask'
+                    type: object
+          description: OK
+        "400":
+          content:
+            application/json:
+              example:
+                message: Validation error
+                statusCode: 400
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Validation error
+        "401":
+          content:
+            application/json:
+              example:
+                message: Not logged in
+                statusCode: 401
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not logged in
+        "403":
+          content:
+            application/json:
+              example:
+                message: Role not allowed
+                statusCode: 403
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Role not allowed
+        "404":
+          content:
+            application/json:
+              example:
+                message: Operator task not found
+                statusCode: 404
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Operator task not found
+        "500":
+          content:
+            application/json:
+              example:
+                message: Server error
+                statusCode: 500
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Server error
+      security:
+        - cookieAuth: []
+      summary: Update operator task
+      tags:
+        - Operator tasks
   /v1/parts:
     get:
       description: |-
@@ -8589,6 +9421,108 @@ paths:
       security:
         - cookieAuth: []
       summary: Create production schedule
+      tags:
+        - Production schedules
+  /v1/production-schedules/operator-jobs:
+    get:
+      description: |-
+        Returns one row per job (production schedule item) of the schedules the user may read (the superadmin every customer's, ?userId= narrows to one; everyone else their company's), latest day first, then in the order they run that day (a night shift's jobs after midnight come last): date, operator, shift, job id, quantity, machine and model, start / end time, part no. and name, process and program name, customer. Every filter is optional.
+        Validation: Please enter valid id; Please enter valid date.
+
+        Used by pages: Operator wise production schedule
+      operationId: getOperatorJobs
+      parameters:
+        - description: Customer (superadmin)
+          in: query
+          name: userId
+          schema:
+            type: integer
+        - description: Machine
+          in: query
+          name: machineId
+          schema:
+            type: integer
+        - description: Part
+          in: query
+          name: partId
+          schema:
+            type: integer
+        - description: Operator
+          in: query
+          name: operatorId
+          schema:
+            type: integer
+        - description: Shift
+          in: query
+          name: shiftId
+          schema:
+            type: integer
+        - description: Schedule day (YYYY-MM-DD)
+          in: query
+          name: date
+          schema:
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              example:
+                message: success
+                statusCode: 200
+                success: true
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/response.Envelope'
+                  - properties:
+                      data:
+                        items:
+                          $ref: '#/components/schemas/model.OperatorJob'
+                        type: array
+                    type: object
+          description: OK
+        "400":
+          content:
+            application/json:
+              example:
+                message: Validation error
+                statusCode: 400
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Validation error
+        "401":
+          content:
+            application/json:
+              example:
+                message: Not logged in
+                statusCode: 401
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not logged in
+        "403":
+          content:
+            application/json:
+              example:
+                message: Another company's customer
+                statusCode: 403
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Another company's customer
+        "500":
+          content:
+            application/json:
+              example:
+                message: Server error
+                statusCode: 500
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Server error
+      security:
+        - cookieAuth: []
+      summary: Get operator wise production schedule
       tags:
         - Production schedules
   /v1/production-schedules/{id}:
@@ -12527,7 +13461,7 @@ paths:
         Returns the users the user may see, narrowed by filter: every user for the superadmin, the company's members for a customer or admin. filterRole=customer is the superadmin's customer list (Account Center › Customer); membersOnly=true leaves out customers and the superadmin, so only the users created for a company are listed (Masters › Users). A customer or admin asking for another company gets Forbidden.
         Roles: superadmin, customer, admin (others get 403).
 
-        Used by pages: Customers / Users list, Add / edit customer or user, Add / edit branch, Add / edit machine, Clientele, Add / edit part, Add / edit production schedule, Shifts, Breaks, Holidays / week off, Downtime / idle reasons, Licence keys
+        Used by pages: Customers / Users list, Add / edit customer or user, Add / edit branch, Add / edit machine, Clientele, Add / edit part, Add / edit production schedule, Shifts, Breaks, Holidays / week off, Downtime / idle reasons, Licence keys, Operator wise production schedule, Operator tasks
       operationId: getUsers
       parameters:
         - description: Company id
@@ -13042,6 +13976,7 @@ tags:
   - name: Machine catalog
   - name: Machine health
   - name: Machines
+  - name: Operator tasks
   - name: Organization
   - name: Parts
   - name: Production schedules

@@ -57,6 +57,65 @@ func (scheduleHandler *ProductionScheduleHandler) GetAll(writer http.ResponseWri
 	response.SendResponse(writer, request, response.Success, schedules)
 }
 
+// GetOperatorJobs handles GET /api/v1/production-schedules/operator-jobs[?userId=&machineId=&partId=&operatorId=&shiftId=&date=]:
+// every job of the schedules the user may read, as a flat list.
+//
+// @Summary      Get operator wise production schedule
+// @Description  Returns one row per job (production schedule item) of the schedules the user may read (the superadmin every customer's, ?userId= narrows to one; everyone else their company's), latest day first, then in the order they run that day (a night shift's jobs after midnight come last): date, operator, shift, job id, quantity, machine and model, start / end time, part no. and name, process and program name, customer. Every filter is optional.
+// @Description  Validation: Please enter valid id; Please enter valid date.
+// @Description
+// @Description  Used by pages: Operator wise production schedule
+// @Tags         Production schedules
+// @ID           getOperatorJobs
+// @Produce      json
+// @Security     cookieAuth
+// @Param        userId query int false "Customer (superadmin)"
+// @Param        machineId query int false "Machine"
+// @Param        partId query int false "Part"
+// @Param        operatorId query int false "Operator"
+// @Param        shiftId query int false "Shift"
+// @Param        date query string false "Schedule day (YYYY-MM-DD)"
+// @Success      200 {object} response.Envelope{data=[]model.OperatorJob}
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      403 {object} response.Envelope "Another company's customer"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/production-schedules/operator-jobs [get]
+func (scheduleHandler *ProductionScheduleHandler) GetOperatorJobs(writer http.ResponseWriter, request *http.Request) {
+	actor, err := currentUser(request)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+	filter, err := readOperatorJobFilter(request)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+	jobs, err := scheduleHandler.service.GetOperatorJobs(request.Context(), actor, filter)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+	response.SendResponse(writer, request, response.Success, jobs)
+}
+
+// readOperatorJobFilter reads and validates the query parameters of GetOperatorJobs.
+func readOperatorJobFilter(request *http.Request) (dto.OperatorJobFilter, error) {
+	filter := dto.OperatorJobFilter{Date: request.URL.Query().Get("date")}
+	for name, target := range map[string]**int64{
+		"userId": &filter.CustomerID, "machineId": &filter.MachineID, "partId": &filter.PartID,
+		"operatorId": &filter.OperatorID, "shiftId": &filter.ShiftID,
+	} {
+		id, err := queryID(request, name)
+		if err != nil {
+			return dto.OperatorJobFilter{}, err
+		}
+		*target = id
+	}
+	return filter, filter.Validate()
+}
+
 // GetByID handles GET /api/v1/production-schedules/{id}[?userId=<customer id>].
 //
 // @Summary      Get production schedule by id

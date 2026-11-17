@@ -23,7 +23,7 @@ func NewMachineModelHandler(machineModelService *service.MachineModelService) *M
 // @Summary      Get models
 // @Description  Returns the models. A non-nil controllerID keeps only that controller's models.
 // @Description
-// @Description  Used by pages: Add / edit machine, Machine models
+// @Description  Used by pages: Add / edit machine, Machine models, Operator tasks
 // @Tags         Machine catalog
 // @ID           getModels
 // @Produce      json

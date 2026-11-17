@@ -18,5 +18,7 @@ Server (backend) decisions, one file each (Michael Nygard template). Never edit 
 | 0012 | [Downtime and idle reasons on a period: one table, tied to machine_mode_log](0012-machine-mode-reasons-one-table.md) | Accepted | 2026-11-06 |
 | 0013 | [Machine diagnostics: reasons from what the collector recorded, network tested from the server](0013-machine-diagnostics-from-collector-evidence.md) | Accepted | 2026-11-06 |
 | 0014 | [Session modes and the login conflict, on the existing auth_tokens sessions](0014-session-modes-and-login-conflict.md) | Accepted | 2026-11-17 |
+| 0015 | [Operator tasks: a shared task list, assigned per customer and machine model](0015-operator-tasks-master-list-and-machine-model.md) | Accepted (task-list part superseded by 0016) | 2026-11-17 |
+| 0016 | [A Task List screen for the operator tasks' master list](0016-operator-task-list-screen.md) | Accepted | 2026-11-17 |
 
 New ADR: copy the newest file, take the next number, status "Proposed" until agreed, then "Accepted"; add a row here.

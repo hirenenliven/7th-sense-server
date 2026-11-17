@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"7th-sense-server/internal/db"
+	"7th-sense-server/internal/dto"
 	"7th-sense-server/internal/model"
 )
 
@@ -111,6 +112,53 @@ func (scheduleRepository *ProductionScheduleRepository) FindItems(ctx context.Co
 		return nil, fmt.Errorf("find production schedule items: %w", err)
 	}
 	return items, nil
+}
+
+// FindOperatorJobs returns the jobs (production schedule items) of ownerID's schedules (every
+// schedule when nil) that match filter, latest day first, then in the order they run that day.
+// Deleted schedules and items are left out.
+func (scheduleRepository *ProductionScheduleRepository) FindOperatorJobs(ctx context.Context, ownerID *int64, filter dto.OperatorJobFilter) ([]model.OperatorJob, error) {
+	query := `SELECT psi.id AS item_id, ps.id AS schedule_id, ps.user_id,
+			` + fmt.Sprintf(userDisplayName, "u") + ` AS customer_name,
+			psi.schedule_date::text AS schedule_date,
+			psi.operator_id, ` + fmt.Sprintf(userDisplayName, "op") + ` AS operator_name,
+			psi.shift_id, COALESCE(s.name, '') AS shift_name,
+			psi.job_id, psi.quantity,
+			ps.machine_id, COALESCE(m.name, '') AS machine_name, COALESCE(mm.name, '') AS model_name,
+			to_char(psi.start_time, 'HH24:MI') AS start_time, to_char(psi.end_time, 'HH24:MI') AS end_time,
+			psi.part_id, COALESCE(p.part_no, '') AS part_no, COALESCE(p.part_name, '') AS part_name,
+			COALESCE(pp.process, '') AS process_name, COALESCE(pp.program_name, '') AS program_name
+		FROM production_schedule_items psi
+		JOIN production_schedules ps ON ps.id = psi.schedule_id AND ps.is_deleted = false
+		LEFT JOIN users u ON u.id = ps.user_id
+		LEFT JOIN users op ON op.id = psi.operator_id
+		LEFT JOIN shifts s ON s.id = psi.shift_id
+		LEFT JOIN machines m ON m.id = ps.machine_id
+		LEFT JOIN models mm ON mm.id = m.model_id
+		LEFT JOIN parts p ON p.id = psi.part_id
+		LEFT JOIN part_processes pp ON pp.id = psi.process_id
+		WHERE psi.is_deleted = false
+			AND ($1::integer IS NULL OR ps.user_id = $1)
+			AND ($2::integer IS NULL OR ps.machine_id = $2)
+			AND ($3::integer IS NULL OR psi.part_id = $3)
+			AND ($4::integer IS NULL OR psi.operator_id = $4)
+			AND ($5::integer IS NULL OR psi.shift_id = $5)
+			AND (NULLIF($6, '') IS NULL OR psi.schedule_date = NULLIF($6, '')::date)
+		ORDER BY psi.schedule_date DESC,
+			-- schedule_date is the day the shift starts: a job before the shift's start time
+			-- (02:00 in a 22:00 – 06:00 shift) runs the next morning, after the evening's jobs
+			psi.start_time < s.start_time, psi.start_time, psi.id`
+
+	rows, err := db.Execute(ctx, scheduleRepository.database, query,
+		ownerID, filter.MachineID, filter.PartID, filter.OperatorID, filter.ShiftID, filter.Date)
+	if err != nil {
+		return nil, fmt.Errorf("find operator jobs: %w", err)
+	}
+	jobs, err := pgx.CollectRows(rows, pgx.RowToStructByName[model.OperatorJob])
+	if err != nil {
+		return nil, fmt.Errorf("find operator jobs: %w", err)
+	}
+	return jobs, nil
 }
 
 // MachineBooked reports whether another schedule (not excludeID) of machineID shares a

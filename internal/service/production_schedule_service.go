@@ -67,6 +67,17 @@ func (scheduleService *ProductionScheduleService) GetByID(ctx context.Context, a
 	return scheduleDetails(ctx, scheduleService.scheduleRepository, ownerID, id)
 }
 
+// GetOperatorJobs returns the jobs of the schedules actor may read (see companyOwner; the
+// superadmin narrows to one customer with filter.CustomerID) that match filter: the Operator Wise
+// Production Schedule.
+func (scheduleService *ProductionScheduleService) GetOperatorJobs(ctx context.Context, actor model.AuthUser, filter dto.OperatorJobFilter) ([]model.OperatorJob, error) {
+	ownerID, err := companyOwner(actor, filter.CustomerID)
+	if err != nil {
+		return nil, err
+	}
+	return scheduleService.scheduleRepository.FindOperatorJobs(ctx, ownerID, filter)
+}
+
 // Create adds a schedule with its items. A customer or admin (actor) adds it to their
 // own company, whatever customer the request names; the superadmin to the customer named.
 func (scheduleService *ProductionScheduleService) Create(ctx context.Context, actor model.AuthUser, scheduleRequest dto.CreateProductionScheduleRequest) (model.ProductionSchedule, error) {

@@ -56,6 +56,9 @@ type Handlers struct {
 	Dashboard *handler.DashboardHandler
 	// Session serves /sessions (own sessions) and /admin/.../sessions (superadmin)
 	Session *handler.SessionHandler
+	// MaintenanceTask / OperatorTask serve /maintenance-tasks and /operator-tasks (superadmin writes)
+	MaintenanceTask *handler.MaintenanceTaskHandler
+	OperatorTask    *handler.OperatorTaskHandler
 	// Live serves the Socket.IO live data at /socket.io/ (nil = off, see config.LiveConfig)
 	Live *handler.LiveHandler
 	// APIDocs serves Swagger UI and the OpenAPI spec at /api-docs/ (nil = off, see config.APIDocs)
@@ -205,6 +208,9 @@ func registerV1Routes(router *http.ServeMux, handlers Handlers) {
 	}
 	if handlers.Session != nil {
 		registerSessionRoutes(router, v1Prefix, handlers.Session)
+	}
+	if handlers.MaintenanceTask != nil && handlers.OperatorTask != nil {
+		registerOperatorTaskRoutes(router, v1Prefix, handlers.MaintenanceTask, handlers.OperatorTask)
 	}
 	if handlers.Live != nil {
 		registerLiveRoutes(router, v1Prefix, handlers.Live)

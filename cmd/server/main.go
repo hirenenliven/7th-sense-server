@@ -106,6 +106,10 @@ func run() error {
 		slog.Info("API docs at /api-docs/")
 	}
 	userService := service.NewUserService(dbPool, branchService, roleService, machineService)
+	// Operator tasks: the maintenance task list and which tasks apply to a customer's machine model
+	maintenanceTaskService := service.NewMaintenanceTaskService(repository.NewMaintenanceTaskRepository(dbPool))
+	operatorTaskService := service.NewOperatorTaskService(repository.NewOperatorTaskRepository(dbPool),
+		repository.NewUserRepository(dbPool), machineModelService, maintenanceTaskService)
 	authHandler := handler.NewAuthHandler(authService, appConfig.CookieSecure)
 	authHandler.SetTrustedProxies(appConfig.TrustedProxies)
 	sessionHandler := handler.NewSessionHandler(sessionService)
@@ -169,6 +173,8 @@ func run() error {
 		MachineCycle:   handler.NewMachineCycleHandler(cycleService),
 		Dashboard: handler.NewDashboardHandler(service.NewDashboardService(machineService, telemetryService,
 			cycleService, repository.NewShiftRepository(dbPool), repository.NewProductionScheduleRepository(dbPool))),
+		MaintenanceTask: handler.NewMaintenanceTaskHandler(maintenanceTaskService),
+		OperatorTask:    handler.NewOperatorTaskHandler(operatorTaskService),
 	}, middleware.Authenticate(authService))
 
 	server := &http.Server{

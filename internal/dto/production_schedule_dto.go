@@ -177,3 +177,24 @@ func ScheduleDay(date string) int {
 	day, _ := time.Parse(dateLayout, date)
 	return int(day.Unix() / 86400)
 }
+
+// OperatorJobFilter narrows GET /production-schedules/operator-jobs (Operator Wise Production
+// Schedule). Every field is optional: nil / empty means any. CustomerID is the superadmin's
+// customer filter (?userId=); Date is one schedule day, "YYYY-MM-DD".
+type OperatorJobFilter struct {
+	CustomerID *int64
+	MachineID  *int64
+	PartID     *int64
+	OperatorID *int64
+	ShiftID    *int64
+	Date       string
+}
+
+// Validate checks the date; the ids are read as positive integers by the handler.
+func (filter *OperatorJobFilter) Validate() error {
+	filter.Date = strings.TrimSpace(filter.Date)
+	if filter.Date != "" && !validDate(filter.Date) {
+		return response.NewError(http.StatusBadRequest, "Please enter valid date")
+	}
+	return nil
+}

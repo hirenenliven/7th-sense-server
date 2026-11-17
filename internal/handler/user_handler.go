@@ -28,7 +28,7 @@ func NewUserHandler(userService *service.UserService) *UserHandler {
 // @Description  Returns the users the user may see, narrowed by filter: every user for the superadmin, the company's members for a customer or admin. filterRole=customer is the superadmin's customer list (Account Center › Customer); membersOnly=true leaves out customers and the superadmin, so only the users created for a company are listed (Masters › Users). A customer or admin asking for another company gets Forbidden.
 // @Description  Roles: superadmin, customer, admin (others get 403).
 // @Description
-// @Description  Used by pages: Customers / Users list, Add / edit customer or user, Add / edit branch, Add / edit machine, Clientele, Add / edit part, Add / edit production schedule, Shifts, Breaks, Holidays / week off, Downtime / idle reasons, Licence keys
+// @Description  Used by pages: Customers / Users list, Add / edit customer or user, Add / edit branch, Add / edit machine, Clientele, Add / edit part, Add / edit production schedule, Shifts, Breaks, Holidays / week off, Downtime / idle reasons, Licence keys, Operator wise production schedule, Operator tasks
 // @Tags         Users
 // @ID           getUsers
 // @Produce      json

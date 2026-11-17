@@ -10,6 +10,8 @@ import (
 // customer's). Managers add, edit and delete their company's schedules.
 func registerProductionScheduleRoutes(router *http.ServeMux, prefix string, scheduleHandler *handler.ProductionScheduleHandler) {
 	router.HandleFunc("GET "+prefix+"/production-schedules", scheduleHandler.GetAll)
+	// Read only, every job of the schedules as a flat list (Operator Wise Production Schedule)
+	router.HandleFunc("GET "+prefix+"/production-schedules/operator-jobs", scheduleHandler.GetOperatorJobs)
 	router.HandleFunc("GET "+prefix+"/production-schedules/{id}", scheduleHandler.GetByID)
 	router.Handle("POST "+prefix+"/production-schedules", managersOnly(scheduleHandler.Create))
 	router.Handle("PUT "+prefix+"/production-schedules/{id}", managersOnly(scheduleHandler.Update))

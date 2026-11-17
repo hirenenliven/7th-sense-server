@@ -63,3 +63,30 @@ type MachineQuantity struct {
 	MachineID int64 `db:"machine_id"`
 	Quantity  int   `db:"quantity"`
 }
+
+// OperatorJob is one production schedule item seen from its operator: the job with the names of
+// its operator, shift, machine (and model), part, process and program, and its schedule's customer.
+// Read only (Operator Wise Production Schedule). Dates are "YYYY-MM-DD", times "HH:MM".
+type OperatorJob struct {
+	ItemID       int64  `db:"item_id" json:"itemId"`
+	ScheduleID   int64  `db:"schedule_id" json:"scheduleId"`
+	UserID       int64  `db:"user_id" json:"userId"`
+	CustomerName string `db:"customer_name" json:"customerName"`
+	ScheduleDate string `db:"schedule_date" json:"scheduleDate"`
+	OperatorID   int64  `db:"operator_id" json:"operatorId"`
+	OperatorName string `db:"operator_name" json:"operatorName"`
+	ShiftID      int64  `db:"shift_id" json:"shiftId"`
+	ShiftName    string `db:"shift_name" json:"shiftName"`
+	JobID        string `db:"job_id" json:"jobId"`
+	Quantity     int    `db:"quantity" json:"quantity"`
+	MachineID    int64  `db:"machine_id" json:"machineId"`
+	MachineName  string `db:"machine_name" json:"machineName"`
+	ModelName    string `db:"model_name" json:"modelName"`
+	StartTime    string `db:"start_time" json:"startTime"`
+	EndTime      string `db:"end_time" json:"endTime"`
+	PartID       int64  `db:"part_id" json:"partId"`
+	PartNo       string `db:"part_no" json:"partNo"`
+	PartName     string `db:"part_name" json:"partName"`
+	ProcessName  string `db:"process_name" json:"processName"`
+	ProgramName  string `db:"program_name" json:"programName"`
+}

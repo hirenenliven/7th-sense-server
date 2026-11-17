@@ -48,7 +48,6 @@ func (branchService *BranchService) Create(ctx context.Context, userID int64, br
 		CustomerID: branchRequest.CustomerID,
 		GSTNumber:  branchRequest.GSTNumber,
 		PANNumber:  branchRequest.PANNumber,
-		ColorCode:  branchRequest.ColorCode,
 		Status:     branchRequest.Status,
 	})
 	return branch, toBranchResponseError(err)
@@ -69,7 +68,6 @@ func (branchService *BranchService) Update(ctx context.Context, userID, id int64
 		CustomerID: branchRequest.CustomerID,
 		GSTNumber:  branchRequest.GSTNumber,
 		PANNumber:  branchRequest.PANNumber,
-		ColorCode:  branchRequest.ColorCode,
 		Status:     branchRequest.Status,
 	})
 	return branch, toBranchResponseError(err)
