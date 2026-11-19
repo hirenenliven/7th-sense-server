@@ -25,7 +25,7 @@ func newDiagnosticsRouter(authenticate middleware.Middleware, hub *live.Hub) htt
 	telemetryService := service.NewMachineTelemetryService(testDBPool, repository.NewMachineTelemetryRepository(testDBPool))
 	return routes.New(routes.Handlers{MachineDiagnostics: handler.NewMachineDiagnosticsHandler(service.NewMachineDiagnosticsService(
 		repository.NewMachineDiagnosticsRepository(testDBPool), newMachineService(), telemetryService, hub,
-		config.CNCConfig{Quiet: 5 * time.Minute}, "386"))}, authenticate)
+		config.CNCConfig{Quiet: 5 * time.Minute}, "386", nil))}, authenticate)
 }
 
 func diagnosticsFor(t *testing.T, router http.Handler, machineID int64) dto.MachineDiagnosticsResponse {
@@ -178,6 +178,7 @@ func TestMachineDiagnostics(t *testing.T) {
 		if open.LatencyMs == nil {
 			t.Error("no latency for an open port")
 		}
+		expectMachineState(t, open, dto.MachineStateOn)
 
 		// A port nothing listens on: the host is there, the port is the problem
 		_ = listener.Close()
@@ -187,18 +188,30 @@ func TestMachineDiagnostics(t *testing.T) {
 		if refused.LatencyMs != nil {
 			t.Error("latency for a closed port")
 		}
+		expectMachineState(t, refused, dto.MachineStatePortClosed)
 
-		// The collector is connected: a failed test is the test's problem, so it only warns
+		// The collector is connected: a failed test is the test's problem, so it only warns; the
+		// machine state still says what the test found
 		reportStatus(t, true)
-		expectCheck(t, network(t, "127.0.0.1", openPort).Port, dto.DiagnosticWarning, "refused")
+		whileConnected := network(t, "127.0.0.1", openPort)
+		expectCheck(t, whileConnected.Port, dto.DiagnosticWarning, "refused")
+		expectMachineState(t, whileConnected, dto.MachineStatePortClosed)
 		reportStatus(t, false)
 
 		// Text that is not an address can never reach ping as an option
 		invalid := network(t, "-bad.invalid", openPort)
 		expectCheck(t, invalid.IP, dto.DiagnosticFailed, "could not be resolved")
 		expectCheck(t, invalid.Port, dto.DiagnosticSkipped, "Not tested")
+		expectMachineState(t, invalid, dto.MachineStateIPInvalid)
 
 		execDiagnosticsSQL(t, `UPDATE machines SET live_ip = '' WHERE id = $1`, machineID)
 		expectStatus(t, sendRequest(t, router, http.MethodGet, networkPath, nil), http.StatusBadRequest, "This machine has no live IP and port to test")
 	})
+}
+
+func expectMachineState(t *testing.T, network dto.MachineNetworkResponse, want string) {
+	t.Helper()
+	if network.MachineState != want {
+		t.Errorf("machine state %q, want %q", network.MachineState, want)
+	}
 }

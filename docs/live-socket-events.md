@@ -24,7 +24,7 @@ Decision: [ADR 0009](adr/0009-socketio-live-data.md). Code: [internal/live/hub.g
 - `intervalMs` is optional: 0 = 1 000 ms; below `LIVE_MIN_INTERVAL_MS` (200) it is raised to it.
 - A `subscribe` for a machine **replaces** this socket's earlier subscription of that machine (the client merges its components' codes per machine first).
 - Limits: 500 machines and 100 codes per message, a code at most 64 characters, a message at most 64 KB.
-- `denied`: machines the user may not read (`MachineService` rule) — nothing is joined for them. `unknown`: codes the collector does not read for those machines (only once the collector loaded the machine's variables; before that every code is accepted).
+- `denied`: machines the user may not read (`MachineService` rule) — nothing is joined for them. `unknown`: codes no reader reads for those machines — the CNC DLL worker (snapshot variables) or, on Siemens machines, the OPC UA PLC worker (PLC variables, ADR 0021); only once a reader loaded the machine's variables, before that every code is accepted. PLC values arrive in the same `machine:values` messages as the snapshot ones.
 - `userId`, `role` or room names in a message are ignored: the user comes from the session and the server builds every room.
 
 **Snapshot** (one per machine not denied) — the current value of the codes asked for:

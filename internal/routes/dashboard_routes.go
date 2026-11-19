@@ -18,4 +18,5 @@ func registerDashboardRoutes(router *http.ServeMux, prefix string, dashboardHand
 	router.HandleFunc("GET "+prefix+"/productivity/machine-summaries", dashboardHandler.GetMachineSummaries)
 	router.HandleFunc("GET "+prefix+"/productivity/virtual-screen", dashboardHandler.GetVirtualScreen)
 	router.HandleFunc("GET "+prefix+"/machine-health/machine-time-by-day", dashboardHandler.GetMachineTimeByDay)
+	router.HandleFunc("GET "+prefix+"/machine-health/axis-values", dashboardHandler.GetAxisValues)
 }

@@ -38,14 +38,16 @@ type DashboardService struct {
 	cycleService       *MachineCycleService
 	shiftRepository    *repository.ShiftRepository
 	scheduleRepository *repository.ProductionScheduleRepository
+	healthRepository   *repository.MachineHealthRepository
 }
 
 // NewDashboardService creates a DashboardService.
 func NewDashboardService(machineService *MachineService, telemetryService *MachineTelemetryService,
 	cycleService *MachineCycleService, shiftRepository *repository.ShiftRepository,
-	scheduleRepository *repository.ProductionScheduleRepository) *DashboardService {
+	scheduleRepository *repository.ProductionScheduleRepository, healthRepository *repository.MachineHealthRepository) *DashboardService {
 	return &DashboardService{machineService: machineService, telemetryService: telemetryService,
-		cycleService: cycleService, shiftRepository: shiftRepository, scheduleRepository: scheduleRepository}
+		cycleService: cycleService, shiftRepository: shiftRepository, scheduleRepository: scheduleRepository,
+		healthRepository: healthRepository}
 }
 
 // GetModeTimeline returns the mode periods of dashboardRequest's machine on its To day, or in its
@@ -783,3 +785,106 @@ func maxTime(first, second time.Time) time.Time {
 func hours(seconds float64) float64 { return math.Round(seconds/36) / 100 }
 
 func round1(value float64) float64 { return math.Round(value*10) / 10 }
+
+// GetAxisValues returns the Machine Health X, Y, Z charts (server ADR 0018): the series of axisRequest's set over its range; "Machine not
+// found" when actor may not read the machine.
+func (dashboardService *DashboardService) GetAxisValues(ctx context.Context, actor model.AuthUser, axisRequest dto.AxisValuesRequest) (dto.AxisValuesResponse, error) {
+	machine, err := dashboardService.machineService.GetByID(ctx, actor, nil, axisRequest.MachineID)
+	if err != nil {
+		return dto.AxisValuesResponse{}, err
+	}
+	axisSet, _ := dto.FindAxisSet(axisRequest.AxisSet)
+	from, to := axisRequest.Range(time.Now())
+
+	variables, err := dashboardService.healthRepository.FindAxisVariables(ctx, axisSet.Codes[:])
+	if err != nil {
+		return dto.AxisValuesResponse{}, err
+	}
+	variableByCode := make(map[string]model.AxisVariable, len(variables))
+	variableIDs := make([]int64, 0, len(variables))
+	for _, variable := range variables {
+		variableByCode[variable.Code] = variable
+		variableIDs = append(variableIDs, variable.ID)
+	}
+
+	// Only the telemetry queries are timed: that is the cost that grows with the table
+	started := time.Now()
+	buckets, bucketSeconds, err := dashboardService.axisPoints(ctx, machine.ID, variableIDs, from, to)
+	if err != nil {
+		return dto.AxisValuesResponse{}, err
+	}
+	startValues, err := dashboardService.healthRepository.FindAxisStartValues(ctx, machine.ID, variableIDs, from)
+	if err != nil {
+		return dto.AxisValuesResponse{}, err
+	}
+	queryTime := time.Since(started)
+
+	axes, stats := axisSeries(axisSet, variableByCode, buckets, startValues)
+	stats.QueryMs = float64(queryTime.Microseconds()) / 1000
+	return dto.AxisValuesResponse{
+		MachineID: machine.ID, MachineName: machine.Name, AxisSet: axisSet.Key, AxisLabel: axisSet.Label,
+		From: from, To: to, Raw: bucketSeconds == 0, BucketSec: bucketSeconds, Axes: axes, Stats: stats,
+	}, nil
+}
+
+// axisPoints returns every stored value of the variables from from to to as one-row buckets
+// (bucketSeconds 0) while no axis holds more than dto.AxisValuesMaxRawValues; otherwise the range
+// cut into dto.AxisValuesMaxPoints time buckets and their length.
+func (dashboardService *DashboardService) axisPoints(ctx context.Context, machineID int64, variableIDs []int64, from, to time.Time) ([]model.AxisBucket, int64, error) {
+	// One value over the limit is enough to know the axis does not fit
+	rows, err := dashboardService.healthRepository.FindAxisRows(ctx, machineID, variableIDs, from, to, dto.AxisValuesMaxRawValues+1)
+	if err != nil {
+		return nil, 0, err
+	}
+	countByVariable := map[int64]int{}
+	for _, row := range rows {
+		countByVariable[row.VariableID]++
+		if countByVariable[row.VariableID] > dto.AxisValuesMaxRawValues {
+			bucketSeconds := dto.AxisBucketSeconds(from, to)
+			buckets, err := dashboardService.healthRepository.FindAxisBuckets(ctx, machineID, variableIDs, from, to, bucketSeconds)
+			return buckets, bucketSeconds, err
+		}
+	}
+	buckets := make([]model.AxisBucket, 0, len(rows))
+	for _, row := range rows {
+		buckets = append(buckets, model.AxisBucket{
+			VariableID: row.VariableID, BucketAt: row.RecordedAt,
+			LastValue: row.Value, MinValue: row.Value, MaxValue: row.Value, RowCount: 1,
+		})
+	}
+	return buckets, 0, nil
+}
+
+// axisSeries puts the buckets and start values into one series per axis of axisSet (X, Y, Z order;
+// an axis whose variable is missing from cnc_variables gets an empty series) and counts them.
+func axisSeries(axisSet dto.AxisSet, variableByCode map[string]model.AxisVariable, buckets []model.AxisBucket, startValues []model.AxisStartValue) ([]dto.AxisSeries, dto.AxisStats) {
+	pointsByVariable := map[int64][]dto.AxisPoint{}
+	stats := dto.AxisStats{}
+	for _, bucket := range buckets {
+		pointsByVariable[bucket.VariableID] = append(pointsByVariable[bucket.VariableID], dto.AxisPoint{
+			At: bucket.BucketAt, Value: bucket.LastValue, Min: bucket.MinValue, Max: bucket.MaxValue, Count: bucket.RowCount,
+		})
+		stats.RowsRead += bucket.RowCount
+		stats.PointCount++
+	}
+	startByVariable := map[int64]float64{}
+	for _, startValue := range startValues {
+		startByVariable[startValue.VariableID] = startValue.Value
+	}
+
+	axes := make([]dto.AxisSeries, 0, len(axisSet.Codes))
+	for index, code := range axisSet.Codes {
+		series := dto.AxisSeries{Axis: dto.AxisNames[index], Code: code, Points: []dto.AxisPoint{}}
+		if variable, ok := variableByCode[code]; ok {
+			series.Name, series.Unit = variable.Name, variable.Unit
+			if points, ok := pointsByVariable[variable.ID]; ok {
+				series.Points = points
+			}
+			if value, ok := startByVariable[variable.ID]; ok {
+				series.StartValue = &value
+			}
+		}
+		axes = append(axes, series)
+	}
+	return axes, stats
+}

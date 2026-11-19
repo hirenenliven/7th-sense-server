@@ -44,6 +44,7 @@ const (
 	logTypeSnapshot  logType = "snapshot"
 	logTypeDowntime  logType = "downtime"
 	logTypeCycle     logType = "cycle"
+	logTypePLC       logType = "plc"
 	logTypeOther     logType = "other"
 )
 
@@ -68,6 +69,8 @@ func isLogTypeOn(settings config.CNCLogSettings, kind logType, level slog.Level)
 		return settings.Downtime
 	case logTypeCycle:
 		return settings.Cycles
+	case logTypePLC:
+		return settings.PLC
 	}
 	return settings.Other
 }

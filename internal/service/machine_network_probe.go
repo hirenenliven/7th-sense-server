@@ -54,6 +54,7 @@ func probeNetwork(ctx context.Context, host string, port int) dto.MachineNetwork
 			Message: fmt.Sprintf("%q is not an IP address and could not be resolved: %v", host, err),
 			Hint:    "Correct the Live IP on the machine form."}
 		result.Port = dto.DiagnosticCheck{Key: "port", Status: dto.DiagnosticSkipped, Message: "Not tested: the IP is not usable."}
+		result.MachineState = dto.MachineStateIPInvalid
 		return result
 	}
 
@@ -66,6 +67,7 @@ func probeNetwork(ctx context.Context, host string, port int) dto.MachineNetwork
 	group.Go(func() { outcome, latency, dialError = dialPort(ctx, net.JoinHostPort(ip, strconv.Itoa(port))) })
 	group.Wait()
 
+	result.MachineState = machineStateOf(replied, outcome)
 	result.IP = ipCheck(ip, replied, outcome)
 	result.Port = portCheck(port, outcome, dialError)
 	if outcome == portOpen {
@@ -133,6 +135,20 @@ func classifyDialError(err error) portResult {
 		}
 	}
 	return portOtherError
+}
+
+// machineStateOf sums up one test the way ipCheck and portCheck judge it: only the port accepting a
+// connection proves the machine is on; an IP that answers (ping, or a refused connect) without the
+// port accepting means the port is closed; no answer at all means the IP cannot be reached.
+func machineStateOf(replied bool, outcome portResult) string {
+	switch {
+	case outcome == portOpen:
+		return dto.MachineStateOn
+	case replied || outcome == portRefused:
+		return dto.MachineStatePortClosed
+	default:
+		return dto.MachineStateIPUnreachable
+	}
 }
 
 func ipCheck(ip string, replied bool, outcome portResult) dto.DiagnosticCheck {

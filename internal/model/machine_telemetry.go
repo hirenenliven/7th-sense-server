@@ -59,6 +59,14 @@ type MonitoredMachine struct {
 	Password              string `db:"password" json:"-"`
 	ControllerVersionType int    `db:"controller_version_type"` // 1 = 828D, 2 = 840D, 0 = not set
 	CNCEngine             *int   `db:"cnc_engine"`              // NULL = the controller has no engine set
+	SecurityMode          string `db:"security_mode"`           // OPC UA: None | Basic256Sha256 (PLC reader)
+}
+
+// ReadsPLCOverOPCUA reports whether the PLC reader connects machines of engine over OPC UA to
+// read their PLC variables: only Siemens Sinumerik controllers run an OPC UA server (Fanuc
+// answers FOCAS on 8193).
+func ReadsPLCOverOPCUA(engine *int) bool {
+	return engine != nil && *engine == EngineSiemens
 }
 
 // SameConnection reports whether other is reached the same way (a change needs a reconnect).

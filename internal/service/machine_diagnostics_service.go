@@ -12,6 +12,7 @@ import (
 	"7th-sense-server/internal/dto"
 	"7th-sense-server/internal/live"
 	"7th-sense-server/internal/model"
+	"7th-sense-server/internal/opcua"
 	"7th-sense-server/internal/repository"
 	"7th-sense-server/internal/response"
 )
@@ -44,15 +45,17 @@ type MachineDiagnosticsService struct {
 	telemetryService      *MachineTelemetryService
 	hub                   *live.Hub // nil when LIVE_ENABLED is off
 	cncConfig             config.CNCConfig
-	architecture          string // this build's GOARCH
+	architecture          string             // this build's GOARCH
+	plcBoard              *opcua.StatusBoard // the PLC workers' status; nil when PLC_ENABLED is off
 }
 
 // NewMachineDiagnosticsService creates a MachineDiagnosticsService; architecture is this build's
-// GOARCH.
+// GOARCH, plcBoard what the PLC workers report (nil = PLC reading off).
 func NewMachineDiagnosticsService(diagnosticsRepository *repository.MachineDiagnosticsRepository, machineService *MachineService,
-	telemetryService *MachineTelemetryService, hub *live.Hub, cncConfig config.CNCConfig, architecture string) *MachineDiagnosticsService {
+	telemetryService *MachineTelemetryService, hub *live.Hub, cncConfig config.CNCConfig, architecture string,
+	plcBoard *opcua.StatusBoard) *MachineDiagnosticsService {
 	return &MachineDiagnosticsService{diagnosticsRepository: diagnosticsRepository, machineService: machineService,
-		telemetryService: telemetryService, hub: hub, cncConfig: cncConfig, architecture: architecture}
+		telemetryService: telemetryService, hub: hub, cncConfig: cncConfig, architecture: architecture, plcBoard: plcBoard}
 }
 
 // GetDiagnostics returns the machine's set-up, collector status, mode, variables and recent events,
@@ -82,17 +85,23 @@ func (diagnosticsService *MachineDiagnosticsService) GetDiagnostics(ctx context.
 	if machine.ControllerVersionType != nil {
 		versionType = *machine.ControllerVersionType
 	}
-	variables, err := diagnosticsService.diagnosticsRepository.FindVariables(ctx, machineID, engine, versionType, []string{cnc.SourceSnapshot})
+	// The same sources as the collectors, so each variable shows under the reader that reads it
+	plcEnabled := diagnosticsService.cncConfig.PLC.Enabled
+	sources := VariableSources(engine, plcEnabled)
+	variables, err := diagnosticsService.diagnosticsRepository.FindVariables(ctx, machineID, engine, versionType, sources)
 	if err != nil {
 		return dto.MachineDiagnosticsResponse{}, err
 	}
+	cncVariables, plcVariables := splitPLCVariables(variables, len(sources) > 1)
 	opMode, err := diagnosticsService.telemetryService.GetOpModeName(ctx, machineID)
 	if err != nil {
 		return dto.MachineDiagnosticsResponse{}, err
 	}
 
 	now := time.Now()
-	rows := diagnosticsService.variableRows(machineID, engine, variables)
+	rows := diagnosticsService.variableRows(machineID, engine, cncVariables)
+	plcStatus, plcReported := diagnosticsService.plcBoard.Get(machineID)
+	plc := plcSection(plcEnabled, engine, machine, plcStatus, plcReported, plcVariables, diagnosticsService.liveValues(machineID, plcVariables))
 	connected := isControllerConnected(status, now)
 	setup := setupCheck(machine, engine)
 	collector := diagnosticsService.collectorCheck(machine, engine, status, events, now)
@@ -112,8 +121,21 @@ func (diagnosticsService *MachineDiagnosticsService) GetDiagnostics(ctx context.
 			variablesCheck(rows, connected),
 		},
 		Variables: rows,
+		PLC:       plc,
 		Events:    events,
 	}, nil
+}
+
+// liveValues returns the hub's latest value of each variable (code → value); empty without a hub.
+func (diagnosticsService *MachineDiagnosticsService) liveValues(machineID int64, variables []model.DiagnosticVariable) map[string]any {
+	if diagnosticsService.hub == nil || len(variables) == 0 {
+		return map[string]any{}
+	}
+	codes := make([]string, len(variables))
+	for index, variable := range variables {
+		codes[index] = variable.Code
+	}
+	return diagnosticsService.hub.Snapshot(machineID, codes).Values
 }
 
 // CheckNetwork tests the machine's live IP and port from this server. When the test fails while the
@@ -397,11 +419,11 @@ func variableUnreadableReason(engine *int, variable model.DiagnosticVariable) st
 	case engine == nil:
 		return "The machine's controller has no CNC engine."
 	case variable.Address == "" && variable.KnownSources != "":
-		return fmt.Sprintf("Only has a %s address; the server reads DLL snapshot fields only today.", variable.KnownSources)
+		return fmt.Sprintf("Only has a %s address: PLC variables are read over OPC UA from Siemens controllers only (PLC_ENABLED).", variable.KnownSources)
 	case variable.Address == "":
 		return "No address for this controller type."
 	case variable.Source != cnc.SourceSnapshot:
-		return fmt.Sprintf("Set to read from %s; the server reads DLL snapshot fields only today.", variable.Source)
+		return fmt.Sprintf("Set to read from %s: PLC variables are read over OPC UA from Siemens controllers only (PLC_ENABLED).", variable.Source)
 	case !isSnapshotField:
 		return fmt.Sprintf("The DLL snapshot has no field %q.", variable.Address)
 	}

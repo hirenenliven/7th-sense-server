@@ -84,6 +84,20 @@ var (
 	MaintenanceTaskExists  = newResponse(http.StatusBadRequest, "This task already exists")
 	MaintenanceTaskMissing = newResponse(http.StatusNotFound, "Task not found")
 
+	// Machine accuracy responses (Account Center › Machine Accuracy)
+	EnterMachineAccuracy       = newResponse(http.StatusBadRequest, "Please enter machine accuracy")
+	MachineAccuracyTooLong     = newResponse(http.StatusBadRequest, "Machine accuracy must be at most 50 characters")
+	MachineAccuracyExists      = newResponse(http.StatusBadRequest, "This machine accuracy already exists")
+	MachineAccuracyMissing     = newResponse(http.StatusNotFound, "Machine accuracy not found")
+	SelectValidMachineAccuracy = newResponse(http.StatusBadRequest, "Please select valid machine accuracy")
+	SelectValidAccuracyLevel   = newResponse(http.StatusBadRequest, "Please select valid machine accuracy level")
+
+	// Machine PLC node id responses (All Machines › PLC node IDs)
+	EnterPlcNodeID      = newResponse(http.StatusBadRequest, "Please enter node ID")
+	PlcNodeIDTooLong    = newResponse(http.StatusBadRequest, "Node ID must be at most 255 characters")
+	InvalidPlcNodeID    = newResponse(http.StatusBadRequest, "Please enter a valid OPC UA node ID, e.g. ns=2;s=/Random/Plc/DB3300.DBX3.0")
+	PlcVariableNotFound = newResponse(http.StatusNotFound, "PLC variable not found for this machine")
+
 	// Validation error responses
 	ValidName              = newResponse(http.StatusBadRequest, "Please enter valid name")
 	ValidCode              = newResponse(http.StatusBadRequest, "Please enter valid code")

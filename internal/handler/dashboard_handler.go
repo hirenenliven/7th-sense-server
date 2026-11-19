@@ -393,3 +393,81 @@ func queryIDList(value, name string) ([]int64, error) {
 	}
 	return ids, nil
 }
+
+// GetAxisValues handles GET /api/v1/machine-health/axis-values?machineId=&axisSet=&minutes= (or
+// &start=&end= / &date= / &from=&to=): the machine's X, Y and Z values over the range, every stored
+// value while they fit, else downsampled.
+//
+// @Summary      Get axis values (X, Y, Z)
+// @Description  The X, Y and Z values of one axis set (machine_position (default), work_position, relative_position, distance_to_go, axis_load) from machine_telementry, for an exact window `start`–`end` (RFC 3339, the chart's zoom), the last `minutes` up to now (≤ 31 days) or whole days `date` / `from`–`to` (≤ 31 days). While no axis holds more than 20,000 stored values in the range, every stored value is returned as it is (`raw` true, `bucketSec` 0, each point min = max = value, count 1); otherwise the range is cut into 600 time buckets per axis (`raw` false): each point is the bucket's last value (values are stored only on change) with min, max and row count. `startValue` is the value at `from`. `stats` gives rowsRead, pointCount and queryMs (database time) so the screen can show what the range costs.
+// @Description  Every logged-in user, for machines they may read (others 404).
+// @Description
+// @Description  Used by pages: Machine health
+// @Tags         Machine health
+// @ID           getAxisValues
+// @Produce      json
+// @Security     cookieAuth
+// @Param        machineId query int true "Machine id"
+// @Param        axisSet query string false "machine_position (default), work_position, relative_position, distance_to_go, axis_load"
+// @Param        start query string false "Window start, RFC 3339 (with end; the chart's zoom)"
+// @Param        end query string false "Window end, RFC 3339 (cut to now)"
+// @Param        minutes query int false "Last N minutes up to now (1 … 44640)"
+// @Param        date query string false "One day YYYY-MM-DD"
+// @Param        from query string false "First day YYYY-MM-DD"
+// @Param        to query string false "Last day YYYY-MM-DD (default today)"
+// @Success      200 {object} response.Envelope{data=dto.AxisValuesResponse}
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      404 {object} response.Envelope "Machine not found"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/machine-health/axis-values [get]
+func (dashboardHandler *DashboardHandler) GetAxisValues(writer http.ResponseWriter, request *http.Request) {
+	actor, err := currentUser(request)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+	axisRequest, err := axisValuesQuery(request)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+	if err := axisRequest.Validate(); err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+	values, err := dashboardHandler.service.GetAxisValues(request.Context(), actor, axisRequest)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+	response.SendResponse(writer, request, response.Success, values)
+}
+
+// axisValuesQuery reads the query of GET /machine-health/axis-values (date sets from and to).
+func axisValuesQuery(request *http.Request) (dto.AxisValuesRequest, error) {
+	query := request.URL.Query()
+	machineID, err := queryID(request, "machineId")
+	if err != nil {
+		return dto.AxisValuesRequest{}, err
+	}
+	if machineID == nil {
+		return dto.AxisValuesRequest{}, response.SelectMachine
+	}
+	axisRequest := dto.AxisValuesRequest{
+		MachineID: *machineID, AxisSet: strings.TrimSpace(query.Get("axisSet")),
+		Start: query.Get("start"), End: query.Get("end"),
+		From: query.Get("from"), To: query.Get("to"),
+	}
+	if minutes := query.Get("minutes"); minutes != "" {
+		value, err := strconv.Atoi(minutes)
+		if err != nil {
+			return dto.AxisValuesRequest{}, response.NewError(http.StatusBadRequest, "Please enter valid minutes")
+		}
+		axisRequest.Minutes = value
+	}
+	if date := query.Get("date"); date != "" {
+		axisRequest.From, axisRequest.To = date, date
+	}
+	return axisRequest, nil
+}

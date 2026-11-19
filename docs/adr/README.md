@@ -20,5 +20,10 @@ Server (backend) decisions, one file each (Michael Nygard template). Never edit 
 | 0014 | [Session modes and the login conflict, on the existing auth_tokens sessions](0014-session-modes-and-login-conflict.md) | Accepted | 2026-11-17 |
 | 0015 | [Operator tasks: a shared task list, assigned per customer and machine model](0015-operator-tasks-master-list-and-machine-model.md) | Accepted (task-list part superseded by 0016) | 2026-11-17 |
 | 0016 | [A Task List screen for the operator tasks' master list](0016-operator-task-list-screen.md) | Accepted | 2026-11-17 |
+| 0017 | [Machine accuracy as one shared list, managed by the superadmin](0017-machine-accuracy-shared-list.md) | Accepted | 2026-11-18 |
+| 0018 | [Machine Health X / Y / Z charts: downsampled in SQL, timed, on the machine-health routes](0018-machine-health-axis-values.md) | Accepted (downsampling part superseded by 0019) | 2026-11-18 |
+| 0019 | [Axis values: every stored value when it fits, and zoom by loading the window again](0019-axis-values-raw-and-zoom.md) | Accepted | 2026-11-18 |
+| 0020 | [Machine PLC node IDs: the machine's own node ID in machine_variables, default otherwise](0020-machine-plc-node-ids.md) | Proposed | 2026-11-19 |
+| 0021 | [Read PLC variables over OPC UA with gopcua, in-process beside the CNC collector](0021-opcua-plc-reader-gopcua.md) | Proposed | 2026-11-19 |
 
 New ADR: copy the newest file, take the next number, status "Proposed" until agreed, then "Accepted"; add a row here.

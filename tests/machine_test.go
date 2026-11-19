@@ -72,6 +72,7 @@ func newMachineService() *service.MachineService {
 		brandService,
 		controllerService,
 		userLineService,
+		service.NewMachineAccuracyService(repository.NewMachineAccuracyRepository(testDBPool)),
 	)
 }
 

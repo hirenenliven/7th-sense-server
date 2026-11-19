@@ -120,7 +120,7 @@ func TestHubJoinValuesSharesRoomsAndReportsUnknownCodes(t *testing.T) {
 		t.Fatalf("another machine got room %q", other)
 	}
 
-	hub.SetMachineCodes(225, []string{"SpindleLoad"})
+	hub.SetMachineCodes(225, ReaderCNC, []string{"SpindleLoad"})
 	room, kept, unknown := hub.JoinValues(225, []string{"SpindleLoad", "SPBeTemp"}, 50*time.Millisecond)
 	if !reflect.DeepEqual(kept, []string{"SpindleLoad"}) || !reflect.DeepEqual(unknown, []string{"SPBeTemp"}) {
 		t.Fatalf("kept %v unknown %v", kept, unknown)
@@ -178,8 +178,27 @@ func TestHubStatusAndEvents(t *testing.T) {
 
 func TestNilHubIgnoresPublishing(t *testing.T) {
 	var hub *Hub
-	hub.SetMachineCodes(1, []string{"SpindleLoad"})
+	hub.SetMachineCodes(1, ReaderCNC, []string{"SpindleLoad"})
 	hub.PublishValues(1, time.Now(), map[string]any{"SpindleLoad": 1.0})
 	hub.PublishStatus(1, Status{})
 	hub.PublishEvent(1, model.EventAlarmOn, nil, "", time.Now())
+}
+
+// TestReadersKeepTheirCodes checks that the CNC and PLC workers each report their own codes: a
+// code either reads is known, and one reader replacing its list keeps the other's.
+func TestReadersKeepTheirCodes(t *testing.T) {
+	hub := NewHub(time.Second)
+	hub.SetMachineCodes(7, ReaderCNC, []string{"SpindleLoad"})
+	hub.SetMachineCodes(7, ReaderPLC, []string{"hydPressure"})
+
+	_, kept, unknown := hub.JoinValues(7, []string{"SpindleLoad", "hydPressure", "nope"}, time.Second)
+	if !reflect.DeepEqual(kept, []string{"SpindleLoad", "hydPressure"}) || !reflect.DeepEqual(unknown, []string{"nope"}) {
+		t.Fatalf("kept %v, unknown %v", kept, unknown)
+	}
+
+	hub.SetMachineCodes(7, ReaderCNC, []string{"SpindleRpm"})
+	_, kept, unknown = hub.JoinValues(7, []string{"SpindleLoad", "hydPressure"}, time.Second)
+	if !reflect.DeepEqual(kept, []string{"hydPressure"}) || !reflect.DeepEqual(unknown, []string{"SpindleLoad"}) {
+		t.Fatalf("after the CNC list changed: kept %v, unknown %v", kept, unknown)
+	}
 }

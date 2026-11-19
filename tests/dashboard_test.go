@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"testing"
 	"time"
 
@@ -23,7 +24,7 @@ func newDashboardRouter() http.Handler {
 	cycleService := service.NewMachineCycleService(repository.NewMachineCycleRepository(testDBPool), machineService)
 	return routes.New(routes.Handlers{Dashboard: handler.NewDashboardHandler(service.NewDashboardService(
 		machineService, telemetryService, cycleService, repository.NewShiftRepository(testDBPool),
-		repository.NewProductionScheduleRepository(testDBPool)))}, asTestUser)
+		repository.NewProductionScheduleRepository(testDBPool), repository.NewMachineHealthRepository(testDBPool)))}, asTestUser)
 }
 
 // TestDashboardCharts reads every chart of the machine with the most recent mode periods (read
@@ -219,5 +220,81 @@ func mustDecode(t *testing.T, data json.RawMessage, target any) {
 	t.Helper()
 	if err := json.Unmarshal(data, target); err != nil {
 		t.Fatalf("decode: %v", err)
+	}
+}
+
+// TestAxisValues reads the Machine Health X / Y / Z charts of the machine that reported an X
+// position last (read only), for an hour and for a day: three axes, every stored value (raw, one
+// row per point) or at most AxisValuesMaxPoints buckets, each inside the range, rowsRead = the points' row counts; an unknown axis set is a 400.
+func TestAxisValues(t *testing.T) {
+	var machineID int64
+	err := testDBPool.QueryRow(context.Background(), `SELECT t.machine_id FROM machine_telementry t
+		JOIN cnc_variables v ON v.id = t.variable_id AND v.code = 'machPosX'
+		JOIN machines m ON m.id = t.machine_id AND m.is_deleted = false
+		ORDER BY t.recorded_at DESC LIMIT 1`).Scan(&machineID)
+	if err != nil {
+		t.Skipf("no machine with axis positions: %v", err)
+	}
+	router := newDashboardRouter()
+
+	for _, minutes := range []int{60, 24 * 60} {
+		result := sendRequest(t, router, http.MethodGet,
+			fmt.Sprintf("%s/machine-health/axis-values?machineId=%d&minutes=%d", apiV1, machineID, minutes), nil)
+		if !result.Success {
+			t.Fatalf("axis values of %d minutes: %s", minutes, result.Message)
+		}
+		var values dto.AxisValuesResponse
+		mustDecode(t, result.Data, &values)
+		if len(values.Axes) != 3 || values.AxisSet != dto.AxisSetMachinePosition {
+			t.Fatalf("axis values: %d axes of %q, want 3 of %q", len(values.Axes), values.AxisSet, dto.AxisSetMachinePosition)
+		}
+		rows := int64(0)
+		limit := dto.AxisValuesMaxPoints
+		if values.Raw {
+			limit = dto.AxisValuesMaxRawValues
+		}
+		for _, axis := range values.Axes {
+			if len(axis.Points) > limit {
+				t.Errorf("axis %s: %d points, more than %d", axis.Axis, len(axis.Points), limit)
+			}
+			for _, point := range axis.Points {
+				if values.Raw && point.Count != 1 {
+					t.Errorf("axis %s: raw point %+v holds %d rows", axis.Axis, point, point.Count)
+				}
+				if point.At.Before(values.From.Add(-time.Second)) || !point.At.Before(values.To) || point.Value < point.Min || point.Value > point.Max {
+					t.Errorf("axis %s: point %+v outside the range or its min / max", axis.Axis, point)
+				}
+				rows += point.Count
+			}
+		}
+		if rows != values.Stats.RowsRead {
+			t.Errorf("points hold %d rows, stats say %d", rows, values.Stats.RowsRead)
+		}
+		t.Logf("machine %d, last %d minutes: %d rows → %d points in %.1f ms (raw %v, bucket %d s)",
+			machineID, minutes, values.Stats.RowsRead, values.Stats.PointCount, values.Stats.QueryMs, values.Raw, values.BucketSec)
+	}
+
+	// Zoom: an exact window gives that window, every stored value when they fit
+	end := time.Now().Add(-5 * time.Minute)
+	start := end.Add(-10 * time.Minute)
+	zoomed := sendRequest(t, router, http.MethodGet, fmt.Sprintf("%s/machine-health/axis-values?machineId=%d&start=%s&end=%s",
+		apiV1, machineID, url.QueryEscape(start.Format(time.RFC3339Nano)), url.QueryEscape(end.Format(time.RFC3339Nano))), nil)
+	if !zoomed.Success {
+		t.Fatalf("axis values of a window: %s", zoomed.Message)
+	}
+	var window dto.AxisValuesResponse
+	mustDecode(t, zoomed.Data, &window)
+	if !window.From.Equal(start) || !window.To.Equal(end) {
+		t.Errorf("window %v – %v, want %v – %v", window.From, window.To, start, end)
+	}
+	t.Logf("10-minute window: %d rows → %d points in %.1f ms (raw %v)", window.Stats.RowsRead, window.Stats.PointCount, window.Stats.QueryMs, window.Raw)
+	if result := sendRequest(t, router, http.MethodGet, fmt.Sprintf("%s/machine-health/axis-values?machineId=%d&start=%s&end=%s",
+		apiV1, machineID, url.QueryEscape(end.Format(time.RFC3339)), url.QueryEscape(start.Format(time.RFC3339))), nil); result.StatusCode != http.StatusBadRequest {
+		t.Errorf("window ending before it starts: status %d, want 400", result.StatusCode)
+	}
+
+	if result := sendRequest(t, router, http.MethodGet,
+		fmt.Sprintf("%s/machine-health/axis-values?machineId=%d&axisSet=nope", apiV1, machineID), nil); result.StatusCode != http.StatusBadRequest {
+		t.Errorf("unknown axis set: status %d, want 400", result.StatusCode)
 	}
 }

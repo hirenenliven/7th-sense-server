@@ -21,7 +21,7 @@ func NewMachineDiagnosticsHandler(diagnosticsService *service.MachineDiagnostics
 // GetDiagnostics handles GET /api/v1/machines/{id}/diagnostics.
 //
 // @Summary      Get machine diagnostics
-// @Description  What the server knows about one machine's data collection now: set-up, collector status, current mode, every variable (readable or why not, latest value, last stored number), recent machine events, and the checks worked out from them with the reason and what to do for each problem. Sends nothing to the machine.
+// @Description  What the server knows about one machine's data collection now: set-up, collector status, current mode, every CNC DLL (snapshot) variable (readable or why not, latest value, last stored number), recent machine events, and the checks worked out from them with the reason and what to do for each problem. `plc` is the OPC UA PLC reader's side (ADR 0021): whether it reads the machine (PLC_ENABLED, Siemens only), its connection state, endpoint, security policy, last error, a verdict with message and hint, and every PLC variable (node id, accepted by the controller or its status, live value, last stored number); PLC variables are listed there, not under `variables`. Sends nothing to the machine.
 // @Description  Roles: superadmin (others get 403).
 // @Description
 // @Description  Used by pages: Machine diagnostics
@@ -60,7 +60,7 @@ func (diagnosticsHandler *MachineDiagnosticsHandler) GetDiagnostics(writer http.
 // CheckNetwork handles GET /api/v1/machines/{id}/diagnostics/network.
 //
 // @Summary      Check machine network
-// @Description  Tests the machine's stored live IP and port from this server, where the collector connects from: one ping and one TCP connect that sends no data. Takes up to a few seconds, so the page runs it on opening and when asked, not on a timer.
+// @Description  Tests the machine's stored live IP and port from this server, where the collector connects from: one ping and one TCP connect that sends no data. Takes up to a few seconds, so the page runs it on opening and when asked (Check machine), not on a timer. `machineState` sums it up: powered_on (the port accepted a connection), port_closed (the IP answers, the port does not), ip_unreachable (no answer: off, or the network is down), ip_invalid (the stored IP does not resolve). It is what the test found, even when the checks only warn because the collector is connected.
 // @Description  Roles: superadmin (others get 403).
 // @Description
 // @Description  Used by pages: Machine diagnostics

@@ -38,6 +38,13 @@ const (
 	EventCycleClosed = "cycle_closed"
 )
 
+// Readers that report a machine's codes (SetMachineCodes): the CNC DLL worker and the OPC UA PLC
+// worker read different variables of the same machine.
+const (
+	ReaderCNC = "cnc"
+	ReaderPLC = "plc"
+)
+
 // DefaultInterval is a subscription's interval when the browser names none.
 const DefaultInterval = time.Second
 
@@ -119,7 +126,9 @@ type machineState struct {
 	seq    int64
 	at     time.Time      // when a value last changed
 	values map[string]any // code → float64 or string
-	codes  map[string]bool
+	// codes are the codes each reader (ReaderCNC, ReaderPLC) reads for the machine; nil until
+	// one reports. A code is known when any reader reads it.
+	codes  map[string]map[string]bool
 	status *Status
 	rooms  map[string]*valuesRoom
 }
@@ -205,9 +214,10 @@ func (hub *Hub) Flush(now time.Time) {
 	}
 }
 
-// SetMachineCodes records the variable codes the collector reads for machineID: subscriptions
-// to other codes of it are answered as unknown.
-func (hub *Hub) SetMachineCodes(machineID int64, codes []string) {
+// SetMachineCodes records the variable codes reader reads for machineID (replacing that reader's
+// earlier list, keeping the other reader's): subscriptions to codes no reader reads are answered
+// as unknown.
+func (hub *Hub) SetMachineCodes(machineID int64, reader string, codes []string) {
 	if hub == nil {
 		return
 	}
@@ -217,7 +227,24 @@ func (hub *Hub) SetMachineCodes(machineID int64, codes []string) {
 	}
 	hub.mu.Lock()
 	defer hub.mu.Unlock()
-	hub.machine(machineID).codes = known
+	machine := hub.machine(machineID)
+	if machine.codes == nil {
+		machine.codes = map[string]map[string]bool{}
+	}
+	machine.codes[reader] = known
+}
+
+// isKnown reports whether a reader reads code for machine; true while no reader has reported.
+func (machine *machineState) isKnown(code string) bool {
+	if machine.codes == nil {
+		return true
+	}
+	for _, known := range machine.codes {
+		if known[code] {
+			return true
+		}
+	}
+	return false
 }
 
 // PublishValues takes one reading of machineID (code → float64 or string, every variable read):
@@ -294,7 +321,7 @@ func (hub *Hub) JoinValues(machineID int64, codes []string, interval time.Durati
 	for _, code := range codes {
 		switch {
 		case slices.Contains(kept, code) || slices.Contains(unknown, code):
-		case machine.codes != nil && !machine.codes[code]:
+		case !machine.isKnown(code):
 			unknown = append(unknown, code)
 		default:
 			kept = append(kept, code)

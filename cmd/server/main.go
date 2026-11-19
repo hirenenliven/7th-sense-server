@@ -21,6 +21,7 @@ import (
 	"7th-sense-server/internal/live"
 	"7th-sense-server/internal/logger"
 	"7th-sense-server/internal/middleware"
+	"7th-sense-server/internal/opcua"
 	"7th-sense-server/internal/repository"
 	"7th-sense-server/internal/routes"
 	"7th-sense-server/internal/service"
@@ -48,10 +49,17 @@ func main() {
 func run() error {
 	appConfig := config.Load()
 
-	// Generate OPC UA client certificates for Siemens authentication
-	if err := cert.GenerateCertificates(appConfig.CNC.CertDir); err != nil {
-		slog.Warn("failed to generate certificates", "error", err)
-		// Continue without certificates - CNC connection may fail if required
+	// The OPC UA client certificate the CNC DLL and the PLC reader present to Siemens controllers:
+	// kept across restarts (the NCU trusts this exact certificate), created when missing.
+	certificate, err := cert.EnsureCertificates(appConfig.CNC.CertDir)
+	if err != nil {
+		slog.Warn("client certificate unavailable: Siemens connections that need it will fail", "error", err)
+	}
+	// What each machine's PLC reader is doing, written by the PLC workers and read by the
+	// diagnostics; nil when PLC reading is off.
+	var plcBoard *opcua.StatusBoard
+	if appConfig.CNC.PLC.Enabled {
+		plcBoard = opcua.NewStatusBoard()
 	}
 
 	// ctx is cancelled on Ctrl+C / SIGTERM.
@@ -88,9 +96,11 @@ func run() error {
 	// Machine catalog: Brand → Controller → Model
 	controllerService := service.NewControllerService(controllerRepository, brandService)
 	machineModelService := service.NewMachineModelService(repository.NewMachineModelRepository(dbPool), controllerService)
-	// A machine checks its customer, brand, controller, model and the customer's line
+	// Machine accuracies: one list for every customer (machine and part process accuracy)
+	machineAccuracyService := service.NewMachineAccuracyService(repository.NewMachineAccuracyRepository(dbPool))
+	// A machine checks its customer, brand, controller, model, the customer's line and its accuracy
 	machineService := service.NewMachineService(machineRepository, repository.NewUserRepository(dbPool),
-		machineModelService, brandService, controllerService, userLineService)
+		machineModelService, brandService, controllerService, userLineService, machineAccuracyService)
 	telemetryService := service.NewMachineTelemetryService(dbPool, telemetryRepository)
 	healthService := service.NewHealthService(machineService, telemetryService)
 	// Cycles are written by the CNC collector and read through the API with machine access
@@ -99,7 +109,7 @@ func run() error {
 	clienteleService := service.NewClienteleService(repository.NewClienteleRepository(dbPool), repository.NewUserRepository(dbPool))
 	// A part checks its customer, clientele and applicable machines; drawings are files under UPLOAD_DIR
 	partService := service.NewPartService(dbPool, repository.NewUserRepository(dbPool), machineService, clienteleService,
-		repository.NewPartDrawingStorage(filepath.Join(appConfig.UploadDir, "part-drawings")))
+		repository.NewPartDrawingStorage(filepath.Join(appConfig.UploadDir, "part-drawings")), machineAccuracyService)
 	var apiDocs http.Handler
 	if appConfig.APIDocs {
 		apiDocs = apidocs.Handler()
@@ -150,10 +160,12 @@ func run() error {
 		IdleReason: handler.NewIdleReasonHandler(service.NewIdleReasonService(
 			repository.NewIdleReasonRepository(dbPool), repository.NewUserRepository(dbPool))),
 		MachineDiagnostics: handler.NewMachineDiagnosticsHandler(service.NewMachineDiagnosticsService(repository.NewMachineDiagnosticsRepository(dbPool),
-			machineService, telemetryService, liveHub, appConfig.CNC, runtime.GOARCH)),
+			machineService, telemetryService, liveHub, appConfig.CNC, runtime.GOARCH, plcBoard)),
+		MachinePlcVariable: handler.NewMachinePlcVariableHandler(service.NewMachinePlcVariableService(dbPool,
+			repository.NewMachinePlcVariableRepository(dbPool), machineService)),
 		MachineModeReason: handler.NewMachineModeReasonHandler(service.NewMachineModeReasonService(dbPool, machineService)),
-		Shift: handler.NewShiftHandler(service.NewShiftService(dbPool, repository.NewUserRepository(dbPool))),
-		Break: handler.NewBreakHandler(service.NewBreakService(dbPool, repository.NewUserRepository(dbPool))),
+		Shift:             handler.NewShiftHandler(service.NewShiftService(dbPool, repository.NewUserRepository(dbPool))),
+		Break:             handler.NewBreakHandler(service.NewBreakService(dbPool, repository.NewUserRepository(dbPool))),
 		Holiday: handler.NewHolidayHandler(service.NewHolidayService(repository.NewHolidayRepository(dbPool),
 			repository.NewUserRepository(dbPool))),
 		LicenceKey: handler.NewLicenceKeyHandler(service.NewLicenceKeyService(repository.NewLicenceKeyRepository(dbPool),
@@ -172,9 +184,11 @@ func run() error {
 		Health:         handler.NewHealthHandler(healthService, cycleService),
 		MachineCycle:   handler.NewMachineCycleHandler(cycleService),
 		Dashboard: handler.NewDashboardHandler(service.NewDashboardService(machineService, telemetryService,
-			cycleService, repository.NewShiftRepository(dbPool), repository.NewProductionScheduleRepository(dbPool))),
+			cycleService, repository.NewShiftRepository(dbPool), repository.NewProductionScheduleRepository(dbPool),
+			repository.NewMachineHealthRepository(dbPool))),
 		MaintenanceTask: handler.NewMaintenanceTaskHandler(maintenanceTaskService),
 		OperatorTask:    handler.NewOperatorTaskHandler(operatorTaskService),
+		MachineAccuracy: handler.NewMachineAccuracyHandler(machineAccuracyService),
 	}, middleware.Authenticate(authService))
 
 	server := &http.Server{
@@ -196,6 +210,8 @@ func run() error {
 	if err := collectors.StartCNCDataCollection(); err != nil {
 		return err
 	}
+	// The PLC reader connects every active Siemens machine over OPC UA (PLC_ENABLED, any build; ADR 0021).
+	collectors.StartPLCDataCollection(plcBoard, certificate)
 	// DATA_COLLECTION_STEP_19: Stop collection on shutdown: this defer runs after server.Shutdown
 	// and before dbPool.Close, so the collector can still mark the machines offline.
 	defer collectors.Stop()

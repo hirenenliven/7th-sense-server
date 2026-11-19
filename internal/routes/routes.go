@@ -30,6 +30,8 @@ type Handlers struct {
 	IdleReason     *handler.IdleReasonHandler
 	// MachineDiagnostics serves /machines/{id}/diagnostics (superadmin)
 	MachineDiagnostics *handler.MachineDiagnosticsHandler
+	// MachinePlcVariable serves /machines/{id}/plc-variables (superadmin)
+	MachinePlcVariable *handler.MachinePlcVariableHandler
 	// MachineModeReason serves /machine-mode-reasons (a reason recorded against a mode period)
 	MachineModeReason *handler.MachineModeReasonHandler
 	Shift             *handler.ShiftHandler
@@ -59,6 +61,8 @@ type Handlers struct {
 	// MaintenanceTask / OperatorTask serve /maintenance-tasks and /operator-tasks (superadmin writes)
 	MaintenanceTask *handler.MaintenanceTaskHandler
 	OperatorTask    *handler.OperatorTaskHandler
+	// MachineAccuracy serves /machine-accuracies (superadmin writes)
+	MachineAccuracy *handler.MachineAccuracyHandler
 	// Live serves the Socket.IO live data at /socket.io/ (nil = off, see config.LiveConfig)
 	Live *handler.LiveHandler
 	// APIDocs serves Swagger UI and the OpenAPI spec at /api-docs/ (nil = off, see config.APIDocs)
@@ -155,6 +159,9 @@ func registerV1Routes(router *http.ServeMux, handlers Handlers) {
 	if handlers.MachineDiagnostics != nil {
 		registerMachineDiagnosticsRoutes(router, v1Prefix, handlers.MachineDiagnostics)
 	}
+	if handlers.MachinePlcVariable != nil {
+		registerMachinePlcVariableRoutes(router, v1Prefix, handlers.MachinePlcVariable)
+	}
 	if handlers.MachineModeReason != nil {
 		registerMachineModeReasonRoutes(router, v1Prefix, handlers.MachineModeReason)
 	}
@@ -211,6 +218,9 @@ func registerV1Routes(router *http.ServeMux, handlers Handlers) {
 	}
 	if handlers.MaintenanceTask != nil && handlers.OperatorTask != nil {
 		registerOperatorTaskRoutes(router, v1Prefix, handlers.MaintenanceTask, handlers.OperatorTask)
+	}
+	if handlers.MachineAccuracy != nil {
+		registerMachineAccuracyRoutes(router, v1Prefix, handlers.MachineAccuracy)
 	}
 	if handlers.Live != nil {
 		registerLiveRoutes(router, v1Prefix, handlers.Live)

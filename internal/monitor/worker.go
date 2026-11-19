@@ -13,6 +13,7 @@ import (
 	"7th-sense-server/internal/cnc"
 	"7th-sense-server/internal/live"
 	"7th-sense-server/internal/model"
+	"7th-sense-server/internal/service"
 )
 
 const (
@@ -209,11 +210,13 @@ func (machineWorker *worker) connectWithinLimit(ctx context.Context) (*cnc.Conne
 
 // loadVariableConfig reads the machine's variable configuration and binds each variable to its
 // snapshot field. It first takes machine details queued by queueMachineUpdate, because the
-// variables depend on the controller version.
+// variables depend on the controller version. Variables whose address is a PLC node id are read
+// by the OPC UA PLC worker (plc_worker.go) and skipped here.
 func (machineWorker *worker) loadVariableConfig(ctx context.Context) error {
 	machineWorker.applyPendingMachineUpdate()
 
-	configs, err := machineWorker.collector.service.GetVariableConfig(ctx, machineWorker.machine, machineWorker.collector.driver.Sources())
+	sources := service.VariableSources(machineWorker.machine.CNCEngine, machineWorker.collector.config.PLC.Enabled)
+	configs, err := machineWorker.collector.service.GetVariableConfig(ctx, machineWorker.machine, sources)
 	if err != nil {
 		return err
 	}
@@ -221,7 +224,12 @@ func (machineWorker *worker) loadVariableConfig(ctx context.Context) error {
 	variableMap := make([]string, 0, len(configs)) // "14:opMode<-MachineMode", for the log
 	codes := make([]string, 0, len(configs))       // the codes screens may subscribe to (live.Hub)
 	var unreadable []string                        // active variables without a readable address
+	plcCount := 0                                  // read by the PLC worker
 	for _, variable := range configs {
+		if variable.Source == model.VariableSourcePLC {
+			plcCount++
+			continue
+		}
 		if variable.Address == "" {
 			unreadable = append(unreadable, fmt.Sprintf("%d:%s", variable.ID, variable.Code))
 			continue
@@ -237,10 +245,11 @@ func (machineWorker *worker) loadVariableConfig(ctx context.Context) error {
 		codes = append(codes, variable.Code)
 	}
 	machineWorker.variables = variables
-	machineWorker.collector.hub.SetMachineCodes(machineWorker.machine.ID, codes)
+	machineWorker.collector.hub.SetMachineCodes(machineWorker.machine.ID, live.ReaderCNC, codes)
 	// Clear live values cache on reload - will be reloaded on next reading
 	machineWorker.liveValues = nil
-	machineWorker.log(logTypeOther, slog.LevelInfo, "cnc: variables loaded", "variables", len(variables), "map", variableMap)
+	machineWorker.log(logTypeOther, slog.LevelInfo, "cnc: variables loaded", "variables", len(variables), "map", variableMap,
+		"readByPlcWorker", plcCount)
 	if len(unreadable) > 0 {
 		// Logged, not stored as events: it would repeat on every reconnect.
 		machineWorker.log(logTypeOther, slog.LevelWarn, "cnc: active variables not readable",

@@ -36,7 +36,8 @@ const activeMachineSelect = `SELECT m.id, m.name, m.live_ip, m.port,
 		COALESCE(m.username, '') AS username,
 		COALESCE(m.password, '') AS password,
 		COALESCE(m.controller_version_type, 0) AS controller_version_type,
-		c.cnc_engine
+		c.cnc_engine,
+		COALESCE(m.security_mode, 'None') AS security_mode
 	FROM machines m
 	LEFT JOIN controllers c ON c.id = m.controller_id AND c.is_deleted = false
 	WHERE m.is_deleted = false AND m.status = 'active'`
@@ -87,24 +88,30 @@ func mapMachineTelemetryError(operation string, err error) error {
 // FindVariableConfig returns the variables machine reads, with its overrides applied. Per
 // variable the address is the one for the machine's controller version before the one for all
 // versions, then the cheapest source; only sources in sources (what the collector can read)
-// are used. A variable without a usable address comes back with an empty source and address,
-// so the collector can report it instead of dropping it silently.
+// are used. A plc address may come from another engine when the machine's engine has none (PLC
+// defaults exist for Siemens only), ranked as MachinePlcVariableRepository's plcDefaultOrder, so
+// the PLC node IDs page shows the default used here. A variable without a usable address comes back with an empty source and address,
+// so the collector can report it instead of dropping it silently. The machine's own address
+// (e.g. a PLC node id from the PLC node IDs screen) counts only in a source in sources too, so a
+// machine not read over OPC UA gets no plc address (no config_error on every reload).
 func (telemetryRepository *MachineTelemetryRepository) FindVariableConfig(ctx context.Context, machine model.MonitoredMachine, sources []string) ([]model.VariableConfig, error) {
 	query := `SELECT v.id, v.code, v.data_type, v.store_mode,
 			COALESCE(mv.deadband, v.deadband) AS deadband,
 			COALESCE(mv.min_interval_ms, v.min_interval_ms) AS min_interval_ms,
-			COALESCE(mv.source, a.source, '') AS source,
-			COALESCE(mv.address, a.address, '') AS address
+			COALESCE(CASE WHEN mv.source = ANY($4::text[]) THEN mv.source END, a.source, '') AS source,
+			COALESCE(CASE WHEN mv.source = ANY($4::text[]) THEN mv.address END, a.address, '') AS address
 		FROM cnc_variables v
 		LEFT JOIN machine_variables mv ON mv.id = v.id AND mv.machine_id = $1
 		LEFT JOIN LATERAL (
 			SELECT a.source, a.address
 			FROM cnc_variable_addresses a
-			WHERE a.variable_id = v.id AND a.cnc_engine = $2 AND a.is_deleted = false
-			  AND (a.controller_version_type = $3 OR a.controller_version_type IS NULL)
-			  AND a.source = ANY($4::text[])
-			ORDER BY a.controller_version_type IS NULL,
-			         array_position(ARRAY['snapshot', 'nc', 'plc'], a.source::text)
+			WHERE a.variable_id = v.id AND a.is_deleted = false AND a.source = ANY($4::text[])
+			  AND (a.source = 'plc'
+			       OR (a.cnc_engine = $2 AND (a.controller_version_type = $3 OR a.controller_version_type IS NULL)))
+			ORDER BY a.cnc_engine IS DISTINCT FROM $2,
+			         a.controller_version_type IS DISTINCT FROM $3,
+			         a.controller_version_type IS NULL DESC,
+			         array_position(ARRAY['snapshot', 'nc', 'plc'], a.source::text), a.id
 			LIMIT 1
 		) a ON true
 		WHERE v.is_deleted = false AND v.status = 'active'

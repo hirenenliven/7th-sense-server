@@ -26,7 +26,8 @@ var testPDF = []byte("%PDF-1.4\n%test drawing\n%%EOF\n")
 func newPartRouter(authenticate middleware.Middleware, uploadDir string) http.Handler {
 	clienteleService := service.NewClienteleService(repository.NewClienteleRepository(testDBPool), repository.NewUserRepository(testDBPool))
 	partService := service.NewPartService(testDBPool, repository.NewUserRepository(testDBPool),
-		newMachineService(), clienteleService, repository.NewPartDrawingStorage(uploadDir))
+		newMachineService(), clienteleService, repository.NewPartDrawingStorage(uploadDir),
+		service.NewMachineAccuracyService(repository.NewMachineAccuracyRepository(testDBPool)))
 	return routes.New(routes.Handlers{
 		Part:      handler.NewPartHandler(partService),
 		Clientele: handler.NewClienteleHandler(clienteleService),

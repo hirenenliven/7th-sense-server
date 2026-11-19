@@ -108,6 +108,25 @@ type CNCConfig struct {
 	// CertDir is the directory where client certificates are generated for OPC UA authentication.
 	// If empty, certificates are generated next to the server binary.
 	CertDir string
+	// PLC holds the PLC_* settings of the OPC UA reader of PLC variables (ADR 0021).
+	PLC PLCConfig
+}
+
+// PLCConfig holds the PLC_* settings of the PLC reader: it connects every active Siemens machine
+// over OPC UA (gopcua) and subscribes to its PLC variables (source plc). Pure Go, so it runs in
+// any build; CNC_MACHINE_IDS and CNC_CERT_DIR apply to it too.
+type PLCConfig struct {
+	// Enabled starts the PLC reader with the server (PLC_ENABLED); off, PLC variables are not read.
+	Enabled bool
+	// PublishInterval is how often the controller sends the changed values (PLC_PUBLISH_INTERVAL_MS).
+	PublishInterval time.Duration
+	// SamplingInterval is how often the controller samples each node (PLC_SAMPLING_INTERVAL_MS).
+	SamplingInterval time.Duration
+	// ConnectTimeout bounds one connect: endpoints, secure channel and session (PLC_CONNECT_TIMEOUT_SEC).
+	ConnectTimeout time.Duration
+	// HealthInterval is how often the server time is read to notice a silent dead connection
+	// (PLC_HEALTH_SEC): subscriptions send nothing while no value changes.
+	HealthInterval time.Duration
 }
 
 // DBConfig holds the PostgreSQL connection settings.
@@ -159,8 +178,16 @@ func Load() Config {
 				Snapshot:   getEnvBool("CNC_LOG_SNAPSHOT", false),
 				Downtime:   getEnvBool("CNC_LOG_DOWNTIME", true),
 				Cycles:     getEnvBool("CNC_LOG_CYCLES", true),
+				PLC:        getEnvBool("CNC_LOG_PLC", true),
 			},
 			CertDir: getEnv("CNC_CERT_DIR", ""),
+			PLC: PLCConfig{
+				Enabled:          getEnvBool("PLC_ENABLED", true),
+				PublishInterval:  time.Duration(getEnvInt("PLC_PUBLISH_INTERVAL_MS", 500)) * time.Millisecond,
+				SamplingInterval: time.Duration(getEnvInt("PLC_SAMPLING_INTERVAL_MS", 250)) * time.Millisecond,
+				ConnectTimeout:   time.Duration(getEnvInt("PLC_CONNECT_TIMEOUT_SEC", 10)) * time.Second,
+				HealthInterval:   time.Duration(getEnvInt("PLC_HEALTH_SEC", 30)) * time.Second,
+			},
 		},
 		Live: LiveConfig{
 			Enabled:           getEnvBool("LIVE_ENABLED", true),
@@ -264,6 +291,8 @@ type CNCLogSettings struct {
 	Downtime bool
 	// Cycles logs each cycle opened, closed and restored, with its seconds per mode and parts.
 	Cycles bool
+	// PLC logs the OPC UA PLC reader: connect, subscribe, nodes refused, lost connections.
+	PLC bool
 }
 
 // AllMachines is the CNC_MACHINE_IDS value that selects every machine (as does empty).

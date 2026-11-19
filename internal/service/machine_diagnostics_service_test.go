@@ -153,3 +153,27 @@ func TestVariableUnreadableReason(t *testing.T) {
 		})
 	}
 }
+
+func TestMachineStateOf(t *testing.T) {
+	cases := []struct {
+		name    string
+		replied bool
+		outcome portResult
+		want    string
+	}{
+		{"port open", false, portOpen, dto.MachineStateOn},
+		{"port open, ping blocked", true, portOpen, dto.MachineStateOn},
+		{"refused: the host is there", false, portRefused, dto.MachineStatePortClosed},
+		{"ping replies, port silent", true, portTimedOut, dto.MachineStatePortClosed},
+		{"no answer at all", false, portTimedOut, dto.MachineStateIPUnreachable},
+		{"no route", false, portUnreachable, dto.MachineStateIPUnreachable},
+		{"other error, no ping", false, portOtherError, dto.MachineStateIPUnreachable},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			if got := machineStateOf(testCase.replied, testCase.outcome); got != testCase.want {
+				t.Errorf("got %s, want %s", got, testCase.want)
+			}
+		})
+	}
+}

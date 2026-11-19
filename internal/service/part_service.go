@@ -33,16 +33,19 @@ type PartService struct {
 	machineService   *MachineService
 	clienteleService *ClienteleService
 	drawingStorage   *repository.PartDrawingStorage
+	accuracyService  *MachineAccuracyService
 }
 
 // NewPartService creates a PartService that stores parts in dbPool, drawings in
-// drawingStorage, and checks customers, machines and clienteles with the other arguments.
+// drawingStorage, and checks customers, machines, clienteles and accuracies with the
+// other arguments.
 func NewPartService(
 	dbPool *pgxpool.Pool,
 	userRepository *repository.UserRepository,
 	machineService *MachineService,
 	clienteleService *ClienteleService,
 	drawingStorage *repository.PartDrawingStorage,
+	accuracyService *MachineAccuracyService,
 ) *PartService {
 	return &PartService{
 		dbPool:           dbPool,
@@ -51,6 +54,7 @@ func NewPartService(
 		machineService:   machineService,
 		clienteleService: clienteleService,
 		drawingStorage:   drawingStorage,
+		accuracyService:  accuracyService,
 	}
 }
 
@@ -233,8 +237,8 @@ func (partService *PartService) OpenDrawing(ctx context.Context, actor model.Aut
 var partDrawingNotFound = response.NewError(http.StatusNotFound, "Part drawing not found")
 
 // checkReferences returns a "Please select valid …" error unless the customer exists,
-// the clientele (when given) and every applicable machine are the customer's and every
-// drawing was uploaded.
+// the clientele (when given) and every applicable machine are the customer's, every
+// accuracy is in the list and every drawing was uploaded.
 func (partService *PartService) checkReferences(ctx context.Context, fields dto.PartFields) error {
 	isCustomer, err := partService.userRepository.IsCustomer(ctx, fields.UserID)
 	if err != nil {
@@ -264,6 +268,9 @@ func (partService *PartService) checkReferences(ctx context.Context, fields dto.
 	}
 
 	for _, process := range fields.Processes {
+		if err := partService.accuracyService.checkExists(ctx, process.AccuracyID, response.SelectValidAccuracyLevel); err != nil {
+			return err
+		}
 		exists, err := partService.drawingStorage.Exists(process.DrawingFile)
 		if err != nil {
 			return err

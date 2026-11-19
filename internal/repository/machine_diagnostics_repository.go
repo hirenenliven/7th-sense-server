@@ -104,11 +104,13 @@ func (diagnosticsRepository *MachineDiagnosticsRepository) FindVariables(ctx con
 		LEFT JOIN LATERAL (
 			SELECT a.source, a.address
 			FROM cnc_variable_addresses a
-			WHERE a.variable_id = v.id AND a.cnc_engine = $2 AND a.is_deleted = false
-			  AND (a.controller_version_type = $3 OR a.controller_version_type IS NULL)
-			  AND a.source = ANY($4::text[])
-			ORDER BY a.controller_version_type IS NULL,
-			         array_position(ARRAY['snapshot', 'nc', 'plc'], a.source::text)
+			WHERE a.variable_id = v.id AND a.is_deleted = false AND a.source = ANY($4::text[])
+			  AND (a.source = 'plc'
+			       OR (a.cnc_engine = $2 AND (a.controller_version_type = $3 OR a.controller_version_type IS NULL)))
+			ORDER BY a.cnc_engine IS DISTINCT FROM $2,
+			         a.controller_version_type IS DISTINCT FROM $3,
+			         a.controller_version_type IS NULL DESC,
+			         array_position(ARRAY['snapshot', 'nc', 'plc'], a.source::text), a.id
 			LIMIT 1
 		) a ON true
 		WHERE v.is_deleted = false AND v.status = 'active'

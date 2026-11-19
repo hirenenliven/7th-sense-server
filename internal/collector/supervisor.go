@@ -1,9 +1,10 @@
-// Package collector runs the CNC data collection inside the API server: starting the server
+// Package collector runs the data collection inside the API server: starting the server
 // connects the machines and starts storing their data; there is no other process or service.
 // No DLL code and no SQL here.
 //
-// The CNC DLL is 32-bit, so the server must be built with GOARCH=386 to collect (Air does this,
-// see .air.toml, run.ps1 and build.ps1). Any other build refuses to start while CNC_ENABLED=true.
+// The CNC DLL is 32-bit, so the server must be built with GOARCH=386 to collect snapshot data (Air
+// does this, see .air.toml, run.ps1 and build.ps1). The PLC reader (OPC UA, gopcua) is pure Go and
+// runs in any build (PLC_ENABLED).
 package collector
 
 import (
@@ -15,10 +16,12 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"7th-sense-server/internal/cert"
 	"7th-sense-server/internal/cnc"
 	"7th-sense-server/internal/config"
 	"7th-sense-server/internal/live"
 	"7th-sense-server/internal/monitor"
+	"7th-sense-server/internal/opcua"
 	"7th-sense-server/internal/repository"
 	"7th-sense-server/internal/service"
 )
@@ -29,22 +32,24 @@ const (
 	collectorShardCount = 1
 )
 
-// Supervisor runs the collector in the server process and restarts it when it cannot start
-// (for example the database is not ready yet).
+// Supervisor runs the CNC collector and the PLC collector in the server process and restarts the
+// CNC collector when it cannot start (for example the database is not ready yet).
 type Supervisor struct {
 	config       config.CNCConfig
 	dbPool       *pgxpool.Pool
 	cycleService *service.MachineCycleService
 	hub          *live.Hub
+	ctx          context.Context // cancelled by Stop; parent of both collectors
 	cancel       context.CancelFunc
 	wg           sync.WaitGroup
 }
 
-// NewSupervisor creates a Supervisor for cncConfig that stores through dbPool; the collector
-// writes machine cycles through cycleService and publishes its readings to hub (nil = live data
+// NewSupervisor creates a Supervisor for cncConfig that stores through dbPool; the collectors
+// write machine cycles through cycleService and publish their readings to hub (nil = live data
 // off).
 func NewSupervisor(cncConfig config.CNCConfig, dbPool *pgxpool.Pool, cycleService *service.MachineCycleService, hub *live.Hub) *Supervisor {
-	return &Supervisor{config: cncConfig, dbPool: dbPool, cycleService: cycleService, hub: hub}
+	ctx, cancel := context.WithCancel(context.Background())
+	return &Supervisor{config: cncConfig, dbPool: dbPool, cycleService: cycleService, hub: hub, ctx: ctx, cancel: cancel}
 }
 
 // StartCNCDataCollection loads the CNC DLL and starts the collector in a background goroutine,
@@ -62,10 +67,6 @@ func (supervisor *Supervisor) StartCNCDataCollection() error {
 		return nil
 	}
 
-	// DATA_COLLECTION_STEP_3.1: Create a cancellation context to gracefully stop the collector goroutine on shutdown.
-	ctx, cancel := context.WithCancel(context.Background())
-	supervisor.cancel = cancel
-
 	// DATA_COLLECTION_STEP_3.2: Initializing/creating the service and repository objects - nothing more than that.
 	telemetryService := service.NewMachineTelemetryService(supervisor.dbPool,
 		repository.NewMachineTelemetryRepository(supervisor.dbPool))
@@ -76,18 +77,35 @@ func (supervisor *Supervisor) StartCNCDataCollection() error {
 	supervisor.wg.Add(1) // "I'm starting 1 background task"
 	go func() {
 		defer supervisor.wg.Done() // "I'll say I'm done when finished"
-		supervisor.runCollectorWithRetry(ctx, telemetryService, driver)
+		supervisor.runCollectorWithRetry(supervisor.ctx, telemetryService, driver)
 	}()
 	slog.Info("cnc data collection started")
 	return nil
 }
 
+// StartPLCDataCollection starts the PLC collector in a background goroutine when PLC_ENABLED:
+// every active Siemens machine is connected over OPC UA and its PLC variables are read. board
+// receives each machine's connection status (the diagnostics read it); certificate is presented
+// to controllers that need Basic256Sha256.
+func (supervisor *Supervisor) StartPLCDataCollection(board *opcua.StatusBoard, certificate cert.Paths) {
+	if !supervisor.config.PLC.Enabled {
+		slog.Info("plc data collection off (PLC_ENABLED=false)")
+		return
+	}
+	telemetryService := service.NewMachineTelemetryService(supervisor.dbPool,
+		repository.NewMachineTelemetryRepository(supervisor.dbPool))
+	collector := monitor.NewPlcCollector(supervisor.config, telemetryService, supervisor.hub, board, certificate)
+	supervisor.wg.Add(1)
+	go func() {
+		defer supervisor.wg.Done()
+		collector.RunCollection(supervisor.ctx)
+	}()
+	slog.Info("plc data collection started")
+}
+
 // Stop stops collecting: every machine is disconnected, what was collected is written and the
 // machines are left offline. It waits at most CNC_STOP_TIMEOUT_SEC (plus a margin).
 func (supervisor *Supervisor) Stop() {
-	if supervisor.cancel == nil {
-		return
-	}
 	// Cancelling makes Collector.RunCollection run its shutdown; the wait is bounded so a
 	// worker stuck inside the DLL cannot hang the server's shutdown.
 	supervisor.cancel()
@@ -98,9 +116,9 @@ func (supervisor *Supervisor) Stop() {
 	}()
 	select {
 	case <-done:
-		slog.Info("cnc data collection stopped")
+		slog.Info("data collection stopped")
 	case <-time.After(supervisor.config.StopTimeout + 5*time.Second):
-		slog.Error("cnc data collection did not stop in time")
+		slog.Error("data collection did not stop in time")
 	}
 }
 

@@ -43,8 +43,47 @@ type MachineDiagnosticsResponse struct {
 	Mode        *model.DiagnosticMode       `json:"mode"`        // nil without an open period
 	OpMode      string                      `json:"opMode"`
 	Checks      []DiagnosticCheck           `json:"checks"`
-	Variables   []DiagnosticVariableRow     `json:"variables"`
+	Variables   []DiagnosticVariableRow     `json:"variables"` // the CNC DLL's (snapshot) variables
+	PLC         DiagnosticPLC               `json:"plc"`       // the OPC UA PLC reader's side
 	Events      []model.DiagnosticEvent     `json:"events"`
+}
+
+// DiagnosticPLC is what the OPC UA PLC reader (ADR 0021) does for the machine: whether it reads
+// it, its connection, a sentence on what is wrong with the hint to fix it, and every PLC variable.
+type DiagnosticPLC struct {
+	Enabled        bool                    `json:"enabled"`   // PLC_ENABLED
+	Supported      bool                    `json:"supported"` // the controller runs an OPC UA server (Siemens)
+	State          string                  `json:"state"`     // opcua.State*, "off" or "not_reported"
+	Endpoint       string                  `json:"endpoint"`
+	SecurityMode   string                  `json:"securityMode"`
+	SecurityPolicy string                  `json:"securityPolicy"`
+	ConnectedSince *time.Time              `json:"connectedSince"`
+	LastError      string                  `json:"lastError"`
+	LastErrorAt    *time.Time              `json:"lastErrorAt"`
+	LastChangeAt   *time.Time              `json:"lastChangeAt"`
+	ChangeCount    int64                   `json:"changeCount"`
+	Status         string                  `json:"status"` // ok | warning | failed | skipped, as a DiagnosticCheck
+	Message        string                  `json:"message"`
+	Hint           string                  `json:"hint"`
+	Variables      []DiagnosticPLCVariable `json:"variables"`
+}
+
+// DiagnosticPLCVariable is one PLC variable of the machine: its node id, what the controller says
+// about it (nodeStatus "" = fine), the live value from the hub and the last stored number.
+type DiagnosticPLCVariable struct {
+	ID          int        `json:"id"`
+	Code        string     `json:"code"`
+	Name        string     `json:"name"`
+	Unit        string     `json:"unit"`
+	Category    string     `json:"category"`
+	DataType    string     `json:"dataType"`
+	NodeID      string     `json:"nodeId"`
+	Enabled     bool       `json:"enabled"`    // false = turned off for the machine (machine_variables)
+	Subscribed  bool       `json:"subscribed"` // the controller accepted the node
+	NodeStatus  string     `json:"nodeStatus"`
+	Value       any        `json:"value"`
+	StoredValue *float64   `json:"storedValue"`
+	StoredAt    *time.Time `json:"storedAt"`
 }
 
 // DiagnosticMachine is what identifies the machine and how the server reaches it.
@@ -83,12 +122,21 @@ type DiagnosticVariableRow struct {
 	StoredAt    *time.Time `json:"storedAt"`
 }
 
+// What one IP and port test says about the machine (MachineNetworkResponse.MachineState).
+const (
+	MachineStateOn            = "powered_on"     // the port accepted a connection: the machine is on
+	MachineStatePortClosed    = "port_closed"    // the IP answers, the port does not
+	MachineStateIPUnreachable = "ip_unreachable" // no answer from the IP: off, or the network is down
+	MachineStateIPInvalid     = "ip_invalid"     // the stored IP is not an address and does not resolve
+)
+
 // MachineNetworkResponse is the response of GET /machines/{id}/diagnostics/network: whether the
 // machine's live IP and port answer the server, tested when asked.
 type MachineNetworkResponse struct {
-	CheckedAt time.Time       `json:"checkedAt"`
-	Address   string          `json:"address"` // ip:port as tested
-	IP        DiagnosticCheck `json:"ip"`
-	Port      DiagnosticCheck `json:"port"`
-	LatencyMs *int64          `json:"latencyMs"` // the TCP connect, nil when it failed
+	CheckedAt    time.Time       `json:"checkedAt"`
+	Address      string          `json:"address"` // ip:port as tested
+	MachineState string          `json:"machineState" enums:"powered_on,port_closed,ip_unreachable,ip_invalid"`
+	IP           DiagnosticCheck `json:"ip"`
+	Port         DiagnosticCheck `json:"port"`
+	LatencyMs    *int64          `json:"latencyMs"` // the TCP connect, nil when it failed
 }

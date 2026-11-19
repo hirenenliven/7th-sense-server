@@ -1,5 +1,70 @@
 components:
   schemas:
+    dto.AxisPoint:
+      properties:
+        at:
+          type: string
+        count:
+          type: integer
+        max:
+          type: number
+        min:
+          type: number
+        value:
+          type: number
+      type: object
+    dto.AxisSeries:
+      properties:
+        axis:
+          type: string
+        code:
+          type: string
+        name:
+          type: string
+        points:
+          items:
+            $ref: '#/components/schemas/dto.AxisPoint'
+          type: array
+        startValue:
+          type: number
+        unit:
+          type: string
+      type: object
+    dto.AxisStats:
+      properties:
+        pointCount:
+          type: integer
+        queryMs:
+          type: number
+        rowsRead:
+          type: integer
+      type: object
+    dto.AxisValuesResponse:
+      properties:
+        axes:
+          items:
+            $ref: '#/components/schemas/dto.AxisSeries'
+          type: array
+        axisLabel:
+          type: string
+        axisSet:
+          type: string
+        bucketSec:
+          type: integer
+        from:
+          type: string
+        machineId:
+          type: integer
+        machineName:
+          type: string
+        raw:
+          description: 'Raw: every stored value (BucketSec 0); else points are time buckets of BucketSec seconds'
+          type: boolean
+        stats:
+          $ref: '#/components/schemas/dto.AxisStats'
+        to:
+          type: string
+      type: object
     dto.CreateBranchRequest:
       properties:
         address:
@@ -463,6 +528,75 @@ components:
         status:
           type: string
       type: object
+    dto.DiagnosticPLC:
+      properties:
+        changeCount:
+          type: integer
+        connectedSince:
+          type: string
+        enabled:
+          description: PLC_ENABLED
+          type: boolean
+        endpoint:
+          type: string
+        hint:
+          type: string
+        lastChangeAt:
+          type: string
+        lastError:
+          type: string
+        lastErrorAt:
+          type: string
+        message:
+          type: string
+        securityMode:
+          type: string
+        securityPolicy:
+          type: string
+        state:
+          description: opcua.State*, "off" or "not_reported"
+          type: string
+        status:
+          description: ok | warning | failed | skipped, as a DiagnosticCheck
+          type: string
+        supported:
+          description: the controller runs an OPC UA server (Siemens)
+          type: boolean
+        variables:
+          items:
+            $ref: '#/components/schemas/dto.DiagnosticPLCVariable'
+          type: array
+      type: object
+    dto.DiagnosticPLCVariable:
+      properties:
+        category:
+          type: string
+        code:
+          type: string
+        dataType:
+          type: string
+        enabled:
+          description: false = turned off for the machine (machine_variables)
+          type: boolean
+        id:
+          type: integer
+        name:
+          type: string
+        nodeId:
+          type: string
+        nodeStatus:
+          type: string
+        storedAt:
+          type: string
+        storedValue:
+          type: number
+        subscribed:
+          description: the controller accepted the node
+          type: boolean
+        unit:
+          type: string
+        value: {}
+      type: object
     dto.DiagnosticVariableRow:
       properties:
         address:
@@ -679,6 +813,11 @@ components:
         username:
           type: string
       type: object
+    dto.MachineAccuracyRequest:
+      properties:
+        name:
+          type: string
+      type: object
     dto.MachineDiagnosticsResponse:
       properties:
         checks:
@@ -700,6 +839,10 @@ components:
           description: nil without an open period
         opMode:
           type: string
+        plc:
+          allOf:
+            - $ref: '#/components/schemas/dto.DiagnosticPLC'
+          description: the OPC UA PLC reader's side
         quietSec:
           description: CNC_QUIET_SEC
           type: integer
@@ -710,6 +853,7 @@ components:
             - $ref: '#/components/schemas/model.DiagnosticLiveStatus'
           description: nil before the first report
         variables:
+          description: the CNC DLL's (snapshot) variables
           items:
             $ref: '#/components/schemas/dto.DiagnosticVariableRow'
           type: array
@@ -765,8 +909,59 @@ components:
         latencyMs:
           description: the TCP connect, nil when it failed
           type: integer
+        machineState:
+          enum:
+            - powered_on
+            - port_closed
+            - ip_unreachable
+            - ip_invalid
+          type: string
         port:
           $ref: '#/components/schemas/dto.DiagnosticCheck'
+      type: object
+    dto.MachinePlcVariableResponse:
+      properties:
+        category:
+          type: string
+        code:
+          type: string
+        dataType:
+          type: string
+        defaultNodeId:
+          type: string
+        isDefault:
+          type: boolean
+        name:
+          type: string
+        nodeId:
+          type: string
+        nodeStatus:
+          type: string
+        status:
+          type: string
+        unit:
+          type: string
+        variableId:
+          type: integer
+      type: object
+    dto.MachinePlcVariablesResponse:
+      properties:
+        controllerName:
+          type: string
+        controllerVersionType:
+          type: integer
+        defaultCount:
+          type: integer
+        machineId:
+          type: integer
+        machineName:
+          type: string
+        updatedCount:
+          type: integer
+        variables:
+          items:
+            $ref: '#/components/schemas/dto.MachinePlcVariableResponse'
+          type: array
       type: object
     dto.MachineSummary:
       properties:
@@ -1199,6 +1394,11 @@ components:
         userId:
           description: customer that owns the part
           type: integer
+      type: object
+    dto.UpdatePlcNodeIDRequest:
+      properties:
+        nodeId:
+          type: string
       type: object
     dto.UpdateProductionScheduleRequest:
       properties:
@@ -2016,6 +2216,24 @@ components:
           type: string
         warrantyDate:
           type: string
+      type: object
+    model.MachineAccuracy:
+      properties:
+        createdAt:
+          type: string
+        deletedAt:
+          type: string
+        id:
+          type: integer
+        isDeleted:
+          type: boolean
+        name:
+          type: string
+        updatedAt:
+          type: string
+        usageCount:
+          description: Read-only (join)
+          type: integer
       type: object
     model.MachineAlarm:
       properties:
@@ -6515,6 +6733,421 @@ paths:
       summary: Update licence key
       tags:
         - Licence keys
+  /v1/machine-accuracies:
+    get:
+      description: |-
+        Returns the machine accuracy list (shared by every customer), ordered by id, each with usageCount (the machines and part processes that use it). Every logged-in user reads it.
+
+        Used by pages: Machine accuracy, Add / edit machine, Add / edit part
+      operationId: getMachineAccuracies
+      responses:
+        "200":
+          content:
+            application/json:
+              example:
+                message: success
+                statusCode: 200
+                success: true
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/response.Envelope'
+                  - properties:
+                      data:
+                        items:
+                          $ref: '#/components/schemas/model.MachineAccuracy'
+                        type: array
+                    type: object
+          description: OK
+        "401":
+          content:
+            application/json:
+              example:
+                message: Not logged in
+                statusCode: 401
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not logged in
+        "500":
+          content:
+            application/json:
+              example:
+                message: Server error
+                statusCode: 500
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Server error
+      security:
+        - cookieAuth: []
+      summary: Get machine accuracies
+      tags:
+        - Machine accuracies
+    post:
+      description: |-
+        Adds an accuracy to the list; every customer's machine and part forms offer it at once. Spaces are trimmed and joined; the name is unique, ignoring case.
+        Roles: superadmin (others get 403).
+        Validation: Please enter machine accuracy; Machine accuracy must be at most 50 characters; This machine accuracy already exists.
+
+        Used by pages: Machine accuracy
+      operationId: createMachineAccuracy
+      requestBody:
+        content:
+          application/json:
+            example:
+              name: Postman sample
+            schema:
+              $ref: '#/components/schemas/dto.MachineAccuracyRequest'
+        description: Request body
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              example:
+                message: created
+                statusCode: 201
+                success: true
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/response.Envelope'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/model.MachineAccuracy'
+                    type: object
+          description: Created
+        "400":
+          content:
+            application/json:
+              example:
+                message: Validation error
+                statusCode: 400
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Validation error
+        "401":
+          content:
+            application/json:
+              example:
+                message: Not logged in
+                statusCode: 401
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not logged in
+        "403":
+          content:
+            application/json:
+              example:
+                message: Role not allowed
+                statusCode: 403
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Role not allowed
+        "500":
+          content:
+            application/json:
+              example:
+                message: Server error
+                statusCode: 500
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Server error
+      security:
+        - cookieAuth: []
+      summary: Add machine accuracy
+      tags:
+        - Machine accuracies
+  /v1/machine-accuracies/{id}:
+    delete:
+      description: |-
+        Soft-deletes the accuracy. One used by machines or part processes is refused (400): change it there first.
+        Roles: superadmin (others get 403).
+
+        Used by pages: Machine accuracy
+      operationId: deleteMachineAccuracy
+      parameters:
+        - description: Machine accuracy id
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              example:
+                message: success
+                statusCode: 200
+                success: true
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              example:
+                message: Accuracy in use
+                statusCode: 400
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Accuracy in use
+        "401":
+          content:
+            application/json:
+              example:
+                message: Not logged in
+                statusCode: 401
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not logged in
+        "403":
+          content:
+            application/json:
+              example:
+                message: Role not allowed
+                statusCode: 403
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Role not allowed
+        "404":
+          content:
+            application/json:
+              example:
+                message: Machine accuracy not found
+                statusCode: 404
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Machine accuracy not found
+        "500":
+          content:
+            application/json:
+              example:
+                message: Server error
+                statusCode: 500
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Server error
+      security:
+        - cookieAuth: []
+      summary: Delete machine accuracy
+      tags:
+        - Machine accuracies
+    put:
+      description: |-
+        Renames the accuracy. Machines and part processes that use it show the new name.
+        Roles: superadmin (others get 403).
+        Validation: Please enter machine accuracy; Machine accuracy must be at most 50 characters; This machine accuracy already exists; Machine accuracy not found.
+
+        Used by pages: Machine accuracy
+      operationId: updateMachineAccuracy
+      parameters:
+        - description: Machine accuracy id
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            example:
+              name: Postman sample
+            schema:
+              $ref: '#/components/schemas/dto.MachineAccuracyRequest'
+        description: Request body
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              example:
+                message: success
+                statusCode: 200
+                success: true
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/response.Envelope'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/model.MachineAccuracy'
+                    type: object
+          description: OK
+        "400":
+          content:
+            application/json:
+              example:
+                message: Validation error
+                statusCode: 400
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Validation error
+        "401":
+          content:
+            application/json:
+              example:
+                message: Not logged in
+                statusCode: 401
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not logged in
+        "403":
+          content:
+            application/json:
+              example:
+                message: Role not allowed
+                statusCode: 403
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Role not allowed
+        "404":
+          content:
+            application/json:
+              example:
+                message: Machine accuracy not found
+                statusCode: 404
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Machine accuracy not found
+        "500":
+          content:
+            application/json:
+              example:
+                message: Server error
+                statusCode: 500
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Server error
+      security:
+        - cookieAuth: []
+      summary: Update machine accuracy
+      tags:
+        - Machine accuracies
+  /v1/machine-health/axis-values:
+    get:
+      description: |-
+        The X, Y and Z values of one axis set (machine_position (default), work_position, relative_position, distance_to_go, axis_load) from machine_telementry, for an exact window `start`–`end` (RFC 3339, the chart's zoom), the last `minutes` up to now (≤ 31 days) or whole days `date` / `from`–`to` (≤ 31 days). While no axis holds more than 20,000 stored values in the range, every stored value is returned as it is (`raw` true, `bucketSec` 0, each point min = max = value, count 1); otherwise the range is cut into 600 time buckets per axis (`raw` false): each point is the bucket's last value (values are stored only on change) with min, max and row count. `startValue` is the value at `from`. `stats` gives rowsRead, pointCount and queryMs (database time) so the screen can show what the range costs.
+        Every logged-in user, for machines they may read (others 404).
+
+        Used by pages: Machine health
+      operationId: getAxisValues
+      parameters:
+        - description: Machine id
+          in: query
+          name: machineId
+          required: true
+          schema:
+            type: integer
+        - description: machine_position (default), work_position, relative_position, distance_to_go, axis_load
+          in: query
+          name: axisSet
+          schema:
+            type: string
+        - description: Window start, RFC 3339 (with end; the chart's zoom)
+          in: query
+          name: start
+          schema:
+            type: string
+        - description: Window end, RFC 3339 (cut to now)
+          in: query
+          name: end
+          schema:
+            type: string
+        - description: Last N minutes up to now (1 … 44640)
+          in: query
+          name: minutes
+          schema:
+            type: integer
+        - description: One day YYYY-MM-DD
+          in: query
+          name: date
+          schema:
+            type: string
+        - description: First day YYYY-MM-DD
+          in: query
+          name: from
+          schema:
+            type: string
+        - description: Last day YYYY-MM-DD (default today)
+          in: query
+          name: to
+          schema:
+            type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              example:
+                message: success
+                statusCode: 200
+                success: true
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/response.Envelope'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/dto.AxisValuesResponse'
+                    type: object
+          description: OK
+        "400":
+          content:
+            application/json:
+              example:
+                message: Validation error
+                statusCode: 400
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Validation error
+        "401":
+          content:
+            application/json:
+              example:
+                message: Not logged in
+                statusCode: 401
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not logged in
+        "404":
+          content:
+            application/json:
+              example:
+                message: Machine not found
+                statusCode: 404
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Machine not found
+        "500":
+          content:
+            application/json:
+              example:
+                message: Server error
+                statusCode: 500
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Server error
+      security:
+        - cookieAuth: []
+      summary: Get axis values (X, Y, Z)
+      tags:
+        - Machine health
   /v1/machine-health/machine-time-by-day:
     get:
       description: |-
@@ -7364,7 +7997,7 @@ paths:
   /v1/machines/{id}/diagnostics:
     get:
       description: |-
-        What the server knows about one machine's data collection now: set-up, collector status, current mode, every variable (readable or why not, latest value, last stored number), recent machine events, and the checks worked out from them with the reason and what to do for each problem. Sends nothing to the machine.
+        What the server knows about one machine's data collection now: set-up, collector status, current mode, every CNC DLL (snapshot) variable (readable or why not, latest value, last stored number), recent machine events, and the checks worked out from them with the reason and what to do for each problem. `plc` is the OPC UA PLC reader's side (ADR 0021): whether it reads the machine (PLC_ENABLED, Siemens only), its connection state, endpoint, security policy, last error, a verdict with message and hint, and every PLC variable (node id, accepted by the controller or its status, live value, last stored number); PLC variables are listed there, not under `variables`. Sends nothing to the machine.
         Roles: superadmin (others get 403).
 
         Used by pages: Machine diagnostics
@@ -7450,7 +8083,7 @@ paths:
   /v1/machines/{id}/diagnostics/network:
     get:
       description: |-
-        Tests the machine's stored live IP and port from this server, where the collector connects from: one ping and one TCP connect that sends no data. Takes up to a few seconds, so the page runs it on opening and when asked, not on a timer.
+        Tests the machine's stored live IP and port from this server, where the collector connects from: one ping and one TCP connect that sends no data. Takes up to a few seconds, so the page runs it on opening and when asked (Check machine), not on a timer. `machineState` sums it up: powered_on (the port accepted a connection), port_closed (the IP answers, the port does not), ip_unreachable (no answer: off, or the network is down), ip_invalid (the stored IP does not resolve). It is what the test found, even when the checks only warn because the collector is connected.
         Roles: superadmin (others get 403).
 
         Used by pages: Machine diagnostics
@@ -7531,6 +8164,369 @@ paths:
       security:
         - cookieAuth: []
       summary: Check machine network
+      tags:
+        - Machines
+  /v1/machines/{id}/plc-variables:
+    delete:
+      description: |-
+        Every PLC variable of the machine reads its controller's default node id again. Returns the list as GET does.
+        Roles: superadmin (others get 403).
+
+        Used by pages: Machine PLC node IDs
+      operationId: resetMachinePlcVariables
+      parameters:
+        - description: Machine id
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              example:
+                message: success
+                statusCode: 200
+                success: true
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/response.Envelope'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/dto.MachinePlcVariablesResponse'
+                    type: object
+          description: OK
+        "400":
+          content:
+            application/json:
+              example:
+                message: Validation error
+                statusCode: 400
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Validation error
+        "401":
+          content:
+            application/json:
+              example:
+                message: Not logged in
+                statusCode: 401
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not logged in
+        "403":
+          content:
+            application/json:
+              example:
+                message: Role not allowed
+                statusCode: 403
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Role not allowed
+        "404":
+          content:
+            application/json:
+              example:
+                message: Not found
+                statusCode: 404
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not found
+        "500":
+          content:
+            application/json:
+              example:
+                message: Server error
+                statusCode: 500
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Server error
+      security:
+        - cookieAuth: []
+      summary: Reset all machine PLC node IDs
+      tags:
+        - Machines
+    get:
+      description: |-
+        Every PLC variable (a cnc_variables row with a plc address in cnc_variable_addresses for any CNC engine) with the OPC UA node id the machine reads it from. `defaultNodeId` = the plc address for the machine's engine and controller version, else the best one of another engine (PLC defaults exist for Siemens only) - the collector uses the same. `nodeStatus`: default (no node id of its own, reads the default) or updated (`nodeId` is the machine's own).
+        Roles: superadmin (others get 403).
+
+        Used by pages: Machine PLC node IDs
+      operationId: getMachinePlcVariables
+      parameters:
+        - description: Machine id
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              example:
+                message: success
+                statusCode: 200
+                success: true
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/response.Envelope'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/dto.MachinePlcVariablesResponse'
+                    type: object
+          description: OK
+        "400":
+          content:
+            application/json:
+              example:
+                message: Validation error
+                statusCode: 400
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Validation error
+        "401":
+          content:
+            application/json:
+              example:
+                message: Not logged in
+                statusCode: 401
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not logged in
+        "403":
+          content:
+            application/json:
+              example:
+                message: Role not allowed
+                statusCode: 403
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Role not allowed
+        "404":
+          content:
+            application/json:
+              example:
+                message: Not found
+                statusCode: 404
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not found
+        "500":
+          content:
+            application/json:
+              example:
+                message: Server error
+                statusCode: 500
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Server error
+      security:
+        - cookieAuth: []
+      summary: List machine PLC node IDs
+      tags:
+        - Machines
+  /v1/machines/{id}/plc-variables/{variableId}:
+    delete:
+      description: |-
+        The machine reads one PLC variable from its controller's default node id again (drops the machine's own node id; nothing happens when the default is already used).
+        Roles: superadmin (others get 403).
+
+        Used by pages: Machine PLC node IDs
+      operationId: resetMachinePlcVariable
+      parameters:
+        - description: Machine id
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+        - description: Variable id (cnc_variables)
+          in: path
+          name: variableId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              example:
+                message: success
+                statusCode: 200
+                success: true
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/response.Envelope'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/dto.MachinePlcVariableResponse'
+                    type: object
+          description: OK
+        "400":
+          content:
+            application/json:
+              example:
+                message: Validation error
+                statusCode: 400
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Validation error
+        "401":
+          content:
+            application/json:
+              example:
+                message: Not logged in
+                statusCode: 401
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not logged in
+        "403":
+          content:
+            application/json:
+              example:
+                message: Role not allowed
+                statusCode: 403
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Role not allowed
+        "404":
+          content:
+            application/json:
+              example:
+                message: Not found
+                statusCode: 404
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not found
+        "500":
+          content:
+            application/json:
+              example:
+                message: Server error
+                statusCode: 500
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Server error
+      security:
+        - cookieAuth: []
+      summary: Reset machine PLC node ID
+      tags:
+        - Machines
+    put:
+      description: |-
+        Sets the OPC UA node id the machine reads one PLC variable from (`ns=<n>;s=…`, also i= / g= / b=, at most 255 characters). The variable's default node id resets it to the default instead of storing a copy. Stored in machine_variables (source plc); the machine's PLC worker (OPC UA, ADR 0021) subscribes again at once. PLC variables are read over OPC UA from Siemens machines only (PLC_ENABLED).
+        Roles: superadmin (others get 403).
+
+        Used by pages: Machine PLC node IDs
+      operationId: updateMachinePlcVariable
+      parameters:
+        - description: Machine id
+          in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+        - description: Variable id (cnc_variables)
+          in: path
+          name: variableId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            example:
+              nodeId: Postman sample
+            schema:
+              $ref: '#/components/schemas/dto.UpdatePlcNodeIDRequest'
+        description: Node id
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              example:
+                message: success
+                statusCode: 200
+                success: true
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/response.Envelope'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/dto.MachinePlcVariableResponse'
+                    type: object
+          description: OK
+        "400":
+          content:
+            application/json:
+              example:
+                message: Validation error
+                statusCode: 400
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Validation error
+        "401":
+          content:
+            application/json:
+              example:
+                message: Not logged in
+                statusCode: 401
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not logged in
+        "403":
+          content:
+            application/json:
+              example:
+                message: Role not allowed
+                statusCode: 403
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Role not allowed
+        "404":
+          content:
+            application/json:
+              example:
+                message: Not found
+                statusCode: 404
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not found
+        "500":
+          content:
+            application/json:
+              example:
+                message: Server error
+                statusCode: 500
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Server error
+      security:
+        - cookieAuth: []
+      summary: Update machine PLC node ID
       tags:
         - Machines
   /v1/maintenance-tasks:
@@ -13973,6 +14969,7 @@ tags:
   - name: Dashboard
   - name: Holidays
   - name: Licence keys
+  - name: Machine accuracies
   - name: Machine catalog
   - name: Machine health
   - name: Machines

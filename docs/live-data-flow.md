@@ -128,8 +128,15 @@ Every variable is a row in `cnc_variables` with a `code` (e.g. `SpindleLoad`, `f
    wins over a general one;
 3. apply the machine's own overrides from `machine_variables` (a machine can switch a variable
    off, or use another address);
-4. keep only addresses the server can read today — the DLL snapshot (`snapshot`). PLC / NC
-   addresses wait for a DLL read function and are logged as `cnc: active variables not readable`.
+4. keep only addresses the server can read — the DLL snapshot (`snapshot`) and, on a Siemens
+   machine with `PLC_ENABLED`, PLC node ids (`plc`, read by the OPC UA PLC worker, ADR 0021;
+   `service.VariableSources`). NC addresses, and PLC ones elsewhere, are logged as
+   `cnc: active variables not readable`.
+
+The PLC worker (`internal/monitor/plc_worker.go`) subscribes to its PLC node ids and hands every
+published change to the same hub (`PublishValues`) before storing it, and reports its own codes
+(`SetMachineCodes(machineID, live.ReaderPLC, …)`); the CNC worker reports `live.ReaderCNC`, and a
+code is known when either reads it.
 
 The worker then tells the hub which codes this machine has (`Hub.SetMachineCodes`). If someone
 edits the variables, `cnc_config_changed` makes the worker reload the list — no restart needed.

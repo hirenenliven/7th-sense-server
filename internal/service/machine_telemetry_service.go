@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"7th-sense-server/internal/cnc"
 	"7th-sense-server/internal/db"
 	"7th-sense-server/internal/model"
 	"7th-sense-server/internal/repository"
@@ -20,6 +21,17 @@ const (
 	MachinesChangedChannel  = "machines_changed"   // payload: machine id
 	CNCConfigChangedChannel = "cnc_config_changed" // payload: "variables" | "machine:<id>"
 )
+
+// VariableSources returns the variable sources machine's variables are read from: the CNC DLL's
+// (snapshot) and, when the PLC reader is on and reads this engine, plc. The DLL worker, the PLC
+// worker and the diagnostics all pick each variable's address from the same list, so every
+// variable has one reader: the cheapest source wins (FindVariableConfig).
+func VariableSources(engine *int, plcEnabled bool) []string {
+	if plcEnabled && model.ReadsPLCOverOPCUA(engine) {
+		return []string{cnc.SourceSnapshot, model.VariableSourcePLC}
+	}
+	return []string{cnc.SourceSnapshot}
+}
 
 // MachineTelemetryService holds the business rules of CNC data collection: which machines the
 // collectors (internal/monitor) connect to (active, not deleted), which variables they read,

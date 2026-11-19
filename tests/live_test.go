@@ -256,7 +256,7 @@ func TestLiveData(t *testing.T) {
 		t.Fatalf("assign machine: %v", err)
 	}
 	t.Cleanup(func() { _, _ = testDBPool.Exec(ctx, `DELETE FROM user_machine_access WHERE user_id = $1`, operatorID) })
-	server.hub.SetMachineCodes(assigned, []string{"SpindleLoad", "SpindleRpm", "progName"})
+	server.hub.SetMachineCodes(assigned, live.ReaderCNC, []string{"SpindleLoad", "SpindleRpm", "progName"})
 	server.hub.PublishValues(assigned, time.Now(), map[string]any{"SpindleLoad": 41.5, "SpindleRpm": 2400.0, "progName": "O1234"})
 
 	session := login(t, server.router, operatorName, false)

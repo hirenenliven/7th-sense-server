@@ -22,10 +22,12 @@ type MachineService struct {
 	brandService      *BrandService
 	controllerService *ControllerService
 	userLineService   *UserLineService
+	accuracyService   *MachineAccuracyService
 }
 
 // NewMachineService creates a MachineService that stores machines with machineRepository
-// and checks their customer, model, brand, controller and line with the other arguments.
+// and checks their customer, model, brand, controller, line and accuracy with the other
+// arguments.
 func NewMachineService(
 	machineRepository *repository.MachineRepository,
 	userRepository *repository.UserRepository,
@@ -33,6 +35,7 @@ func NewMachineService(
 	brandService *BrandService,
 	controllerService *ControllerService,
 	userLineService *UserLineService,
+	accuracyService *MachineAccuracyService,
 ) *MachineService {
 	return &MachineService{
 		machineRepository: machineRepository,
@@ -41,6 +44,7 @@ func NewMachineService(
 		brandService:      brandService,
 		controllerService: controllerService,
 		userLineService:   userLineService,
+		accuracyService:   accuracyService,
 	}
 }
 
@@ -171,7 +175,7 @@ func (machineService *MachineService) Delete(ctx context.Context, id int64) erro
 }
 
 // checkReferences returns a "Please select valid …" error unless the customer, brand,
-// controller, model and line of fields exist and fit together.
+// controller, model, line and accuracy of fields exist and fit together.
 func (machineService *MachineService) checkReferences(ctx context.Context, fields dto.MachineFields) error {
 	isCustomer, err := machineService.userRepository.IsCustomer(ctx, fields.UserID)
 	if err != nil {
@@ -204,6 +208,12 @@ func (machineService *MachineService) checkReferences(ctx context.Context, field
 	if fields.LineID != nil {
 		if _, err := machineService.userLineService.GetByID(ctx, fields.UserID, *fields.LineID); err != nil {
 			return asInvalidSelection(err, "Line not found", "Please select valid line")
+		}
+	}
+
+	if fields.AccuracyID != nil {
+		if err := machineService.accuracyService.checkExists(ctx, *fields.AccuracyID, response.SelectValidMachineAccuracy); err != nil {
+			return err
 		}
 	}
 	return nil
