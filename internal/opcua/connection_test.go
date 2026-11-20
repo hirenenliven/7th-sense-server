@@ -155,6 +155,12 @@ func TestValueOf(t *testing.T) {
 		{float32(1.5), 1.5, "", true},
 		{"O1234", 0, "O1234", true},
 		{[]byte{1, 2}, 0, "", false},
+		{[]float32{21.5}, 21.5, "", true}, // e.g. DB9004.DBD8:REAL[1]
+		{[]int16{-3}, -3, "", true},
+		{[]string{"O1"}, 0, "O1", true},
+		{[]float32{1, 2}, 0, "", false},
+		{[]float32{}, 0, "", false},
+		{[][]byte{{1}}, 0, "", false},
 	}
 	for _, testCase := range cases {
 		variant, err := ua.NewVariant(testCase.value)

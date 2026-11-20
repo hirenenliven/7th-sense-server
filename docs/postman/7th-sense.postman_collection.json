@@ -2327,7 +2327,7 @@
           ],
           "name": "List machine PLC node IDs",
           "request": {
-            "description": "Every PLC variable (a cnc_variables row with a plc address in cnc_variable_addresses for any CNC engine) with the OPC UA node id the machine reads it from. `defaultNodeId` = the plc address for the machine's engine and controller version, else the best one of another engine (PLC defaults exist for Siemens only) - the collector uses the same. `nodeStatus`: default (no node id of its own, reads the default) or updated (`nodeId` is the machine's own).\nRoles: superadmin (others get 403).\n\nUsed by pages: Machine PLC node IDs",
+            "description": "Every PLC variable (a cnc_variables row with a plc address in cnc_variable_addresses for any CNC engine) with the OPC UA node id the machine reads it from. `defaultNodeId` = the plc address for the machine's engine and controller version, else the best one of another engine (PLC defaults exist for Siemens only) - the collector uses the same. `nodeStatus`: default (no node id of its own, reads the default) or updated (`nodeId` is the machine's own). `reader`: the machine's OPC UA PLC reader (`enabled` PLC_ENABLED, `supported` Siemens, `state`, `lastError`); per variable `readerNodeId` = the node id it subscribed to (\"\" none; differs from `nodeId` until it subscribes again after a save) and `readerStatus` = the controller's refusal (\"\" accepted, e.g. BadNodeIdUnknown).\nRoles: superadmin (others get 403).\n\nUsed by pages: Machine PLC node IDs",
             "header": [],
             "method": "GET",
             "url": {
@@ -2392,6 +2392,60 @@
                 "machines"
               ],
               "raw": "{{baseUrl}}/v1/machines"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('status is 200', () =\u003e pm.response.to.have.status(200));",
+                  "pm.test('response time \u003c 2000ms', () =\u003e pm.expect(pm.response.responseTime).to.be.below(2000));",
+                  "const json = pm.response.json();",
+                  "pm.test('envelope fields', () =\u003e {",
+                  "  pm.expect(json).to.have.property('success', true);",
+                  "  pm.expect(json.statusCode).to.be.a('number');",
+                  "  pm.expect(json.message).to.be.a('string');",
+                  "});",
+                  "pm.test('data is an object', () =\u003e pm.expect(json.data).to.be.an('object'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "Test machine PLC node IDs",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              },
+              "raw": "{\n  \"nodeIds\": [\n    \"Postman sample\"\n  ]\n}"
+            },
+            "description": "Reads each node id once from the machine's OPC UA server - saved or only typed, at most 100 - in a session of its own opened and closed for this request, connected the way the PLC reader connects (`opc.tcp://live_ip:port`, security mode, username / password, client certificate; ADR 0021). Nothing is stored or published. `tested` = false when the server did not try (not a Siemens controller, or no Live IP / Port); `connected` = false when it could not connect (`message`, `hint` say why); otherwise each result is `ok` with its `value` (number, booleans 1 / 0, or text) and `valueType`, or `status` = the controller's refusal (e.g. BadNodeIdUnknown). Takes up to PLC_CONNECT_TIMEOUT_SEC to connect plus as long to read.\nRoles: superadmin (others get 403).\n\nUsed by pages: Machine PLC node IDs",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "machines",
+                "{{machineId}}",
+                "plc-variables",
+                "test"
+              ],
+              "raw": "{{baseUrl}}/v1/machines/{{machineId}}/plc-variables/test"
             }
           }
         },

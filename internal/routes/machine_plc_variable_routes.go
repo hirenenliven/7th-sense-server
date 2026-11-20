@@ -11,6 +11,7 @@ import (
 func registerMachinePlcVariableRoutes(router *http.ServeMux, prefix string, plcVariableHandler *handler.MachinePlcVariableHandler) {
 	router.Handle("GET "+prefix+"/machines/{id}/plc-variables", superAdminOnly(plcVariableHandler.GetAll))
 	router.Handle("DELETE "+prefix+"/machines/{id}/plc-variables", superAdminOnly(plcVariableHandler.ResetAll))
+	router.Handle("POST "+prefix+"/machines/{id}/plc-variables/test", superAdminOnly(plcVariableHandler.TestNodeIDs))
 	router.Handle("PUT "+prefix+"/machines/{id}/plc-variables/{variableId}", superAdminOnly(plcVariableHandler.Update))
 	router.Handle("DELETE "+prefix+"/machines/{id}/plc-variables/{variableId}", superAdminOnly(plcVariableHandler.Reset))
 }

@@ -181,4 +181,41 @@ func TestPLCCollector(t *testing.T) {
 			}
 		}
 	})
+	t.Run("the PLC node IDs page shows the reader and tests node ids", func(t *testing.T) {
+		router := routes.New(routes.Handlers{MachinePlcVariable: handler.NewMachinePlcVariableHandler(service.NewMachinePlcVariableService(
+			testDBPool, repository.NewMachinePlcVariableRepository(testDBPool), newMachineService(),
+			repository.NewMachineDiagnosticsRepository(testDBPool), cncConfig.PLC, board, cert.Paths{}))}, asTestUser)
+		path := fmt.Sprintf("%s/machines/%d/plc-variables", apiV1, machineID)
+
+		result := sendRequest(t, router, http.MethodGet, path, nil)
+		expectStatus(t, result, http.StatusOK, "success")
+		var list dto.MachinePlcVariablesResponse
+		decodeData(t, result, &list)
+		if !list.Reader.Enabled || !list.Reader.Supported || list.Reader.State != opcua.StateConnected {
+			t.Errorf("reader %+v", list.Reader)
+		}
+		for _, row := range list.Variables {
+			if row.VariableID == plcTestVariableID && (row.ReaderNodeID != nodeID || row.ReaderStatus != "") {
+				t.Errorf("hydPressure reader node %q status %q", row.ReaderNodeID, row.ReaderStatus)
+			}
+		}
+
+		missing := fmt.Sprintf("ns=%d;s=NoSuchNode", namespace.ID())
+		result = sendRequest(t, router, http.MethodPost, path+"/test", map[string]any{"nodeIds": []string{" " + nodeID, missing, nodeID}})
+		expectStatus(t, result, http.StatusOK, "success")
+		var test dto.PlcNodeTestResponse
+		decodeData(t, result, &test)
+		if !test.Tested || !test.Connected || len(test.Results) != 2 {
+			t.Fatalf("test %+v", test)
+		}
+		if good := test.Results[0]; good.NodeID != nodeID || !good.OK || good.Value != 43.25 || good.ValueType != "Double" {
+			t.Errorf("good node %+v", good)
+		}
+		if bad := test.Results[1]; bad.NodeID != missing || bad.OK || bad.Status == "" {
+			t.Errorf("missing node %+v", bad)
+		}
+
+		result = sendRequest(t, router, http.MethodPost, path+"/test", map[string]any{"nodeIds": []string{"not a node id"}})
+		expectStatus(t, result, http.StatusBadRequest, "Please enter a valid OPC UA node ID, e.g. ns=2;s=/Random/Plc/DB3300.DBX3.0")
+	})
 }

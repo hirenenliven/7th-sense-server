@@ -10,6 +10,7 @@ import (
 	"net"
 	"regexp"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -175,6 +176,92 @@ func (connection *Connection) CheckAlive(ctx context.Context) error {
 	return nil
 }
 
+// ReadResult is one node read once: Status "" when its value is good (Value, ValueType such as
+// "Float", SourceTime when the controller gives one), else why not (an invalid node id, or the
+// controller's status such as BadNodeIdUnknown).
+type ReadResult struct {
+	NodeID     string
+	Status     string
+	Value      Value
+	ValueType  string
+	SourceTime *time.Time
+}
+
+// ReadValues reads the current value of every node in one request. A node that is invalid or
+// refused gets its Status; the others are still read. The error is for the request as a whole.
+func (connection *Connection) ReadValues(ctx context.Context, nodeIDs []string) ([]ReadResult, error) {
+	results := make([]ReadResult, len(nodeIDs))
+	request := &ua.ReadRequest{TimestampsToReturn: ua.TimestampsToReturnSource}
+	// read[i] = the index in nodeIDs of the i-th node sent
+	read := make([]int, 0, len(nodeIDs))
+	for index, text := range nodeIDs {
+		results[index].NodeID = text
+		nodeID, invalid := parseNodeID(text)
+		if invalid != "" {
+			results[index].Status = invalid
+			continue
+		}
+		request.NodesToRead = append(request.NodesToRead, &ua.ReadValueID{NodeID: nodeID, AttributeID: ua.AttributeIDValue})
+		read = append(read, index)
+	}
+	if len(read) == 0 {
+		return results, nil
+	}
+
+	response, err := connection.client.Read(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("read values: %w", err)
+	}
+	for position, index := range read {
+		if position >= len(response.Results) {
+			results[index].Status = "no result from the controller"
+			continue
+		}
+		results[index] = readResultOf(nodeIDs[index], response.Results[position])
+	}
+	return results, nil
+}
+
+// readResultOf converts the controller's answer for one node read.
+func readResultOf(nodeID string, dataValue *ua.DataValue) ReadResult {
+	result := ReadResult{NodeID: nodeID}
+	switch {
+	case dataValue == nil:
+		result.Status = "no value"
+		return result
+	case isBad(dataValue.Status):
+		result.Status = statusName(dataValue.Status)
+		return result
+	}
+	if !dataValue.SourceTimestamp.IsZero() {
+		sourceTime := dataValue.SourceTimestamp
+		result.SourceTime = &sourceTime
+	}
+	if dataValue.Value != nil {
+		result.ValueType = strings.TrimPrefix(dataValue.Value.Type().String(), "TypeID")
+	}
+	value, ok := ValueOf(dataValue.Value)
+	if !ok {
+		result.Status = "unsupported value type " + result.ValueType
+		return result
+	}
+	result.Value = value
+	return result
+}
+
+// parseNodeID checks text against the node id form the controller understands and parses it;
+// invalid says why it cannot be used ("" when it can).
+func parseNodeID(text string) (nodeID *ua.NodeID, invalid string) {
+	if !nodeIDPattern.MatchString(text) {
+		return nil, "invalid node id: expected ns=<n>;s=<path>"
+	}
+	nodeID, err := ua.ParseNodeID(text)
+	if err != nil {
+		return nil, "invalid node id: " + err.Error()
+	}
+	return nodeID, ""
+}
+
 // Subscribe creates one subscription publishing every publishInterval and a monitored item per
 // item, sampled every samplingInterval. It returns each item's result (an item refused does not
 // stop the others) and the channel its changes arrive on until ctx ends or the connection is
@@ -190,13 +277,9 @@ func (connection *Connection) Subscribe(ctx context.Context, publishInterval, sa
 	results = make([]ItemResult, 0, len(items))
 	requests := make([]*ua.MonitoredItemCreateRequest, 0, len(items))
 	for _, item := range items {
-		if !nodeIDPattern.MatchString(item.NodeID) {
-			results = append(results, ItemResult{Handle: item.Handle, Status: "invalid node id: expected ns=<n>;s=<path>"})
-			continue
-		}
-		nodeID, parseErr := ua.ParseNodeID(item.NodeID)
-		if parseErr != nil {
-			results = append(results, ItemResult{Handle: item.Handle, Status: "invalid node id: " + parseErr.Error()})
+		nodeID, invalid := parseNodeID(item.NodeID)
+		if invalid != "" {
+			results = append(results, ItemResult{Handle: item.Handle, Status: invalid})
 			continue
 		}
 		request := gopcua.NewMonitoredItemCreateRequestWithDefaults(nodeID, ua.AttributeIDValue, item.Handle)

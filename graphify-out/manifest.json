@@ -6,9 +6,9 @@
     "semantic_hash": "8c58146bf0c47700bfef5615ac617dd5"
   },
   "cmd/server/main.go": {
-    "mtime": 1795067378.78787,
-    "seen": 1795067472.323933,
-    "ast_hash": "9fa1ab7ae57189ebceb47a7116365625",
+    "mtime": 1795073191.2717679,
+    "seen": 1795073711.3177068,
+    "ast_hash": "66523a4e9fc3b3ee3726b07e027b5ff1",
     "semantic_hash": ""
   },
   "go.mod": {
@@ -762,9 +762,9 @@
     "semantic_hash": "e21bc8738ffc0cc635e7147ccc59bcea"
   },
   "internal/response/responses.go": {
-    "mtime": 1795062950.5029361,
-    "seen": 1795063397.053034,
-    "ast_hash": "fc4d8624459bd063540f6a81c0787fcc",
+    "mtime": 1795073128.8157244,
+    "seen": 1795073711.3181615,
+    "ast_hash": "6ecd2edc65b1344ec7d481c85810de4f",
     "semantic_hash": ""
   },
   "internal/response/sendResponse.go": {
@@ -1218,9 +1218,9 @@
     "semantic_hash": "83e782660b9df6e3978298333b4f35a6"
   },
   ".claude/CLAUDE.md": {
-    "mtime": 1795067301.2488265,
-    "seen": 1795067472.3245394,
-    "ast_hash": "70976b54654df4a4b228f4c1c9291fca",
+    "mtime": 1795073687.5573041,
+    "seen": 1795073711.3183846,
+    "ast_hash": "22d464f1d86179ce398e468a5ff41a02",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1572,14 +1572,14 @@
     "semantic_hash": ""
   },
   "docs/postman/7th-sense.postman_collection.json": {
-    "mtime": 1795067354.1180203,
-    "seen": 1795067472.323938,
-    "ast_hash": "6475d65c6539577887f8a746c70a00fc",
+    "mtime": 1795073688.5987873,
+    "seen": 1795073711.3177118,
+    "ast_hash": "4073e89ca8aab7fe6dee4ec34740b427",
     "semantic_hash": ""
   },
   "docs/postman/7th-sense.postman_environment.json": {
-    "mtime": 1795067354.1190364,
-    "seen": 1795067472.3239396,
+    "mtime": 1795073688.5987873,
+    "seen": 1795073711.317714,
     "ast_hash": "8b26bc2e0d177ba5fb8134fb187907dd",
     "semantic_hash": ""
   },
@@ -1638,15 +1638,15 @@
     "semantic_hash": ""
   },
   "docs/adr/README.md": {
-    "mtime": 1795067265.9517424,
-    "seen": 1795067472.3245785,
-    "ast_hash": "4f0da5aae6ace935ed5cf9435f547383",
+    "mtime": 1795073687.5551896,
+    "seen": 1795073711.318426,
+    "ast_hash": "fcd7ea2c61a3afce91034384bd2a8b6e",
     "semantic_hash": ""
   },
   "docs/api/openapi.yaml": {
-    "mtime": 1795067354.111904,
-    "seen": 1795067472.3245802,
-    "ast_hash": "cada55f243e32b3bef061fed21b6606c",
+    "mtime": 1795073688.585067,
+    "seen": 1795073711.3184273,
+    "ast_hash": "ac9a2734d50ce0bf5b06dcb75570cdd3",
     "semantic_hash": ""
   },
   "cmd/partcount-probe/main.go": {
@@ -2136,15 +2136,15 @@
     "semantic_hash": ""
   },
   "internal/dto/machine_plc_variable_dto.go": {
-    "mtime": 1795064360.0270936,
-    "seen": 1795064515.6452973,
-    "ast_hash": "f474f0c355fa6cc50cba1b52b75d9919",
+    "mtime": 1795073129.0434635,
+    "seen": 1795073711.317825,
+    "ast_hash": "70bad5bfc921c50ba3d042c42af4c8b9",
     "semantic_hash": ""
   },
   "internal/handler/machine_plc_variable_handler.go": {
-    "mtime": 1795067225.591164,
-    "seen": 1795067472.324079,
-    "ast_hash": "61c03b17467e2a8ca9c664d9115129b5",
+    "mtime": 1795073191.270265,
+    "seen": 1795073711.3179114,
+    "ast_hash": "0f7114756bd02b7d70d160540f4e9ccb",
     "semantic_hash": ""
   },
   "internal/model/machine_plc_variable.go": {
@@ -2160,21 +2160,21 @@
     "semantic_hash": ""
   },
   "internal/routes/machine_plc_variable_routes.go": {
-    "mtime": 1795063005.640347,
-    "seen": 1795063397.0530708,
-    "ast_hash": "eacf9280173ddaeeb772f2dfb91d83b6",
+    "mtime": 1795073191.2712643,
+    "seen": 1795073711.318198,
+    "ast_hash": "c45eaf5c0cbac35fee85dec480468a6b",
     "semantic_hash": ""
   },
   "internal/service/machine_plc_variable_service.go": {
-    "mtime": 1795064360.0291507,
-    "seen": 1795064515.6457148,
-    "ast_hash": "311fc6edc003b3c6283412f9b7b7cf05",
+    "mtime": 1795073157.1848786,
+    "seen": 1795073711.3182805,
+    "ast_hash": "a1ad85dd31c5b49f042870f76cc4ee3d",
     "semantic_hash": ""
   },
   "tests/machine_plc_variable_test.go": {
-    "mtime": 1795064421.5727448,
-    "seen": 1795064515.645789,
-    "ast_hash": "bbb070e8cabd8b0dcbac6baba50665d8",
+    "mtime": 1795073231.911804,
+    "seen": 1795073711.318352,
+    "ast_hash": "82615b2b21e1786eb0d8139f236e8d2a",
     "semantic_hash": ""
   },
   "docs/adr/0020-machine-plc-node-ids.md": {
@@ -2196,9 +2196,9 @@
     "semantic_hash": ""
   },
   "internal/opcua/connection.go": {
-    "mtime": 1795066337.48649,
-    "seen": 1795067472.3242364,
-    "ast_hash": "65e2876cc46146b68df655f524807885",
+    "mtime": 1795073090.9108675,
+    "seen": 1795073711.318073,
+    "ast_hash": "a6d049aad130e519ebd6900bb1e217ca",
     "semantic_hash": ""
   },
   "internal/opcua/connection_test.go": {
@@ -2232,15 +2232,27 @@
     "semantic_hash": ""
   },
   "tests/plc_collector_test.go": {
-    "mtime": 1795067017.1031768,
-    "seen": 1795067472.324517,
-    "ast_hash": "23684cd565eebacf31adc4a1e5022643",
+    "mtime": 1795073332.8494687,
+    "seen": 1795073711.3183627,
+    "ast_hash": "45064e990b74698fcd7ea5971085dd92",
     "semantic_hash": ""
   },
   "docs/adr/0021-opcua-plc-reader-gopcua.md": {
     "mtime": 1795067265.0277889,
     "seen": 1795067472.3245773,
     "ast_hash": "e46c366e72af9ed08be6d9ce73b0e4ff",
+    "semantic_hash": ""
+  },
+  "internal/service/machine_plc_node_probe.go": {
+    "mtime": 1795073174.0763376,
+    "seen": 1795073711.3182786,
+    "ast_hash": "7fdf6d64ab74e010f1b3358dcb2771b2",
+    "semantic_hash": ""
+  },
+  "docs/adr/0022-plc-node-test-own-session.md": {
+    "mtime": 1795073681.0912766,
+    "seen": 1795073711.3184242,
+    "ast_hash": "3eba76e9f48777a7247530cd5db4abf3",
     "semantic_hash": ""
   }
 }

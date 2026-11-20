@@ -23,7 +23,7 @@ func NewMachinePlcVariableHandler(plcVariableService *service.MachinePlcVariable
 // GetAll handles GET /api/v1/machines/{id}/plc-variables.
 //
 // @Summary      List machine PLC node IDs
-// @Description  Every PLC variable (a cnc_variables row with a plc address in cnc_variable_addresses for any CNC engine) with the OPC UA node id the machine reads it from. `defaultNodeId` = the plc address for the machine's engine and controller version, else the best one of another engine (PLC defaults exist for Siemens only) - the collector uses the same. `nodeStatus`: default (no node id of its own, reads the default) or updated (`nodeId` is the machine's own).
+// @Description  Every PLC variable (a cnc_variables row with a plc address in cnc_variable_addresses for any CNC engine) with the OPC UA node id the machine reads it from. `defaultNodeId` = the plc address for the machine's engine and controller version, else the best one of another engine (PLC defaults exist for Siemens only) - the collector uses the same. `nodeStatus`: default (no node id of its own, reads the default) or updated (`nodeId` is the machine's own). `reader`: the machine's OPC UA PLC reader (`enabled` PLC_ENABLED, `supported` Siemens, `state`, `lastError`); per variable `readerNodeId` = the node id it subscribed to ("" none; differs from `nodeId` until it subscribes again after a save) and `readerStatus` = the controller's refusal ("" accepted, e.g. BadNodeIdUnknown).
 // @Description  Roles: superadmin (others get 403).
 // @Description
 // @Description  Used by pages: Machine PLC node IDs
@@ -183,6 +183,52 @@ func (plcVariableHandler *MachinePlcVariableHandler) ResetAll(writer http.Respon
 		return
 	}
 	response.SendResponse(writer, request, response.Success, variables)
+}
+
+// TestNodeIDs handles POST /api/v1/machines/{id}/plc-variables/test.
+//
+// @Summary      Test machine PLC node IDs
+// @Description  Reads each node id once from the machine's OPC UA server - saved or only typed, at most 100 - in a session of its own opened and closed for this request, connected the way the PLC reader connects (`opc.tcp://live_ip:port`, security mode, username / password, client certificate; ADR 0021). Nothing is stored or published. `tested` = false when the server did not try (not a Siemens controller, or no Live IP / Port); `connected` = false when it could not connect (`message`, `hint` say why); otherwise each result is `ok` with its `value` (number, booleans 1 / 0, or text) and `valueType`, or `status` = the controller's refusal (e.g. BadNodeIdUnknown). Takes up to PLC_CONNECT_TIMEOUT_SEC to connect plus as long to read.
+// @Description  Roles: superadmin (others get 403).
+// @Description
+// @Description  Used by pages: Machine PLC node IDs
+// @Tags         Machines
+// @ID           testMachinePlcNodeIds
+// @Accept       json
+// @Produce      json
+// @Security     cookieAuth
+// @Param        id path int true "Machine id"
+// @Param        body body dto.TestPlcNodeIDsRequest true "Node ids to read"
+// @Success      200 {object} response.Envelope{data=dto.PlcNodeTestResponse}
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      403 {object} response.Envelope "Role not allowed"
+// @Failure      404 {object} response.Envelope "Not found"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/machines/{id}/plc-variables/test [post]
+func (plcVariableHandler *MachinePlcVariableHandler) TestNodeIDs(writer http.ResponseWriter, request *http.Request) {
+	actor, err := currentUser(request)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+	id, err := pathID(request)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+	var body dto.TestPlcNodeIDsRequest
+	if err := decodeAndValidate(writer, request, &body); err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+
+	test, err := plcVariableHandler.service.TestNodeIDs(request.Context(), actor, id, body)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+	response.SendResponse(writer, request, response.Success, test)
 }
 
 // plcVariablePath reads the {id} (machine) and {variableId} path values as positive integers.

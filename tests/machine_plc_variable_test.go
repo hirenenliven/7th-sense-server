@@ -7,7 +7,9 @@ import (
 	"strings"
 	"testing"
 
+	"7th-sense-server/internal/cert"
 	"7th-sense-server/internal/cnc"
+	"7th-sense-server/internal/config"
 	"7th-sense-server/internal/dto"
 	"7th-sense-server/internal/handler"
 	"7th-sense-server/internal/middleware"
@@ -21,7 +23,8 @@ import (
 // newPlcVariableRouter serves the PLC node id routes, acting as authenticate's user.
 func newPlcVariableRouter(authenticate middleware.Middleware) http.Handler {
 	return routes.New(routes.Handlers{MachinePlcVariable: handler.NewMachinePlcVariableHandler(service.NewMachinePlcVariableService(
-		testDBPool, repository.NewMachinePlcVariableRepository(testDBPool), newMachineService()))}, authenticate)
+		testDBPool, repository.NewMachinePlcVariableRepository(testDBPool), newMachineService(),
+		repository.NewMachineDiagnosticsRepository(testDBPool), config.PLCConfig{}, nil, cert.Paths{}))}, authenticate)
 }
 
 func plcVariablesFor(t *testing.T, router http.Handler, path string) dto.MachinePlcVariablesResponse {

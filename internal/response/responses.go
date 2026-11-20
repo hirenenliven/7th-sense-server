@@ -97,6 +97,7 @@ var (
 	PlcNodeIDTooLong    = newResponse(http.StatusBadRequest, "Node ID must be at most 255 characters")
 	InvalidPlcNodeID    = newResponse(http.StatusBadRequest, "Please enter a valid OPC UA node ID, e.g. ns=2;s=/Random/Plc/DB3300.DBX3.0")
 	PlcVariableNotFound = newResponse(http.StatusNotFound, "PLC variable not found for this machine")
+	TooManyPlcNodeIDs   = newResponse(http.StatusBadRequest, "Please test at most 100 node IDs at once")
 
 	// Validation error responses
 	ValidName              = newResponse(http.StatusBadRequest, "Please enter valid name")
