@@ -23,6 +23,8 @@ const (
 	plcMaxPublishErrors = 3
 	// plcCloseTimeout bounds closing a session (the controller may be gone).
 	plcCloseTimeout = 3 * time.Second
+	// plcDefaultPollInterval is used when PLC_POLL_INTERVAL_MS is not positive.
+	plcDefaultPollInterval = time.Second
 )
 
 // errPlcReload ends a collection to subscribe again with new variables or machine details.
@@ -31,8 +33,10 @@ var errPlcReload = errors.New("plc variables reloaded")
 // plcWorker reads one machine's PLC variables over OPC UA: connect, subscribe to every PLC node
 // id, then for each published change hand it to the live hub first and store it like the CNC
 // worker stores snapshot values (machine_variable_values every value, machine_telementry only a
-// changed number; text is published, not stored). It reconnects with backoff when the controller
-// cannot be reached, the connection is lost, or the health read fails.
+// changed number; text is published, not stored). Nodes the controller has no room to monitor
+// (BadTooManyMonitoredItems) are read every PLC_POLL_INTERVAL_MS instead and handled like
+// changes. It reconnects with backoff when the controller cannot be reached, the connection is
+// lost, or the health read fails.
 type plcWorker struct {
 	collector *PlcCollector
 	cancel    context.CancelFunc
@@ -48,6 +52,7 @@ type plcWorker struct {
 	machine   model.MonitoredMachine
 	variables map[uint32]model.VariableConfig // by subscription handle (= variable id)
 	stored    map[int]float64                 // last number in machine_variable_values, by variable id
+	polled    map[uint32]opcua.Change         // last value read of each node read instead of monitored
 }
 
 func newPlcWorker(collector *PlcCollector, machine model.MonitoredMachine, cancel context.CancelFunc) *plcWorker {
@@ -164,6 +169,7 @@ func (plcWorker *plcWorker) collect(ctx context.Context, retry *backoff) error {
 		Password:       machine.Password,
 		Certificate:    plcWorker.collector.certificate,
 		ConnectTimeout: plcWorker.collector.config.PLC.ConnectTimeout,
+		SessionTimeout: plcWorker.collector.config.PLC.SessionTimeout,
 	}
 	plcWorker.setStatus(ctx, func(status *opcua.MachineStatus) {
 		status.State, status.Endpoint, status.SecurityMode = opcua.StateConnecting, settings.Endpoint, settings.SecurityMode
@@ -189,6 +195,23 @@ func (plcWorker *plcWorker) collect(ctx context.Context, retry *backoff) error {
 	plcWorker.loadStoredValues(ctx)
 	retry.reset()
 
+	// nodes refused for lack of room are read instead; nil pollTick = nothing to read
+	pollHandles, pollNodeIDs := plcWorker.noRoomNodes(results)
+	var pollTick <-chan time.Time
+	if len(pollHandles) > 0 {
+		pollInterval := plc.PollInterval
+		if pollInterval <= 0 {
+			pollInterval = plcDefaultPollInterval
+		}
+		poller := time.NewTicker(pollInterval)
+		defer poller.Stop()
+		pollTick = poller.C
+		plcWorker.polled = map[uint32]opcua.Change{}
+		if err := plcWorker.poll(ctx, connection, pollHandles, pollNodeIDs); err != nil {
+			return err
+		}
+	}
+
 	health := time.NewTicker(plc.HealthInterval)
 	defer health.Stop()
 	failedPublishes := 0
@@ -204,6 +227,10 @@ func (plcWorker *plcWorker) collect(ctx context.Context, retry *backoff) error {
 		case batch := <-changes:
 			failedPublishes = 0
 			plcWorker.handleChanges(ctx, batch)
+		case <-pollTick:
+			if err := plcWorker.poll(ctx, connection, pollHandles, pollNodeIDs); err != nil {
+				return err
+			}
 		case publishErr := <-publishErrors:
 			failedPublishes++
 			plcWorker.log(slog.LevelWarn, "plc: publish failed", "inARow", failedPublishes, "error", publishErr)
@@ -230,17 +257,71 @@ func (plcWorker *plcWorker) items() []opcua.Item {
 	return items
 }
 
+// noRoomNodes lists the handles and node ids the controller refused for lack of room only.
+func (plcWorker *plcWorker) noRoomNodes(results []opcua.ItemResult) (handles []uint32, nodeIDs []string) {
+	for _, result := range results {
+		if result.NoRoom {
+			handles = append(handles, result.Handle)
+			nodeIDs = append(nodeIDs, plcWorker.variables[result.Handle].Address)
+		}
+	}
+	return handles, nodeIDs
+}
+
+// poll reads nodeIDs in one request and handles the values that changed since the last read
+// like a publish. A failed read ends the session, like a failed health read.
+func (plcWorker *plcWorker) poll(ctx context.Context, connection *opcua.Connection, handles []uint32, nodeIDs []string) error {
+	readCtx, cancel := context.WithTimeout(ctx, plcWorker.collector.config.PLC.ConnectTimeout)
+	defer cancel()
+	results, err := connection.ReadValues(readCtx, nodeIDs)
+	if err != nil {
+		return err
+	}
+	if batch := polledChanges(handles, results, plcWorker.polled); len(batch) > 0 {
+		plcWorker.handleChanges(ctx, batch)
+	}
+	return nil
+}
+
+// polledChanges turns read results (results[i] is handles[i]) into the changes since last, the
+// previous read of each handle, and moves last on: an unchanged value or status is left out, so
+// reading sends no more than a subscription would.
+func polledChanges(handles []uint32, results []opcua.ReadResult, last map[uint32]opcua.Change) []opcua.Change {
+	var changes []opcua.Change
+	for index, result := range results {
+		if index >= len(handles) {
+			break
+		}
+		change := opcua.Change{Handle: handles[index], Status: result.Status}
+		if result.Status == "" {
+			change.Value, change.Good = result.Value, true
+		}
+		if previous, found := last[change.Handle]; found && previous == change {
+			continue
+		}
+		last[change.Handle] = change
+		changes = append(changes, change)
+	}
+	return changes
+}
+
 // recordSubscribeResults marks the worker connected, keeps each node's status for the
-// diagnostics, tells the hub which codes it reads, and logs the nodes the controller refused.
+// diagnostics, tells the hub which codes it reads, and logs the nodes the controller refused and
+// the ones it had no room for (read instead, see poll).
 func (plcWorker *plcWorker) recordSubscribeResults(ctx context.Context, results []opcua.ItemResult, securityPolicy string) {
 	now := time.Now()
 	codes := make([]string, 0, len(results))
-	var refused []string
+	var refused, readInstead []string
 	nodes := make(map[int]opcua.NodeStatus, len(results))
 	for _, result := range results {
 		variable := plcWorker.variables[result.Handle]
-		nodes[variable.ID] = opcua.NodeStatus{NodeID: variable.Address, Status: result.Status, At: now}
-		if result.Status != "" {
+		status := result.Status
+		if result.NoRoom {
+			status = ""
+			readInstead = append(readInstead, fmt.Sprintf("%d:%s %s", variable.ID, variable.Code, variable.Address))
+		}
+		nodes[variable.ID] = opcua.NodeStatus{NodeID: variable.Address, Status: status, At: now}
+		if status != "" {
 			refused = append(refused, fmt.Sprintf("%d:%s %s (%s)", variable.ID, variable.Code, variable.Address, result.Status))
 			continue
 		}
@@ -252,9 +333,13 @@ func (plcWorker *plcWorker) recordSubscribeResults(ctx context.Context, results 
 		status.Nodes = nodes
 	})
 	plcWorker.log(slog.LevelInfo, "plc: connected and subscribed", "endpoint", opcua.Endpoint(plcWorker.machine.LiveIP, plcWorker.machine.Port),
-		"securityPolicy", securityPolicy, "variables", len(results), "subscribed", len(codes))
+		"securityPolicy", securityPolicy, "variables", len(results), "subscribed", len(codes)-len(readInstead), "readInstead", len(readInstead))
 	if len(refused) > 0 {
 		plcWorker.log(slog.LevelWarn, "plc: nodes refused by the controller", "count", len(refused), "nodes", refused)
+	}
+	if len(readInstead) > 0 {
+		plcWorker.log(slog.LevelWarn, "plc: controller has no room to monitor these nodes, reading them instead",
+			"count", len(readInstead), "interval", plcWorker.collector.config.PLC.PollInterval.String(), "nodes", readInstead)
 	}
 }
 

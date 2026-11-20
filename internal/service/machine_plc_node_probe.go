@@ -61,6 +61,7 @@ func (plcVariableService *MachinePlcVariableService) readNodeIDs(ctx context.Con
 		Password:       machine.Password,
 		Certificate:    plcVariableService.certificate,
 		ConnectTimeout: connectTimeout,
+		SessionTimeout: plcVariableService.plcConfig.SessionTimeout,
 	})
 	if err != nil {
 		test.Message = "Cannot connect: " + err.Error()

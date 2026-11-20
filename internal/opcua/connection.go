@@ -43,6 +43,9 @@ type Settings struct {
 	Password       string
 	Certificate    cert.Paths // presented when SecurityMode is not None
 	ConnectTimeout time.Duration
+	// SessionTimeout is how long the controller keeps the session (and its monitored items) after
+	// the client stops talking, e.g. a killed server; 0 = gopcua's default of 20 minutes.
+	SessionTimeout time.Duration
 }
 
 // Endpoint is the OPC UA address of host and port.
@@ -57,10 +60,13 @@ type Item struct {
 }
 
 // ItemResult says whether the controller accepted an item: Status "" when it did, else why not
-// (an invalid node id, or the controller's status such as BadNodeIdUnknown).
+// (an invalid node id, or the controller's status such as BadNodeIdUnknown). NoRoom is true when
+// it was refused only because the controller monitors as many items as it allows
+// (BadTooManyMonitoredItems): the node exists and can still be read.
 type ItemResult struct {
 	Handle uint32
 	Status string
+	NoRoom bool
 }
 
 // Change is one new value of a subscribed item. Good is false when the controller marks the value
@@ -109,6 +115,9 @@ func Connect(ctx context.Context, settings Settings) (*Connection, error) {
 				connection.markLost()
 			}
 		}),
+	}
+	if settings.SessionTimeout > 0 {
+		options = append(options, gopcua.SessionTimeout(settings.SessionTimeout))
 	}
 	if mode != ua.MessageSecurityModeNone {
 		options = append(options,
@@ -297,7 +306,7 @@ func (connection *Connection) Subscribe(ctx context.Context, publishInterval, sa
 			if index >= len(response.Results) {
 				result.Status = "no result from the controller"
 			} else if status := response.Results[index].StatusCode; status != ua.StatusOK {
-				result.Status = statusName(status)
+				result.Status, result.NoRoom = statusName(status), status == ua.StatusBadTooManyMonitoredItems
 			}
 			results = append(results, result)
 		}

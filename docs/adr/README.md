@@ -26,5 +26,6 @@ Server (backend) decisions, one file each (Michael Nygard template). Never edit 
 | 0020 | [Machine PLC node IDs: the machine's own node ID in machine_variables, default otherwise](0020-machine-plc-node-ids.md) | Proposed | 2026-11-19 |
 | 0021 | [Read PLC variables over OPC UA with gopcua, in-process beside the CNC collector](0021-opcua-plc-reader-gopcua.md) | Proposed | 2026-11-19 |
 | 0022 | [Test PLC node IDs in a short OPC UA session of their own](0022-plc-node-test-own-session.md) | Proposed | 2026-11-19 |
+| 0023 | [PLC reader: short session timeout, and read the nodes the controller has no room to monitor](0023-plc-session-timeout-and-read-when-no-room.md) | Proposed | 2026-11-20 |
 
 New ADR: copy the newest file, take the next number, status "Proposed" until agreed, then "Accepted"; add a row here.

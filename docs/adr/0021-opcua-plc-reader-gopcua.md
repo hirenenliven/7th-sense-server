@@ -1,7 +1,7 @@
 # 0021. Read PLC variables over OPC UA with gopcua, in-process beside the CNC collector
 
 - **Date:** 2026-11-19
-- **Status:** Proposed
+- **Status:** Proposed (amended by [0023](0023-plc-session-timeout-and-read-when-no-room.md))
 
 ## Context
 

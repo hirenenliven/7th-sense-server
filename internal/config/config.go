@@ -127,6 +127,13 @@ type PLCConfig struct {
 	// HealthInterval is how often the server time is read to notice a silent dead connection
 	// (PLC_HEALTH_SEC): subscriptions send nothing while no value changes.
 	HealthInterval time.Duration
+	// SessionTimeout is how long the controller keeps a session that stopped talking
+	// (PLC_SESSION_TIMEOUT_SEC): a killed server's monitored items are freed after it. Keep it
+	// above HealthInterval; the live session talks at least that often.
+	SessionTimeout time.Duration
+	// PollInterval is how often the nodes the controller had no room to monitor
+	// (BadTooManyMonitoredItems) are read instead, in one Read (PLC_POLL_INTERVAL_MS).
+	PollInterval time.Duration
 }
 
 // DBConfig holds the PostgreSQL connection settings.
@@ -187,6 +194,8 @@ func Load() Config {
 				SamplingInterval: time.Duration(getEnvInt("PLC_SAMPLING_INTERVAL_MS", 250)) * time.Millisecond,
 				ConnectTimeout:   time.Duration(getEnvInt("PLC_CONNECT_TIMEOUT_SEC", 10)) * time.Second,
 				HealthInterval:   time.Duration(getEnvInt("PLC_HEALTH_SEC", 30)) * time.Second,
+				SessionTimeout:   time.Duration(getEnvInt("PLC_SESSION_TIMEOUT_SEC", 120)) * time.Second,
+				PollInterval:     time.Duration(getEnvInt("PLC_POLL_INTERVAL_MS", 1000)) * time.Millisecond,
 			},
 		},
 		Live: LiveConfig{

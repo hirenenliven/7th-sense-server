@@ -18,9 +18,9 @@
     "semantic_hash": ""
   },
   "internal/config/config.go": {
-    "mtime": 1795066058.4260786,
-    "seen": 1795067472.3239589,
-    "ast_hash": "5da88007edf3b3ac07b81dcac6c7bee7",
+    "mtime": 1795153093.9856844,
+    "seen": 1795153269.360301,
+    "ast_hash": "09efeef037e3df382031e1087ea00829",
     "semantic_hash": ""
   },
   "internal/db/postgres.go": {
@@ -1218,9 +1218,9 @@
     "semantic_hash": "83e782660b9df6e3978298333b4f35a6"
   },
   ".claude/CLAUDE.md": {
-    "mtime": 1795073687.5573041,
-    "seen": 1795073711.3183846,
-    "ast_hash": "22d464f1d86179ce398e468a5ff41a02",
+    "mtime": 1795153243.9320788,
+    "seen": 1795153269.3609676,
+    "ast_hash": "ff904a2f4cec06dc355cff1af30a2928",
     "semantic_hash": ""
   },
   "README.md": {
@@ -1638,9 +1638,9 @@
     "semantic_hash": ""
   },
   "docs/adr/README.md": {
-    "mtime": 1795073687.5551896,
-    "seen": 1795073711.318426,
-    "ast_hash": "fcd7ea2c61a3afce91034384bd2a8b6e",
+    "mtime": 1795153243.9117293,
+    "seen": 1795153269.3610153,
+    "ast_hash": "13b28ac496aec9634f2344e4a0aaee7c",
     "semantic_hash": ""
   },
   "docs/api/openapi.yaml": {
@@ -2190,21 +2190,21 @@
     "semantic_hash": ""
   },
   "internal/monitor/plc_worker.go": {
-    "mtime": 1795066621.1483092,
-    "seen": 1795067472.3242295,
-    "ast_hash": "206288af59f574e1448c80144106e89d",
+    "mtime": 1795153133.2385983,
+    "seen": 1795153269.3606184,
+    "ast_hash": "9bf6a9c752852d06aa7d3239f30e0856",
     "semantic_hash": ""
   },
   "internal/opcua/connection.go": {
-    "mtime": 1795073090.9108675,
-    "seen": 1795073711.318073,
-    "ast_hash": "a6d049aad130e519ebd6900bb1e217ca",
+    "mtime": 1795153078.5792477,
+    "seen": 1795153269.3606288,
+    "ast_hash": "24bcf4d84e70dec7774a387e69977f40",
     "semantic_hash": ""
   },
   "internal/opcua/connection_test.go": {
-    "mtime": 1795066387.5793204,
-    "seen": 1795067472.3242378,
-    "ast_hash": "22ed22939aca6fde3ed31915729dcd71",
+    "mtime": 1795149878.0953324,
+    "seen": 1795152374.787198,
+    "ast_hash": "0ffc18d2fb3d590bf552c060b2b3fc9f",
     "semantic_hash": ""
   },
   "internal/opcua/status.go": {
@@ -2214,9 +2214,9 @@
     "semantic_hash": ""
   },
   "internal/opcua/value.go": {
-    "mtime": 1795066186.0016785,
-    "seen": 1795067472.3242404,
-    "ast_hash": "1da832295ddafe065fc9afce78ebb33a",
+    "mtime": 1795149878.093759,
+    "seen": 1795152374.7872021,
+    "ast_hash": "bd2cb4d2c57c9a22c1b7a9422ea24666",
     "semantic_hash": ""
   },
   "internal/service/machine_diagnostics_plc.go": {
@@ -2238,21 +2238,39 @@
     "semantic_hash": ""
   },
   "docs/adr/0021-opcua-plc-reader-gopcua.md": {
-    "mtime": 1795067265.0277889,
-    "seen": 1795067472.3245773,
-    "ast_hash": "e46c366e72af9ed08be6d9ce73b0e4ff",
+    "mtime": 1795153243.9157388,
+    "seen": 1795153269.3610096,
+    "ast_hash": "2417bb777a6ca7af7d140a4b583cfcd2",
     "semantic_hash": ""
   },
   "internal/service/machine_plc_node_probe.go": {
-    "mtime": 1795073174.0763376,
-    "seen": 1795073711.3182786,
-    "ast_hash": "7fdf6d64ab74e010f1b3358dcb2771b2",
+    "mtime": 1795153093.9866872,
+    "seen": 1795153269.3608463,
+    "ast_hash": "72be369bfcaa767a5924d647a32e604b",
     "semantic_hash": ""
   },
   "docs/adr/0022-plc-node-test-own-session.md": {
     "mtime": 1795073681.0912766,
     "seen": 1795073711.3184242,
     "ast_hash": "3eba76e9f48777a7247530cd5db4abf3",
+    "semantic_hash": ""
+  },
+  "docs/rabbitmq-telemetry-queue-guide.md": {
+    "mtime": 1795088147.2566035,
+    "seen": 1795152374.7876108,
+    "ast_hash": "e6ecbb04dabf1cb3e4af31944b2b692b",
+    "semantic_hash": ""
+  },
+  "internal/monitor/plc_worker_test.go": {
+    "mtime": 1795153145.5259752,
+    "seen": 1795153269.3606205,
+    "ast_hash": "5df85d0e1db1f40cda1f29a321ebe20f",
+    "semantic_hash": ""
+  },
+  "docs/adr/0023-plc-session-timeout-and-read-when-no-room.md": {
+    "mtime": 1795153225.2380967,
+    "seen": 1795153269.3610132,
+    "ast_hash": "f4872d5847b9d0ef8794fbbdba2072c1",
     "semantic_hash": ""
   }
 }
