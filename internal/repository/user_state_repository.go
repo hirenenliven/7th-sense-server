@@ -143,3 +143,8 @@ func mapUserStateError(operation string, err error) error {
 	}
 	return fmt.Errorf("%s: %w", operation, err)
 }
+
+// HasMachines reports whether machines that are not deleted are saved at the state id.
+func (userStateRepository *UserStateRepository) HasMachines(ctx context.Context, id int64) (bool, error) {
+	return levelHasMachines(ctx, userStateRepository.database, "user_state_id", id)
+}

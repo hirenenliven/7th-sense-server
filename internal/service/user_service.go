@@ -528,6 +528,12 @@ func levelInMachineFilterError(level string) error {
 	return response.NewError(http.StatusBadRequest, "This "+level+" is used in a user's machine access. Change that user first")
 }
 
+// levelHasMachinesError is the refusal to delete an organization level that machines are saved at
+// (migration 040): without it they would lose their place.
+func levelHasMachinesError(level string) error {
+	return response.NewError(http.StatusBadRequest, "This "+level+" has machines. Move or delete them first")
+}
+
 // checkCustomer returns "Please select valid customer" unless customerID is an
 // existing customer.
 func (userService *UserService) checkCustomer(ctx context.Context, customerID *int64) error {

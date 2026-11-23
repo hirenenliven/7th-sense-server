@@ -164,3 +164,8 @@ func mapUserShopError(operation string, err error) error {
 	}
 	return fmt.Errorf("%s: %w", operation, err)
 }
+
+// HasMachines reports whether machines that are not deleted are saved at the shop id.
+func (userShopRepository *UserShopRepository) HasMachines(ctx context.Context, id int64) (bool, error) {
+	return levelHasMachines(ctx, userShopRepository.database, "user_shop_id", id)
+}

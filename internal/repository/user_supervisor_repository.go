@@ -142,3 +142,8 @@ func mapUserSupervisorError(operation string, err error) error {
 	}
 	return fmt.Errorf("%s: %w", operation, err)
 }
+
+// HasMachines reports whether machines that are not deleted are saved at the supervisor id.
+func (userSupervisorRepository *UserSupervisorRepository) HasMachines(ctx context.Context, id int64) (bool, error) {
+	return levelHasMachines(ctx, userSupervisorRepository.database, "user_supervisor_id", id)
+}

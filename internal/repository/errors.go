@@ -39,4 +39,7 @@ var (
 	ErrDuplicateLicenceKey = errors.New("duplicate licence key")
 	// ErrDuplicateCycle is returned when the machine already has a running cycle.
 	ErrDuplicateCycle = errors.New("duplicate running cycle")
+	// ErrInvalidTelemetry is returned when PostgreSQL refuses a telemetry value itself (a data
+	// exception or integrity violation), not the connection: writing it again cannot succeed.
+	ErrInvalidTelemetry = errors.New("invalid telemetry value")
 )

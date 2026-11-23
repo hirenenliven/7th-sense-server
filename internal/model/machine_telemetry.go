@@ -118,6 +118,66 @@ type TelemetryValue struct {
 	RecordedAt time.Time
 }
 
+// Readers a TelemetryReading comes from.
+const (
+	TelemetrySourceCNC = "cnc" // the CNC DLL snapshot (monitor/worker.go)
+	TelemetrySourcePLC = "plc" // the OPC UA PLC reader (monitor/plc_worker.go)
+)
+
+// TelemetryReading is one message of the telemetry queue (ADR 0024): the machine_variable_values
+// rows (Live) and machine_telementry rows (Telemetry) of one reading of one machine, all read at
+// ReadAt. One message per reading, not per value, keeps the message rate at the reading rate.
+type TelemetryReading struct {
+	MachineID int64          `json:"machineId"`
+	ReadAt    time.Time      `json:"readAt"`
+	Source    string         `json:"source"`
+	Live      []ReadingValue `json:"live"`
+	Telemetry []ReadingValue `json:"telemetry"`
+}
+
+// ReadingValue is one variable's number in a TelemetryReading.
+type ReadingValue struct {
+	VariableID int      `json:"variableId"`
+	Value      *float64 `json:"value"`
+}
+
+// NewTelemetryReading builds the message of one reading of machineID from its rows; every row is
+// read at readAt.
+func NewTelemetryReading(machineID int64, readAt time.Time, source string, live []LiveValue, telemetry []TelemetryValue) TelemetryReading {
+	reading := TelemetryReading{MachineID: machineID, ReadAt: readAt, Source: source,
+		Live: make([]ReadingValue, len(live)), Telemetry: make([]ReadingValue, len(telemetry))}
+	for i, row := range live {
+		reading.Live[i] = ReadingValue{VariableID: row.VariableID, Value: row.Value}
+	}
+	for i, row := range telemetry {
+		reading.Telemetry[i] = ReadingValue{VariableID: row.VariableID, Value: row.Value}
+	}
+	return reading
+}
+
+// RowCount is how many database rows the reading writes.
+func (reading TelemetryReading) RowCount() int {
+	return len(reading.Live) + len(reading.Telemetry)
+}
+
+// LiveValues returns the reading's machine_variable_values rows.
+func (reading TelemetryReading) LiveValues() []LiveValue {
+	rows := make([]LiveValue, len(reading.Live))
+	for i, value := range reading.Live {
+		rows[i] = LiveValue{MachineID: reading.MachineID, VariableID: value.VariableID, Value: value.Value, UpdatedAt: reading.ReadAt}
+	}
+	return rows
+}
+
+// TelemetryValues returns the reading's machine_telementry rows.
+func (reading TelemetryReading) TelemetryValues() []TelemetryValue {
+	rows := make([]TelemetryValue, len(reading.Telemetry))
+	for i, value := range reading.Telemetry {
+		rows[i] = TelemetryValue{MachineID: reading.MachineID, VariableID: value.VariableID, Value: value.Value, RecordedAt: reading.ReadAt}
+	}
+	return rows
+}
+
 // ModeChange closes the machine's open machine_mode_log period at At and opens one in ModeID.
 type ModeChange struct {
 	MachineID   int64

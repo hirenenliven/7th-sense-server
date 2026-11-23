@@ -38,8 +38,9 @@ type boundVariable struct {
 	field  int
 }
 
-// worker collects one machine: it connects, stores every reading in machine_telementry right
-// away (no batching), writes mode periods and events, and reconnects with backoff when the connection is lost.
+// worker collects one machine: it connects, stores every reading right away (directly, or through
+// the telemetry queue when RABBITMQ_ENABLED, ADR 0024), writes mode periods and events, and
+// reconnects with backoff when the connection is lost.
 type worker struct {
 	collector               *Collector
 	machine                 model.MonitoredMachine // owned by the worker goroutine
@@ -65,8 +66,8 @@ type worker struct {
 	lastChangeAt           *time.Time
 	sampleAt               *time.Time
 	missingNodes           string
-	storedCount            int64
-	droppedCount           int64 // telemetry rows a failed insert lost
+	storedCount            int64 // telemetry rows queued or written
+	droppedCount           int64 // telemetry rows that could be neither queued nor written
 	processedCount         int64 // readings processReading handled
 	reportedError          string
 	statusDirty            bool
@@ -74,7 +75,8 @@ type worker struct {
 	connection             *cnc.Connection
 	waitingLogged          bool // "controller not sending data" was logged for this connection
 
-	liveValues map[int]model.LiveValue // cache of current live values by variable_id
+	liveValues      map[int]model.LiveValue // cache of current live values by variable_id
+	liveRefreshedAt time.Time               // when every live value was last stored; zero = due (LiveRefresh)
 
 	// cycles follows the machine's part program cycles (machine_cycle.go).
 	cycles cycleTracker
@@ -248,6 +250,7 @@ func (machineWorker *worker) loadVariableConfig(ctx context.Context) error {
 	machineWorker.collector.hub.SetMachineCodes(machineWorker.machine.ID, live.ReaderCNC, codes)
 	// Clear live values cache on reload - will be reloaded on next reading
 	machineWorker.liveValues = nil
+	machineWorker.liveRefreshedAt = time.Time{}
 	machineWorker.log(logTypeOther, slog.LevelInfo, "cnc: variables loaded", "variables", len(variables), "map", variableMap,
 		"readByPlcWorker", plcCount)
 	if len(unreadable) > 0 {
@@ -340,9 +343,11 @@ func (machineWorker *worker) checkConnectionLost(now time.Time) (stopReason, boo
 	return stopConnectionStale, silence > machineWorker.collector.config.Stale
 }
 
-// processReading stores one reading: every numeric value is upserted into
-// machine_variable_values, only the values that changed are inserted into machine_telementry,
-// and when something changed the alarm events are worked out. Text variables are not stored.
+// processReading stores one reading: the numeric values are upserted into
+// machine_variable_values (the changed ones on every reading, all of them every
+// LiveRefresh, 30 s), only the values that changed are inserted
+// into machine_telementry, and when something changed the alarm events are worked out. Text
+// variables are not stored.
 // The cycle (machine_cycle.go) and the mode (machine_mode.go) are followed on every connected
 // reading. It returns whether the controller was connected.
 func (machineWorker *worker) processReading(reading cnc.Reading) bool {
@@ -395,6 +400,7 @@ func (machineWorker *worker) processReading(reading cnc.Reading) bool {
 		}
 	}
 
+	refreshAll := machineWorker.isLiveRefreshDue(now)
 	numbers := make(map[int]float64, len(machineWorker.variables))
 	alarmMessage := ""
 	telemetryRows := make([]model.TelemetryValue, 0, len(machineWorker.variables))
@@ -422,9 +428,11 @@ func (machineWorker *worker) processReading(reading cnc.Reading) bool {
 			valueChanged = true
 		}
 
-		// Update live values
-		liveRow := machineWorker.liveValueRow(variable.config, value, now)
-		liveValueRows = append(liveValueRows, liveRow)
+		// Unchanged values are stored only when the refresh is due, so updated_at stays fresh
+		// for the screens without upserting every value of every reading.
+		if valueChanged || refreshAll {
+			liveValueRows = append(liveValueRows, machineWorker.liveValueRow(variable.config, value, now))
+		}
 
 		// Insert into time-series if value changed
 		if valueChanged {
@@ -439,11 +447,8 @@ func (machineWorker *worker) processReading(reading cnc.Reading) bool {
 	// Alarm events are derived from the stored values, so they are rechecked only when a value
 	// changed. The mode is decided on every reading from the NC state itself, so it is right
 	// from the first reading of a connection even when nothing changed since the last run.
-	if len(liveValueRows) > 0 {
-		machineWorker.upsertLiveValues(liveValueRows, now)
-	}
+	machineWorker.storeReading(liveValueRows, telemetryRows, now, refreshAll)
 	if len(telemetryRows) > 0 {
-		machineWorker.insertTelemetry(telemetryRows, now)
 		machineWorker.recordAlarmChanges(now, numbers, alarmMessage)
 	}
 	// The cycle goes first: after Offline it must still see the machine as offline, to end a
@@ -536,8 +541,56 @@ func (machineWorker *worker) telemetryRow(variable model.VariableConfig, value c
 	return row
 }
 
-// upsertLiveValues upserts the live values for all variables.
-func (machineWorker *worker) upsertLiveValues(rows []model.LiveValue, readAt time.Time) {
+// isLiveRefreshDue reports whether the reading at now stores every live value, changed or not:
+// on the first reading after the variables were loaded and then every LiveRefresh (30 s; on
+// every reading when it is 0).
+func (machineWorker *worker) isLiveRefreshDue(now time.Time) bool {
+	refresh := machineWorker.collector.config.LiveRefresh
+	return refresh <= 0 || machineWorker.liveRefreshedAt.IsZero() || now.Sub(machineWorker.liveRefreshedAt) >= refresh
+}
+
+// storeReading hands the rows of one reading to the telemetry queue (RABBITMQ_ENABLED); when the
+// queue is off or cannot take them (buffer full, broker down) they are written directly, as
+// before. The live value cache moves on once the rows are accepted, queued or written.
+func (machineWorker *worker) storeReading(liveRows []model.LiveValue, telemetryRows []model.TelemetryValue, readAt time.Time, refreshAll bool) {
+	if len(liveRows) == 0 && len(telemetryRows) == 0 {
+		return
+	}
+	telemetryQueue := machineWorker.collector.telemetryQueue
+	if telemetryQueue != nil &&
+		telemetryQueue.Enqueue(model.NewTelemetryReading(machineWorker.machine.ID, readAt, model.TelemetrySourceCNC, liveRows, telemetryRows)) {
+		machineWorker.acceptLiveValues(liveRows, readAt, refreshAll)
+		machineWorker.storedCount += int64(len(telemetryRows))
+		if len(telemetryRows) > 0 {
+			machineWorker.lastChangeAt = &readAt
+		}
+		return
+	}
+	machineWorker.upsertLiveValues(liveRows, readAt, refreshAll)
+	machineWorker.insertTelemetry(telemetryRows, readAt)
+}
+
+// acceptLiveValues moves the live value cache on to rows, read at readAt.
+func (machineWorker *worker) acceptLiveValues(rows []model.LiveValue, readAt time.Time, refreshAll bool) {
+	if len(rows) == 0 {
+		return
+	}
+	if machineWorker.liveValues == nil {
+		// The cache could not be loaded (database error); the rows stored now start it.
+		machineWorker.liveValues = make(map[int]model.LiveValue, len(rows))
+	}
+	for _, row := range rows {
+		machineWorker.liveValues[row.VariableID] = row
+	}
+	if refreshAll {
+		machineWorker.liveRefreshedAt = readAt
+	}
+	machineWorker.lastChangeAt = &readAt
+	machineWorker.statusDirty = true
+}
+
+// upsertLiveValues writes the live values of one reading directly.
+func (machineWorker *worker) upsertLiveValues(rows []model.LiveValue, readAt time.Time, refreshAll bool) {
 	if len(rows) == 0 {
 		return
 	}
@@ -547,18 +600,13 @@ func (machineWorker *worker) upsertLiveValues(rows []model.LiveValue, readAt tim
 		machineWorker.reportedError = err.Error()
 		machineWorker.statusDirty = true
 		machineWorker.log(logTypeOther, slog.LevelError, "cnc: upsert live values", "rows", len(rows), "error", err)
-	} else {
-		// Update cache
-		for _, row := range rows {
-			machineWorker.liveValues[row.VariableID] = row
-		}
-		machineWorker.lastChangeAt = &readAt
-		machineWorker.statusDirty = true
+		return
 	}
+	machineWorker.acceptLiveValues(rows, readAt, refreshAll)
 }
 
-// insertTelemetry stores the rows of one reading. When the insert fails the rows are lost
-// (counted in machine_live_status.dropped_count); the next reading is stored again.
+// insertTelemetry writes the telemetry rows of one reading directly. When the insert fails the
+// rows are lost (counted in machine_live_status.dropped_count); the next reading is stored again.
 func (machineWorker *worker) insertTelemetry(rows []model.TelemetryValue, readAt time.Time) {
 	if len(rows) == 0 {
 		return

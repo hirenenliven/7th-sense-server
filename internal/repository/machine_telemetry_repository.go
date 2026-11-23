@@ -1,9 +1,12 @@
 package repository
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -151,30 +154,75 @@ func (telemetryRepository *MachineTelemetryRepository) IsHypertable(ctx context.
 	return pgx.CollectOneRow(rows, pgx.RowTo[bool])
 }
 
-// UpsertLiveValues upserts machine_variable_values rows: one per machine-variable,
-// with the latest numeric value. Text variables are not cached here.
+// UpsertLiveValues upserts machine_variable_values rows: one per machine-variable, with the
+// latest numeric value and updated_at = the time it was read. Text variables are not cached here.
+// A value read before the stored one is left out, so a batch written twice or out of order
+// (the telemetry queue delivers at least once, ADR 0024) never moves a value back.
 func (telemetryRepository *MachineTelemetryRepository) UpsertLiveValues(ctx context.Context, values []model.LiveValue) error {
+	values = newestLiveValues(values)
 	if len(values) == 0 {
 		return nil
 	}
 	machineIDs := make([]int64, len(values))
 	variableIDs := make([]int32, len(values))
 	numbers := make([]*float64, len(values))
+	updatedAts := make([]time.Time, len(values))
 	for i, value := range values {
 		machineIDs[i], variableIDs[i] = value.MachineID, int32(value.VariableID)
-		numbers[i] = value.Value
+		numbers[i], updatedAts[i] = value.Value, value.UpdatedAt
 	}
 
 	query := `INSERT INTO machine_variable_values (machine_id, variable_id, value, updated_at)
-		SELECT machine_id, variable_id, value, CURRENT_TIMESTAMP
-		FROM unnest($1::bigint[], $2::int[], $3::float8[])
-		AS t(machine_id, variable_id, value)
+		SELECT machine_id, variable_id, value, updated_at
+		FROM unnest($1::bigint[], $2::int[], $3::float8[], $4::timestamptz[])
+		AS t(machine_id, variable_id, value, updated_at)
 		ON CONFLICT (machine_id, variable_id) DO UPDATE
-		SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP`
-	if err := execute(ctx, telemetryRepository.database, query, machineIDs, variableIDs, numbers); err != nil {
-		return fmt.Errorf("upsert live values: %w", err)
+		SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at
+		WHERE machine_variable_values.updated_at <= EXCLUDED.updated_at`
+	if err := execute(ctx, telemetryRepository.database, query, machineIDs, variableIDs, numbers, updatedAts); err != nil {
+		return fmt.Errorf("upsert live values: %w", mapTelemetryError(err))
 	}
 	return nil
+}
+
+// newestLiveValues keeps the newest row of each machine-variable (one INSERT … ON CONFLICT
+// DO UPDATE refuses to touch the same row twice), sorted by machine and variable: concurrent
+// upserts (the telemetry queue writers, direct writes) then lock shared rows in the same order
+// and cannot deadlock each other.
+func newestLiveValues(values []model.LiveValue) []model.LiveValue {
+	type liveKey struct {
+		machineID  int64
+		variableID int
+	}
+	newest := make(map[liveKey]int, len(values))
+	kept := make([]model.LiveValue, 0, len(values))
+	for _, value := range values {
+		key := liveKey{value.MachineID, value.VariableID}
+		index, found := newest[key]
+		if !found {
+			newest[key] = len(kept)
+			kept = append(kept, value)
+			continue
+		}
+		if !value.UpdatedAt.Before(kept[index].UpdatedAt) {
+			kept[index] = value
+		}
+	}
+	slices.SortFunc(kept, func(a, b model.LiveValue) int {
+		return cmp.Or(cmp.Compare(a.MachineID, b.MachineID), cmp.Compare(a.VariableID, b.VariableID))
+	})
+	return kept
+}
+
+// mapTelemetryError turns a value PostgreSQL refuses (data exception or integrity violation)
+// into ErrInvalidTelemetry; connection and other errors stay as they are, so the caller can
+// retry those.
+func mapTelemetryError(err error) error {
+	var pgError *pgconn.PgError
+	if errors.As(err, &pgError) && (strings.HasPrefix(pgError.Code, "22") || strings.HasPrefix(pgError.Code, "23")) {
+		return fmt.Errorf("%w: %s", ErrInvalidTelemetry, pgError.Message)
+	}
+	return err
 }
 
 // GetLiveValues returns the current live values for a machine's variables.
@@ -202,7 +250,9 @@ func (telemetryRepository *MachineTelemetryRepository) GetLiveValues(ctx context
 	return result, nil
 }
 
-// InsertTelemetry adds rows to machine_telementry in one statement.
+// InsertTelemetry adds rows to machine_telementry in one statement. A row already stored (same
+// machine, variable and time: a batch the telemetry queue delivered again) is skipped by the
+// unique index of migration 039.
 func (telemetryRepository *MachineTelemetryRepository) InsertTelemetry(ctx context.Context, values []model.TelemetryValue) error {
 	if len(values) == 0 {
 		return nil
@@ -219,9 +269,10 @@ func (telemetryRepository *MachineTelemetryRepository) InsertTelemetry(ctx conte
 	query := `INSERT INTO machine_telementry (machine_id, variable_id, value, recorded_at)
 		SELECT machine_id, variable_id, value, recorded_at
 		FROM unnest($1::bigint[], $2::int[], $3::float8[], $4::timestamptz[])
-		AS t(machine_id, variable_id, value, recorded_at)`
+		AS t(machine_id, variable_id, value, recorded_at)
+		ON CONFLICT DO NOTHING`
 	if err := execute(ctx, telemetryRepository.database, query, machineIDs, variableIDs, numbers, recordedAts); err != nil {
-		return fmt.Errorf("insert telemetry: %w", err)
+		return fmt.Errorf("insert telemetry: %w", mapTelemetryError(err))
 	}
 	return nil
 }

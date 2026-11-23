@@ -10,6 +10,8 @@ import (
 // their company's machines (the superadmin any); only the superadmin deletes.
 func registerMachineRoutes(router *http.ServeMux, prefix string, machineHandler *handler.MachineHandler) {
 	router.HandleFunc("GET "+prefix+"/machines", machineHandler.GetAll)
+	// The levels the machine form shows (the customer's filters); more specific than {id}
+	router.HandleFunc("GET "+prefix+"/machines/location-filters", machineHandler.GetLocationFilters)
 	router.HandleFunc("GET "+prefix+"/machines/{id}", machineHandler.GetByID)
 	router.Handle("POST "+prefix+"/machines", managersOnly(machineHandler.Create))
 	router.Handle("PUT "+prefix+"/machines/{id}", managersOnly(machineHandler.Update))

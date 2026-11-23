@@ -102,7 +102,7 @@ func TestPLCCollector(t *testing.T) {
 			ConnectTimeout: 5 * time.Second, HealthInterval: 5 * time.Second},
 	}
 	telemetryService := service.NewMachineTelemetryService(testDBPool, repository.NewMachineTelemetryRepository(testDBPool))
-	collector := monitor.NewPlcCollector(cncConfig, telemetryService, hub, board, cert.Paths{})
+	collector := monitor.NewPlcCollector(cncConfig, telemetryService, hub, nil, board, cert.Paths{})
 
 	ctx, stop := context.WithCancel(context.Background())
 	collected := make(chan struct{})

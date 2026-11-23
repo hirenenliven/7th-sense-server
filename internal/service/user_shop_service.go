@@ -63,6 +63,7 @@ func (userShopService *UserShopService) Update(ctx context.Context, userID, id i
 
 // Delete soft-deletes the shop. A shop that still has lines is kept:
 // its lines must be deleted first.
+// Machines saved at it, or a user's machine filter that names it, keep it too.
 func (userShopService *UserShopService) Delete(ctx context.Context, userID, id int64) error {
 	hasLines, err := userShopService.userShopRepository.HasLines(ctx, userID, id)
 	if err != nil {
@@ -77,6 +78,13 @@ func (userShopService *UserShopService) Delete(ctx context.Context, userID, id i
 	}
 	if inFilter {
 		return levelInMachineFilterError("shop")
+	}
+	hasMachines, err := userShopService.userShopRepository.HasMachines(ctx, id)
+	if err != nil {
+		return err
+	}
+	if hasMachines {
+		return levelHasMachinesError("shop")
 	}
 	return toUserShopResponseError(userShopService.userShopRepository.Delete(ctx, userID, id))
 }

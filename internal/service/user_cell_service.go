@@ -61,8 +61,8 @@ func (userCellService *UserCellService) Update(ctx context.Context, userID, id i
 	return updated, toUserCellResponseError(err)
 }
 
-// Delete soft-deletes the cell. A cell that still has supervisors is kept:
-// its supervisors must be deleted first.
+// Delete soft-deletes the cell. A cell that still has supervisors is kept (its supervisors
+// must be deleted first), and so is one that machines are saved at.
 func (userCellService *UserCellService) Delete(ctx context.Context, userID, id int64) error {
 	hasSupervisors, err := userCellService.userCellRepository.HasSupervisors(ctx, userID, id)
 	if err != nil {
@@ -70,6 +70,13 @@ func (userCellService *UserCellService) Delete(ctx context.Context, userID, id i
 	}
 	if hasSupervisors {
 		return response.NewError(http.StatusBadRequest, "This cell has supervisors. Delete its supervisors first")
+	}
+	hasMachines, err := userCellService.userCellRepository.HasMachines(ctx, id)
+	if err != nil {
+		return err
+	}
+	if hasMachines {
+		return levelHasMachinesError("cell")
 	}
 	return toUserCellResponseError(userCellService.userCellRepository.Delete(ctx, userID, id))
 }

@@ -63,6 +63,7 @@ func (userCityService *UserCityService) Update(ctx context.Context, userID, id i
 
 // Delete soft-deletes the city. A city that still has branches is kept:
 // its branches must be deleted first.
+// Machines saved at it, or a user's machine filter that names it, keep it too.
 func (userCityService *UserCityService) Delete(ctx context.Context, userID, id int64) error {
 	hasBranches, err := userCityService.userCityRepository.HasBranches(ctx, id)
 	if err != nil {
@@ -77,6 +78,13 @@ func (userCityService *UserCityService) Delete(ctx context.Context, userID, id i
 	}
 	if inFilter {
 		return levelInMachineFilterError("city")
+	}
+	hasMachines, err := userCityService.userCityRepository.HasMachines(ctx, id)
+	if err != nil {
+		return err
+	}
+	if hasMachines {
+		return levelHasMachinesError("city")
 	}
 	return toUserCityResponseError(userCityService.userCityRepository.Delete(ctx, userID, id))
 }

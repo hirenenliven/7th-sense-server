@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"7th-sense-server/internal/model"
 	"7th-sense-server/internal/response"
 )
 
@@ -59,15 +60,19 @@ const MachineHealthAll = "All"
 // offline dates, …) are not part of the form and are never changed through the API.
 type MachineFields struct {
 	// Machine details
-	UserID              int64  `json:"userId"`  // customer that owns the machine
-	ModelID             int64  `json:"modelId"` // a model of the controller (models table)
-	Name                string `json:"name"`
-	SerialNumber        string `json:"serialNumber"`
-	BrandID             int64  `json:"brandId"`
-	ControllerID        int64  `json:"controllerId"`
-	ControllerVersion   string `json:"controllerVersion"`
-	AccuracyID          *int64 `json:"accuracyId"`
-	LineID              *int64 `json:"lineId"` // one of the customer's lines (user_line)
+	UserID            int64  `json:"userId"`  // customer that owns the machine
+	ModelID           int64  `json:"modelId"` // a model of the controller (models table)
+	Name              string `json:"name"`
+	SerialNumber      string `json:"serialNumber"`
+	BrandID           int64  `json:"brandId"`
+	ControllerID      int64  `json:"controllerId"`
+	ControllerVersion string `json:"controllerVersion"`
+	AccuracyID        *int64 `json:"accuracyId"`
+	// Location is the machine's place in the customer's organization: any of its levels
+	// (all optional), as one chain. The machine is saved at the lowest level named.
+	Location model.OrganizationPath `json:"location"`
+	// LineID is the older way to name the line: used as location.userLineId when that is empty.
+	LineID              *int64 `json:"lineId"`
 	IsInsured           bool   `json:"isInsured"`
 	MaintenanceRequired bool   `json:"maintenanceRequired"`
 	InstallationDate    string `json:"installationDate"`
@@ -182,8 +187,23 @@ func (fields *MachineFields) validate() error {
 		return response.NewError(http.StatusBadRequest, "Please enter valid latitude")
 	case !validHealthIDs(fields.HealthIDs):
 		return response.NewError(http.StatusBadRequest, "Please select valid machine health")
+	case !validOrganizationPath(fields.Location):
+		return response.NewError(http.StatusBadRequest, "Please select valid location")
+	}
+	if fields.Location.UserLineID == nil {
+		fields.Location.UserLineID = fields.LineID
 	}
 	return nil
+}
+
+// validOrganizationPath reports whether every level path names is a usable id.
+func validOrganizationPath(path model.OrganizationPath) bool {
+	for _, level := range model.OrganizationLevels {
+		if id := path.Level(level); id != nil && *id <= 0 {
+			return false
+		}
+	}
+	return true
 }
 
 func (fields *MachineFields) trim() {
@@ -234,4 +254,10 @@ func validHealthIDs(value string) bool {
 		return true
 	}
 	return len(value) <= machineHealthIDsMax && healthIDsPattern.MatchString(value)
+}
+
+// MachineLocationFiltersResponse is the data of GET /machines/location-filters: the organization
+// levels a customer's machines are placed at (its filters), in hierarchy order.
+type MachineLocationFiltersResponse struct {
+	Filters []string `json:"filters"`
 }

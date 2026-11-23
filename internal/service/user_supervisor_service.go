@@ -61,8 +61,15 @@ func (userSupervisorService *UserSupervisorService) Update(ctx context.Context, 
 	return updated, toUserSupervisorResponseError(err)
 }
 
-// Delete soft-deletes the supervisor.
+// Delete soft-deletes the supervisor. A supervisor that machines are saved at is kept.
 func (userSupervisorService *UserSupervisorService) Delete(ctx context.Context, userID, id int64) error {
+	hasMachines, err := userSupervisorService.userSupervisorRepository.HasMachines(ctx, id)
+	if err != nil {
+		return err
+	}
+	if hasMachines {
+		return levelHasMachinesError("supervisor")
+	}
 	return toUserSupervisorResponseError(userSupervisorService.userSupervisorRepository.Delete(ctx, userID, id))
 }
 

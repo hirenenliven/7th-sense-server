@@ -28,6 +28,8 @@ import (
 //	CNC_LOG_DOWNTIME=true      logTypeDowntime: the Downtime inputs (machine type, alarm, E-stop,
 //	                          program status) and whether the machine is Downtime, whenever one changes
 //	CNC_LOG_CYCLES=true        logTypeCycle: each cycle opened, closed or restored (machine_cycle.go)
+//	CNC_LOG_PLC=true           logTypePLC: the OPC UA PLC reader (plc_collector.go, plc_worker.go)
+//	(always)                   logTypeQueue: the telemetry queue (telemetry_queue.go, telemetry_writer.go)
 //
 // Every error is written, whatever the switches say.
 // A line about a machine starts with "[machine 225 VM14]" and has machineId and machine; every
@@ -45,6 +47,7 @@ const (
 	logTypeDowntime  logType = "downtime"
 	logTypeCycle     logType = "cycle"
 	logTypePLC       logType = "plc"
+	logTypeQueue     logType = "queue"
 	logTypeOther     logType = "other"
 )
 
@@ -71,6 +74,9 @@ func isLogTypeOn(settings config.CNCLogSettings, kind logType, level slog.Level)
 		return settings.Cycles
 	case logTypePLC:
 		return settings.PLC
+	case logTypeQueue:
+		// Few lines (connects, fallbacks, dead letters, statistics once a minute): always written.
+		return true
 	}
 	return settings.Other
 }
@@ -124,7 +130,10 @@ func (collector *Collector) logCollectionSettings() {
 	slog.Info("cnc collector: settings", "logType", string(logTypeOther), "machines", machines,
 		"logEvents", logs.Events, "logModes", logs.Modes, "logModeChecks", logs.ModeChecks,
 		"logVariables", logs.Variables, "logOther", logs.Other, "logSnapshot", logs.Snapshot,
-		"logDowntime", logs.Downtime, "logCycles", logs.Cycles, "cycleMaxDuration", collector.config.CycleMaxDuration.String())
+		"logDowntime", logs.Downtime, "logCycles", logs.Cycles,
+		"cycleMaxDuration", collector.config.CycleMaxDuration.String(), "liveRefresh", collector.config.LiveRefresh.String())
+	slog.Info("cnc collector: telemetry storage", append([]any{"logType", string(logTypeOther)},
+		collector.telemetryQueue.SettingsLogAttributes()...)...)
 }
 
 // ---------------------------------------------------------------- snapshot (CNC_LOG_SNAPSHOT)

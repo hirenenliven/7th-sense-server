@@ -138,3 +138,8 @@ func mapUserCountryError(operation string, err error) error {
 	}
 	return fmt.Errorf("%s: %w", operation, err)
 }
+
+// HasMachines reports whether machines that are not deleted are saved at the country id.
+func (userCountryRepository *UserCountryRepository) HasMachines(ctx context.Context, id int64) (bool, error) {
+	return levelHasMachines(ctx, userCountryRepository.database, "user_country_id", id)
+}

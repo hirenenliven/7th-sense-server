@@ -46,6 +46,9 @@ var (
 	MachineCycleNotFound = newResponse(http.StatusNotFound, "Machine cycle not found")
 	// MachineCycleRunning: the machine already has a running cycle (one at a time per machine).
 	MachineCycleRunning = newResponse(http.StatusConflict, "The machine already has a running cycle")
+	// InvalidTelemetry: PostgreSQL refused a telemetry value itself; the telemetry queue writer
+	// dead-letters it instead of retrying (ADR 0024).
+	InvalidTelemetry = newResponse(http.StatusBadRequest, "Invalid telemetry value")
 
 	// Authentication and authorization responses
 	InvalidCredentials   = newResponse(http.StatusUnauthorized, "Invalid username or password")

@@ -22,7 +22,9 @@ Socket.IO, and how a screen picks which variables it gets.
      ▼
  internal/monitor     one worker per machine: turns the snapshot into variable values
      │       │
-     │       └──────► database (machine_variable_values, machine_telementry, mode log, cycles…)
+     │       ├──────► database (mode log, events, cycles, live status: direct)
+     │       └──────► machine_variable_values, machine_telementry: direct, or through RabbitMQ
+     │                (RABBITMQ_ENABLED, ADR 0024: queue → writer → database in batches)
      ▼
  internal/live        Hub: remembers the latest value of every variable of every machine,
      │                collects what changed per "room", sends it at most once per interval
@@ -58,7 +60,9 @@ and the hub tells only the browsers that asked for that machine and those variab
 5. **First** it hands all values to the hub: `publishValues` → `Hub.PublishValues`. This happens
    before any database write, so a slow database never delays the screen. Text values (program
    name, alarm message) go to the hub too, even though the database does not store them.
-6. Then the worker does its normal work: stores changed numbers, decides the mode
+6. Then the worker does its normal work: stores changed numbers (directly, or by handing them
+   to the telemetry queue when `RABBITMQ_ENABLED`; the socket path above does not change either
+   way, and queued values reach the tables a few hundred ms later), decides the mode
    (`PublishStatus` sends a mode / online change), and records alarms, E-stops and cycles
    (`PublishEvent` sends `alarm_on`, `alarm_off`, `emergency_on`, `emergency_off`,
    `cycle_opened`, `cycle_closed`).

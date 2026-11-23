@@ -33,23 +33,43 @@ const (
 )
 
 // Supervisor runs the CNC collector and the PLC collector in the server process and restarts the
-// CNC collector when it cannot start (for example the database is not ready yet).
+// CNC collector when it cannot start (for example the database is not ready yet). With
+// RABBITMQ_ENABLED it also runs the telemetry queue both collectors store their values through.
 type Supervisor struct {
-	config       config.CNCConfig
-	dbPool       *pgxpool.Pool
-	cycleService *service.MachineCycleService
-	hub          *live.Hub
-	ctx          context.Context // cancelled by Stop; parent of both collectors
-	cancel       context.CancelFunc
-	wg           sync.WaitGroup
+	config         config.CNCConfig
+	rabbitConfig   config.RabbitMQConfig
+	dbPool         *pgxpool.Pool
+	cycleService   *service.MachineCycleService
+	hub            *live.Hub
+	telemetryQueue *monitor.TelemetryQueue // nil = direct writes (RABBITMQ_ENABLED=false)
+	ctx            context.Context         // cancelled by Stop; parent of both collectors
+	cancel         context.CancelFunc
+	wg             sync.WaitGroup
 }
 
-// NewSupervisor creates a Supervisor for cncConfig that stores through dbPool; the collectors
-// write machine cycles through cycleService and publish their readings to hub (nil = live data
-// off).
-func NewSupervisor(cncConfig config.CNCConfig, dbPool *pgxpool.Pool, cycleService *service.MachineCycleService, hub *live.Hub) *Supervisor {
+// NewSupervisor creates a Supervisor for cncConfig that stores through dbPool, and through the
+// telemetry queue of rabbitConfig when it is enabled; the collectors write machine cycles through
+// cycleService and publish their readings to hub (nil = live data off).
+func NewSupervisor(cncConfig config.CNCConfig, rabbitConfig config.RabbitMQConfig, dbPool *pgxpool.Pool,
+	cycleService *service.MachineCycleService, hub *live.Hub) *Supervisor {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Supervisor{config: cncConfig, dbPool: dbPool, cycleService: cycleService, hub: hub, ctx: ctx, cancel: cancel}
+	return &Supervisor{config: cncConfig, rabbitConfig: rabbitConfig, dbPool: dbPool, cycleService: cycleService, hub: hub,
+		ctx: ctx, cancel: cancel}
+}
+
+// StartTelemetryQueue starts the telemetry queue (ADR 0024) when RABBITMQ_ENABLED: the publisher
+// and the RABBITMQ_CONSUMERS writers. Call it before the collectors start, so they get the
+// queue. A broker that is down does not stop the server: the publisher keeps reconnecting and the
+// workers write directly meanwhile.
+func (supervisor *Supervisor) StartTelemetryQueue() {
+	if !supervisor.rabbitConfig.Enabled {
+		slog.Info("telemetry queue off (RABBITMQ_ENABLED=false): collectors write directly")
+		return
+	}
+	telemetryService := service.NewMachineTelemetryService(supervisor.dbPool,
+		repository.NewMachineTelemetryRepository(supervisor.dbPool))
+	supervisor.telemetryQueue = monitor.NewTelemetryQueue(supervisor.rabbitConfig, supervisor.config, telemetryService)
+	supervisor.telemetryQueue.Start()
 }
 
 // StartCNCDataCollection loads the CNC DLL and starts the collector in a background goroutine,
@@ -94,7 +114,7 @@ func (supervisor *Supervisor) StartPLCDataCollection(board *opcua.StatusBoard, c
 	}
 	telemetryService := service.NewMachineTelemetryService(supervisor.dbPool,
 		repository.NewMachineTelemetryRepository(supervisor.dbPool))
-	collector := monitor.NewPlcCollector(supervisor.config, telemetryService, supervisor.hub, board, certificate)
+	collector := monitor.NewPlcCollector(supervisor.config, telemetryService, supervisor.hub, supervisor.telemetryQueue, board, certificate)
 	supervisor.wg.Add(1)
 	go func() {
 		defer supervisor.wg.Done()
@@ -104,8 +124,11 @@ func (supervisor *Supervisor) StartPLCDataCollection(board *opcua.StatusBoard, c
 }
 
 // Stop stops collecting: every machine is disconnected, what was collected is written and the
-// machines are left offline. It waits at most CNC_STOP_TIMEOUT_SEC (plus a margin).
+// machines are left offline. Then the telemetry queue sends what it still holds and its writers
+// store their last batch, before the caller closes the database pool. Each step waits at most
+// CNC_STOP_TIMEOUT_SEC (plus a margin).
 func (supervisor *Supervisor) Stop() {
+	defer supervisor.stopTelemetryQueue()
 	// Cancelling makes Collector.RunCollection run its shutdown; the wait is bounded so a
 	// worker stuck inside the DLL cannot hang the server's shutdown.
 	supervisor.cancel()
@@ -122,14 +145,21 @@ func (supervisor *Supervisor) Stop() {
 	}
 }
 
+// stopTelemetryQueue stops the telemetry queue once the collectors have stopped publishing.
+func (supervisor *Supervisor) stopTelemetryQueue() {
+	if supervisor.telemetryQueue != nil {
+		supervisor.telemetryQueue.Stop()
+	}
+}
+
 // runCollectorWithRetry runs the collector until ctx is cancelled. A collector that could not
 // start (for example the database is not ready yet) is created again after a wait that
 // doubles from 1 s up to 1 min.
 func (supervisor *Supervisor) runCollectorWithRetry(ctx context.Context, telemetryService *service.MachineTelemetryService, driver *cnc.Driver) {
 	retryWait := time.Second
 	for ctx.Err() == nil {
-		collector := monitor.NewCollector(supervisor.config, telemetryService, supervisor.cycleService, supervisor.hub, driver,
-			collectorShard, collectorShardCount)
+		collector := monitor.NewCollector(supervisor.config, telemetryService, supervisor.cycleService, supervisor.hub,
+			supervisor.telemetryQueue, driver, collectorShard, collectorShardCount)
 		err := collector.RunCollection(ctx)
 		if ctx.Err() != nil {
 			return

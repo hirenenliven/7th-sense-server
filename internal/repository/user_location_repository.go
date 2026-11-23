@@ -164,3 +164,8 @@ func mapUserLocationError(operation string, err error) error {
 	}
 	return fmt.Errorf("%s: %w", operation, err)
 }
+
+// HasMachines reports whether machines that are not deleted are saved at the location id.
+func (userLocationRepository *UserLocationRepository) HasMachines(ctx context.Context, id int64) (bool, error) {
+	return levelHasMachines(ctx, userLocationRepository.database, "user_location_id", id)
+}

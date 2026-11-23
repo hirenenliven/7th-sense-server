@@ -73,10 +73,11 @@ func (telemetryService *MachineTelemetryService) IsHypertable(ctx context.Contex
 	return telemetryService.telemetryRepository.IsHypertable(ctx)
 }
 
-// UpsertLiveValues upserts machine_variable_values rows: one per machine-variable,
-// with the latest value (value or value_text depending on data type).
+// UpsertLiveValues upserts machine_variable_values rows: one per machine-variable, with the
+// latest number; an older value never replaces a newer one. A value PostgreSQL refuses answers
+// response.InvalidTelemetry.
 func (telemetryService *MachineTelemetryService) UpsertLiveValues(ctx context.Context, values []model.LiveValue) error {
-	return telemetryService.telemetryRepository.UpsertLiveValues(ctx, values)
+	return toMachineTelemetryResponseError(telemetryService.telemetryRepository.UpsertLiveValues(ctx, values))
 }
 
 // GetLiveValues returns the current live values for a machine's variables.
@@ -102,9 +103,10 @@ func (telemetryService *MachineTelemetryService) markShardMachinesOffline(ctx co
 	})
 }
 
-// InsertTelemetry stores the rows of one reading in machine_telementry.
+// InsertTelemetry stores rows in machine_telementry (one reading, or a telemetry queue batch);
+// rows already stored are skipped. A value PostgreSQL refuses answers response.InvalidTelemetry.
 func (telemetryService *MachineTelemetryService) InsertTelemetry(ctx context.Context, values []model.TelemetryValue) error {
-	return telemetryService.telemetryRepository.InsertTelemetry(ctx, values)
+	return toMachineTelemetryResponseError(telemetryService.telemetryRepository.InsertTelemetry(ctx, values))
 }
 
 // ChangeMode ends the machine's open mode period and opens one in change.ModeID, in one
@@ -125,6 +127,8 @@ func toMachineTelemetryResponseError(err error) error {
 	switch {
 	case errors.Is(err, repository.ErrNotFound):
 		return response.MachineNotFound
+	case errors.Is(err, repository.ErrInvalidTelemetry):
+		return response.InvalidTelemetry
 	default:
 		return err
 	}

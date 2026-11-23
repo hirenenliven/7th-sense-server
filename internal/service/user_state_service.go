@@ -49,6 +49,7 @@ func (userStateService *UserStateService) Create(ctx context.Context, userID int
 
 // Delete soft-deletes the state. A state that still has cities is kept:
 // its cities must be deleted first.
+// Machines saved at it, or a user's machine filter that names it, keep it too.
 func (userStateService *UserStateService) Delete(ctx context.Context, userID, id int64) error {
 	hasCities, err := userStateService.userStateRepository.HasCities(ctx, userID, id)
 	if err != nil {
@@ -63,6 +64,13 @@ func (userStateService *UserStateService) Delete(ctx context.Context, userID, id
 	}
 	if inFilter {
 		return levelInMachineFilterError("state")
+	}
+	hasMachines, err := userStateService.userStateRepository.HasMachines(ctx, id)
+	if err != nil {
+		return err
+	}
+	if hasMachines {
+		return levelHasMachinesError("state")
 	}
 	return toUserStateResponseError(userStateService.userStateRepository.Delete(ctx, userID, id))
 }

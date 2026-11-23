@@ -15,6 +15,8 @@ import (
 type Config struct {
 	Port string
 	DB   DBConfig
+	// RabbitMQ holds the settings of the telemetry queue (ADR 0024).
+	RabbitMQ RabbitMQConfig
 	// CookieSecure sends the session cookie over HTTPS only. Set
 	// COOKIE_SECURE=true whenever the API is served over HTTPS.
 	CookieSecure bool
@@ -99,6 +101,10 @@ type CNCConfig struct {
 	// CycleMaxDuration: a cycle open this long is closed as unfinished (timeout), so a machine
 	// left in Hold for days does not distort the reports.
 	CycleMaxDuration time.Duration
+	// LiveRefresh is how often a CNC worker upserts the live values that did not change (fixed
+	// at 30 s, below the Virtual Screen's 60 s stale limit on machine_variable_values.updated_at);
+	// changed values are upserted on every reading. 0 (tests) = every value on every reading.
+	LiveRefresh time.Duration
 	// Machines (CNC_MACHINE_IDS) are the machines the server connects: "225,247" only these, the
 	// others are not connected (no data, mode or status) — for analysing a few machines; "ALL" or
 	// empty every active machine.
@@ -144,6 +150,55 @@ type DBConfig struct {
 	Password string
 	Name     string
 	SSLMode  string
+	// MaxConns is the most connections the pool opens (DB_MAX_CONNS, default 20); the API, the
+	// collectors' direct writes and the telemetry queue writer share them.
+	MaxConns int
+}
+
+// Telemetry queue types. The server always declares quorum; classic is for tests.
+const (
+	// QueueTypeQuorum is a replicated, durable queue that survives broker restarts.
+	QueueTypeQuorum = "quorum"
+	// QueueTypeClassic is a single-node durable queue.
+	QueueTypeClassic = "classic"
+)
+
+// RabbitMQConfig holds the settings of the telemetry queue (ADR 0024): the collectors publish
+// their high-volume rows (machine_telementry, machine_variable_values) to RabbitMQ and writers
+// store them in batches. Off, the collectors write directly, as before. Only Enabled, URL and
+// Consumers come from the environment (a restart applies them); the rest are fixed in Load,
+// sized by the load test in ADR 0024, and tests set their own.
+type RabbitMQConfig struct {
+	// Enabled publishes telemetry to RabbitMQ (RABBITMQ_ENABLED, default false = direct writes).
+	Enabled bool
+	// URL is the broker address with its login (RABBITMQ_URL); never logged with the password.
+	URL string
+	// Consumers is how many writers take batches off the queue (RABBITMQ_CONSUMERS, default 4).
+	// An idle writer holds no database connection; more writers help only while the database
+	// keeps up.
+	Consumers int
+	// Exchange is the durable direct exchange the rows are published to.
+	Exchange string
+	// RoutingKey binds Queue to Exchange.
+	RoutingKey string
+	// Queue is the durable queue the writers consume; its dead letters go to
+	// "<Exchange>.dlx" → "<Queue>.dead".
+	Queue string
+	// QueueType is QueueTypeQuorum or QueueTypeClassic.
+	QueueType string
+	// Prefetch is how many unacknowledged messages the broker hands each writer; keep it above
+	// BatchRows / values per reading.
+	Prefetch int
+	// BatchRows: a batch is written once it holds this many rows ...
+	BatchRows int
+	// BatchInterval: ... or this long after its first message.
+	BatchInterval time.Duration
+	// PublishBuffer is how many messages wait in memory for the publisher; when it is full a
+	// reading is written directly.
+	PublishBuffer int
+	// ReconnectMax is the longest wait between two connects to the broker, and between two
+	// tries of a failed batch; the wait starts at 1 s and doubles.
+	ReconnectMax time.Duration
 }
 
 // Load reads the config from the environment, falling back to defaults.
@@ -162,6 +217,22 @@ func Load() Config {
 			Password: getEnv("DB_PASSWORD", ""),
 			Name:     getEnv("DB_DATABASE", "7th_sense"),
 			SSLMode:  getEnv("DB_SSLMODE", "disable"),
+			MaxConns: getEnvInt("DB_MAX_CONNS", 20),
+		},
+		RabbitMQ: RabbitMQConfig{
+			Enabled:   getEnvBool("RABBITMQ_ENABLED", false),
+			URL:       getEnv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"),
+			Consumers: getEnvInt("RABBITMQ_CONSUMERS", 4),
+			// Fixed (ADR 0024).
+			Exchange:      "telemetry",
+			RoutingKey:    "values",
+			Queue:         "telemetry.values",
+			QueueType:     QueueTypeQuorum,
+			Prefetch:      1000,
+			BatchRows:     5000,
+			BatchInterval: 200 * time.Millisecond,
+			PublishBuffer: 20000,
+			ReconnectMax:  60 * time.Second,
 		},
 		CookieSecure: getEnv("COOKIE_SECURE", "false") == "true",
 		APIDocs:      getEnvBool("API_DOCS", false),
@@ -175,6 +246,7 @@ func Load() Config {
 			MaxConnecting:    getEnvInt("CNC_MAX_CONNECTING", 20),
 			StopTimeout:      time.Duration(getEnvInt("CNC_STOP_TIMEOUT_SEC", 15)) * time.Second,
 			CycleMaxDuration: time.Duration(getEnvInt("CNC_CYCLE_MAX_HOURS", 24)) * time.Hour,
+			LiveRefresh:      30 * time.Second,
 			Machines:         getEnvMachineSelection("CNC_MACHINE_IDS"),
 			Logs: CNCLogSettings{
 				Events:     getEnvBool("CNC_LOG_EVENTS", true),

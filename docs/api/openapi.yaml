@@ -237,13 +237,19 @@ components:
         latitude:
           type: string
         lineId:
-          description: one of the customer's lines (user_line)
+          description: 'LineID is the older way to name the line: used as location.userLineId when that is empty.'
           type: integer
         liveIp:
           type: string
         localIp:
           description: Data access
           type: string
+        location:
+          allOf:
+            - $ref: '#/components/schemas/model.OrganizationPath'
+          description: |-
+            Location is the machine's place in the customer's organization: any of its levels
+            (all optional), as one chain. The machine is saved at the lowest level named.
         longitude:
           type: string
         machineSystemType:
@@ -877,6 +883,13 @@ components:
         userStateId:
           type: integer
       type: object
+    dto.MachineLocationFiltersResponse:
+      properties:
+        filters:
+          items:
+            type: string
+          type: array
+      type: object
     dto.MachineModeReasonsResponse:
       properties:
         customerId:
@@ -1384,13 +1397,19 @@ components:
         latitude:
           type: string
         lineId:
-          description: one of the customer's lines (user_line)
+          description: 'LineID is the older way to name the line: used as location.userLineId when that is empty.'
           type: integer
         liveIp:
           type: string
         localIp:
           description: Data access
           type: string
+        location:
+          allOf:
+            - $ref: '#/components/schemas/model.OrganizationPath'
+          description: |-
+            Location is the machine's place in the customer's organization: any of its levels
+            (all optional), as one chain. The machine is saved at the lowest level named.
         longitude:
           type: string
         machineSystemType:
@@ -2192,6 +2211,10 @@ components:
           type: string
         billDate:
           type: string
+        branchId:
+          type: integer
+        branchName:
+          type: string
         brandId:
           type: integer
         brandName:
@@ -2208,6 +2231,10 @@ components:
           type: integer
         createdAt:
           type: string
+        customerFilters:
+          items:
+            type: string
+          type: array
         customerName:
           description: Display names (LEFT JOIN, read-only)
           type: string
@@ -2273,8 +2300,37 @@ components:
           type: string
         updatedAt:
           type: string
+        userCellId:
+          type: integer
+        userCellName:
+          type: string
+        userCityId:
+          type: integer
+        userCityName:
+          type: string
+        userCountryId:
+          description: Organization path (read-only; LineID and LineName above are its line)
+          type: integer
+        userCountryName:
+          type: string
         userId:
           type: integer
+        userLocationId:
+          type: integer
+        userLocationName:
+          type: string
+        userShopId:
+          type: integer
+        userShopName:
+          type: string
+        userStateId:
+          type: integer
+        userStateName:
+          type: string
+        userSupervisorId:
+          type: integer
+        userSupervisorName:
+          type: string
         username:
           type: string
         warrantyDate:
@@ -2464,6 +2520,27 @@ components:
         updatedAt:
           type: string
         userId:
+          type: integer
+      type: object
+    model.OrganizationPath:
+      properties:
+        branchId:
+          type: integer
+        userCellId:
+          type: integer
+        userCityId:
+          type: integer
+        userCountryId:
+          type: integer
+        userLineId:
+          type: integer
+        userLocationId:
+          type: integer
+        userShopId:
+          type: integer
+        userStateId:
+          type: integer
+        userSupervisorId:
           type: integer
       type: object
     model.Part:
@@ -7609,8 +7686,9 @@ paths:
     get:
       description: |-
         Returns the machines the user may access (see machineScope): a supervisor, operator, qc or shop head gets the machines assigned to them plus, when their machine filter has allMachines, every company machine under its organization levels. A non-nil customerID keeps only that customer's machines.
+        Each machine has its organization path (userCountryId … userSupervisorId with their names; lineId / lineName are its line): the level it is saved at and every level above it, levels below are null. customerFilters are the levels its customer uses, in hierarchy order: the location filters and labels of the machine lists.
 
-        Used by pages: Add / edit customer or user, Customer / user detail, All machines, Machine health, Productivity, Add / edit part, Add / edit production schedule, Operations Center, Plant Intelligence
+        Used by pages: Add / edit customer or user, Customer / user detail, All machines, Machine list, Machine health, Productivity, Add / edit part, Add / edit production schedule, Operations Center, Plant Intelligence
       operationId: getMachines
       parameters:
         - description: User id
@@ -7698,6 +7776,16 @@ paths:
               lineId: 1
               liveIp: Postman sample
               localIp: Postman sample
+              location:
+                branchId: 1
+                userCellId: 1
+                userCityId: 1
+                userCountryId: 1
+                userLineId: 1
+                userLocationId: 1
+                userShopId: 1
+                userStateId: 1
+                userSupervisorId: 1
               longitude: Postman sample
               machineSystemType: Postman sample
               maintenanceRequired: false
@@ -7773,6 +7861,80 @@ paths:
       security:
         - cookieAuth: []
       summary: Create machine
+      tags:
+        - Machines
+  /v1/machines/location-filters:
+    get:
+      description: |-
+        Returns the organization levels a customer's machines are placed at: the customer's filters (customer form), in hierarchy order (country, state, city, branch, location, shop, line, cell, supervisor). The Add / Edit Machine form shows a dependent select for each, all optional (the levels picked must be one chain). The superadmin names the customer with userId (required); everyone else gets their own company's, another userId answers 403.
+
+        Used by pages: Add / edit machine
+      operationId: getMachineLocationFilters
+      parameters:
+        - description: Customer id (superadmin, required for them)
+          in: query
+          name: userId
+          schema:
+            type: integer
+      responses:
+        "200":
+          content:
+            application/json:
+              example:
+                message: success
+                statusCode: 200
+                success: true
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/response.Envelope'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/dto.MachineLocationFiltersResponse'
+                    type: object
+          description: OK
+        "400":
+          content:
+            application/json:
+              example:
+                message: Validation error
+                statusCode: 400
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Validation error
+        "401":
+          content:
+            application/json:
+              example:
+                message: Not logged in
+                statusCode: 401
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Not logged in
+        "403":
+          content:
+            application/json:
+              example:
+                message: Another company's customer
+                statusCode: 403
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Another company's customer
+        "500":
+          content:
+            application/json:
+              example:
+                message: Server error
+                statusCode: 500
+                success: false
+              schema:
+                $ref: '#/components/schemas/response.Envelope'
+          description: Server error
+      security:
+        - cookieAuth: []
+      summary: Get machine location filters
       tags:
         - Machines
   /v1/machines/{id}:
@@ -7969,6 +8131,16 @@ paths:
               lineId: 1
               liveIp: Postman sample
               localIp: Postman sample
+              location:
+                branchId: 1
+                userCellId: 1
+                userCityId: 1
+                userCountryId: 1
+                userLineId: 1
+                userLocationId: 1
+                userShopId: 1
+                userStateId: 1
+                userSupervisorId: 1
               longitude: Postman sample
               machineSystemType: Postman sample
               maintenanceRequired: false

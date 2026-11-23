@@ -55,13 +55,6 @@ func newMachineRouter(authenticate middleware.Middleware) http.Handler {
 
 // newMachineService builds the machine service on the test database.
 func newMachineService() *service.MachineService {
-	userCountryService := service.NewUserCountryService(repository.NewUserCountryRepository(testDBPool))
-	userStateService := service.NewUserStateService(repository.NewUserStateRepository(testDBPool), userCountryService)
-	userCityService := service.NewUserCityService(repository.NewUserCityRepository(testDBPool), userStateService)
-	branchService := service.NewBranchService(repository.NewBranchRepository(testDBPool), userCityService)
-	userLocationService := service.NewUserLocationService(repository.NewUserLocationRepository(testDBPool), branchService)
-	userShopService := service.NewUserShopService(repository.NewUserShopRepository(testDBPool), userLocationService)
-	userLineService := service.NewUserLineService(repository.NewUserLineRepository(testDBPool), userShopService)
 	brandService := service.NewBrandService(repository.NewBrandRepository(testDBPool))
 	controllerService := service.NewControllerService(repository.NewControllerRepository(testDBPool), brandService)
 	machineModelService := service.NewMachineModelService(repository.NewMachineModelRepository(testDBPool), controllerService)
@@ -71,7 +64,6 @@ func newMachineService() *service.MachineService {
 		machineModelService,
 		brandService,
 		controllerService,
-		userLineService,
 		service.NewMachineAccuracyService(repository.NewMachineAccuracyRepository(testDBPool)),
 	)
 }
@@ -233,7 +225,7 @@ func TestMachineCRUD(t *testing.T) {
 		expectStatus(t, sendRequest(t, router, http.MethodPost, apiV1+"/machines", with(body, "controllerId", fixture.otherControllerID)), http.StatusBadRequest, "Please select a controller of the selected brand")
 		expectStatus(t, sendRequest(t, router, http.MethodPost, apiV1+"/machines", with(body, "modelId", unknownID)), http.StatusBadRequest, "Please select valid model")
 		expectStatus(t, sendRequest(t, router, http.MethodPost, apiV1+"/machines", with(body, "modelId", fixture.otherModelID)), http.StatusBadRequest, "Please select a model of the selected controller")
-		expectStatus(t, sendRequest(t, router, http.MethodPost, apiV1+"/machines", with(body, "lineId", unknownID)), http.StatusBadRequest, "Please select valid line")
+		expectStatus(t, sendRequest(t, router, http.MethodPost, apiV1+"/machines", with(body, "lineId", unknownID)), http.StatusBadRequest, "Please select valid location")
 	})
 
 	t.Run("name is unique per customer, case-insensitively", func(t *testing.T) {

@@ -75,6 +75,7 @@ func (branchService *BranchService) Update(ctx context.Context, userID, id int64
 
 // Delete soft-deletes the branch. A branch that still has locations is kept:
 // its locations must be deleted first.
+// Machines saved at it, or a user's machine filter that names it, keep it too.
 func (branchService *BranchService) Delete(ctx context.Context, id int64) error {
 	hasLocations, err := branchService.branchRepository.HasLocations(ctx, id)
 	if err != nil {
@@ -89,6 +90,13 @@ func (branchService *BranchService) Delete(ctx context.Context, id int64) error 
 	}
 	if inFilter {
 		return levelInMachineFilterError("branch")
+	}
+	hasMachines, err := branchService.branchRepository.HasMachines(ctx, id)
+	if err != nil {
+		return err
+	}
+	if hasMachines {
+		return levelHasMachinesError("branch")
 	}
 	return toBranchResponseError(branchService.branchRepository.Delete(ctx, id))
 }

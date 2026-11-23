@@ -25,8 +25,9 @@ func NewMachineHandler(machineService *service.MachineService) *MachineHandler {
 //
 // @Summary      Get machines
 // @Description  Returns the machines the user may access (see machineScope): a supervisor, operator, qc or shop head gets the machines assigned to them plus, when their machine filter has allMachines, every company machine under its organization levels. A non-nil customerID keeps only that customer's machines.
+// @Description  Each machine has its organization path (userCountryId … userSupervisorId with their names; lineId / lineName are its line): the level it is saved at and every level above it, levels below are null. customerFilters are the levels its customer uses, in hierarchy order: the location filters and labels of the machine lists.
 // @Description
-// @Description  Used by pages: Add / edit customer or user, Customer / user detail, All machines, Machine health, Productivity, Add / edit part, Add / edit production schedule, Operations Center, Plant Intelligence
+// @Description  Used by pages: Add / edit customer or user, Customer / user detail, All machines, Machine list, Machine health, Productivity, Add / edit part, Add / edit production schedule, Operations Center, Plant Intelligence
 // @Tags         Machines
 // @ID           getMachines
 // @Produce      json
@@ -55,6 +56,43 @@ func (machineHandler *MachineHandler) GetAll(writer http.ResponseWriter, request
 		return
 	}
 	response.SendResponse(writer, request, response.Success, machines)
+}
+
+// GetLocationFilters handles GET /api/v1/machines/location-filters[?userId=<customer id>].
+//
+// @Summary      Get machine location filters
+// @Description  Returns the organization levels a customer's machines are placed at: the customer's filters (customer form), in hierarchy order (country, state, city, branch, location, shop, line, cell, supervisor). The Add / Edit Machine form shows a dependent select for each, all optional (the levels picked must be one chain). The superadmin names the customer with userId (required); everyone else gets their own company's, another userId answers 403.
+// @Description
+// @Description  Used by pages: Add / edit machine
+// @Tags         Machines
+// @ID           getMachineLocationFilters
+// @Produce      json
+// @Security     cookieAuth
+// @Param        userId query int false "Customer id (superadmin, required for them)"
+// @Success      200 {object} response.Envelope{data=dto.MachineLocationFiltersResponse}
+// @Failure      400 {object} response.Envelope "Validation error"
+// @Failure      401 {object} response.Envelope "Not logged in"
+// @Failure      403 {object} response.Envelope "Another company's customer"
+// @Failure      500 {object} response.Envelope "Server error"
+// @Router       /v1/machines/location-filters [get]
+func (machineHandler *MachineHandler) GetLocationFilters(writer http.ResponseWriter, request *http.Request) {
+	actor, err := currentUser(request)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+	customerID, err := queryID(request, "userId")
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+
+	filters, err := machineHandler.service.GetLocationFilters(request.Context(), actor, customerID)
+	if err != nil {
+		response.SendResponse(writer, request, err, nil)
+		return
+	}
+	response.SendResponse(writer, request, response.Success, dto.MachineLocationFiltersResponse{Filters: filters})
 }
 
 // GetByID handles GET /api/v1/machines/{id}[?userId=<customer id>].

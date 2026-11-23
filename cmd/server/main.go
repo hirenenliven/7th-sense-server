@@ -71,7 +71,7 @@ func run() error {
 		return fmt.Errorf("connect database: %w", err)
 	}
 	defer dbPool.Close()
-	slog.Info("connected to database", "name", appConfig.DB.Name)
+	slog.Info("connected to database", "name", appConfig.DB.Name, "maxConns", appConfig.DB.MaxConns)
 
 	categoryRepository := repository.NewCategoryRepository(dbPool)
 	brandRepository := repository.NewBrandRepository(dbPool)
@@ -98,9 +98,9 @@ func run() error {
 	machineModelService := service.NewMachineModelService(repository.NewMachineModelRepository(dbPool), controllerService)
 	// Machine accuracies: one list for every customer (machine and part process accuracy)
 	machineAccuracyService := service.NewMachineAccuracyService(repository.NewMachineAccuracyRepository(dbPool))
-	// A machine checks its customer, brand, controller, model, the customer's line and its accuracy
+	// A machine checks its customer, brand, controller, model, its place in the customer's organization and its accuracy
 	machineService := service.NewMachineService(machineRepository, repository.NewUserRepository(dbPool),
-		machineModelService, brandService, controllerService, userLineService, machineAccuracyService)
+		machineModelService, brandService, controllerService, machineAccuracyService)
 	telemetryService := service.NewMachineTelemetryService(dbPool, telemetryRepository)
 	healthService := service.NewHealthService(machineService, telemetryService)
 	// Cycles are written by the CNC collector and read through the API with machine access
@@ -203,7 +203,11 @@ func run() error {
 	// collectors manages CNC data collection from machines: loads the 32-bit CNC DLL, runs the collector
 	// in a background goroutine, handles restarts on failure, and gracefully stops on shutdown.
 	// Needed because collection runs inside this API server process (no separate service).
-	collectors := collector.NewSupervisor(appConfig.CNC, dbPool, cycleService, liveHub)
+	collectors := collector.NewSupervisor(appConfig.CNC, appConfig.RabbitMQ, dbPool, cycleService, liveHub)
+
+	// With RABBITMQ_ENABLED the collectors hand their high-volume rows to RabbitMQ and a writer
+	// stores them in batches (ADR 0024); started first, so both collectors get the queue.
+	collectors.StartTelemetryQueue()
 
 	// CNC data collection runs inside this process: starting the server connects the machines
 	// (CNC_ENABLED, needs a GOARCH=386 build for the 32-bit DLL; docs/cnc-telemetry-collector-plan.md)

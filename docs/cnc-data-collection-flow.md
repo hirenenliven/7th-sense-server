@@ -298,8 +298,8 @@ so the worker needs no locks for its own data.
 
 ### Step 15 — Store the reading
 - **File:** `internal/monitor/worker.go`
-- **Functions:** `worker.processReading`, `upsertLiveValues`, `insertTelemetry`,
-  `recordAlarmChanges`, `recordModeChange`, and `decideMachineMode` in `internal/monitor/machine_mode.go`
+- **Functions:** `worker.processReading`, `storeReading` (→ `TelemetryQueue.Enqueue`, or
+  `upsertLiveValues` + `insertTelemetry`), `recordAlarmChanges`, `recordModeChange`, and `decideMachineMode` in `internal/monitor/machine_mode.go`
 - **What it does:**
   1. If the DLL says the machine is **not connected**: set mode Offline and stop here.
   1a. **Before any database write**, every variable of the reading (numbers **and** text) goes to
@@ -315,8 +315,15 @@ so the worker needs no locks for its own data.
      - **Text** variables (program name, alarm message) are **not stored**; they are only used for
        the mode log and alarm events.
      - **Numeric** variables are compared with the cached value.
-  4. Every numeric value is **upserted** into `machine_variable_values` (one row per machine and variable).
+  4. The numeric values are **upserted** into `machine_variable_values` (one row per machine and
+     variable, `updated_at` = the read time): the changed ones on every reading, and every value
+     on the first reading after a variable load and then every 30 s (`LiveRefresh`, fixed).
   5. Only values that **changed** are inserted into `machine_telementry` (time series).
+  5a. **Where the rows go** (`storeReading`, ADR 0024): with `RABBITMQ_ENABLED=true` the rows of
+     the reading become one message (`model.TelemetryReading`) handed to the telemetry queue
+     without waiting; a writer stores them later in large batches (see *Telemetry queue* below).
+     When the queue is off, or its publish buffer is full / the broker is down, the worker writes
+     them directly as before. The cached values move on once the rows are queued or written.
      With `CNC_LOG_VARIABLES=true` the changed values of the reading are also logged in one line,
      `[machine <id> <name>] cnc: variable values changed` (`count`, `changes`, read time).
   6. If anything changed, it also writes `alarm_on` / `alarm_off` and `emergency_on` /
@@ -353,6 +360,54 @@ so the worker needs no locks for its own data.
 
 - **If a write fails:** the error is logged and saved in `machine_live_status.last_error`. Failed
   telemetry rows are lost and counted in `dropped_count`; the next reading is stored normally.
+  (Queued rows never fail here: the writer keeps a batch until the database takes it.)
+
+#### Telemetry queue (RabbitMQ, ADR 0024)
+
+With `RABBITMQ_ENABLED=true` only the two high-volume tables go through RabbitMQ; modes, events,
+cycles and `machine_live_status` are still written directly by the worker, and the live hub still
+gets every reading first, in-process.
+
+```mermaid
+sequenceDiagram
+    participant W as worker / plcWorker
+    participant H as live.Hub
+    participant P as queue.Publisher
+    participant R as RabbitMQ (telemetry → telemetry.values)
+    participant T as telemetryWriter ×RABBITMQ_CONSUMERS
+    participant DB as PostgreSQL
+    W->>H: PublishValues (screens, no wait)
+    W->>P: Enqueue(TelemetryReading), buffer, no wait
+    alt buffer full or queue off
+        W->>DB: UpsertLiveValues + InsertTelemetry (direct, as before)
+    end
+    P->>R: publish (persistent), wait for confirms, resend what is not confirmed
+    R->>T: deliver (prefetch 1000)
+    Note over T: batch until 5000 rows or 200 ms
+    T->>DB: one InsertTelemetry (ON CONFLICT DO NOTHING) + one UpsertLiveValues (newest wins)
+    T->>R: ack every message of the batch
+    alt database down
+        T->>T: keep the batch, retry after 1 s doubling up to 60 s
+    else value refused or message unreadable
+        T->>R: reject to telemetry.values.dead
+    end
+```
+
+- **Files:** `internal/monitor/telemetry_queue.go` (`TelemetryQueue`: `Enqueue`, start / stop,
+  statistics), `internal/monitor/telemetry_writer.go` (batching), `internal/queue` (RabbitMQ only:
+  connect, declare, publish, consume, reconnect).
+- **Delivery is at least once:** a batch written but not acknowledged comes again. It is stored
+  once: `machine_telementry` has a unique index on (machine, variable, time) (migration 039) and
+  an older live value never replaces a newer one.
+- **Start / stop:** started by `collector.Supervisor.StartTelemetryQueue` before the collectors
+  (a broker that is down does not stop the server); stopped after them: the publisher sends what
+  it holds (what it cannot send is written directly), then the writers store their last batch.
+- **Log** (always written, logType `queue`): `queue: publisher connected`, `queue: writer
+  consuming`, `queue: publish buffer full or broker unavailable, writing directly` (first per
+  minute), `queue: writing a batch failed, keeping it and trying again`, dead letters, and once a
+  minute `queue: statistics` (published, confirmed, fallback, rows / batches written, average batch
+  rows and write ms, queue depth, dead-letter depth). A growing `queueDepth` means the writers are
+  slower than the collectors.
 
 ### Step 16 — Every second: dead connection check and live status
 - **File:** `internal/monitor/worker.go`
@@ -489,6 +544,10 @@ Errors are always written, whatever the switch.
 | `SIEMENS_USER`, `SIEMENS_PASS` | – | Set per machine by the server from the machine's login (step 12) |
 | `LIVE_ENABLED` | `true` | Publish readings to the Socket.IO live data (step 15, 1a); `false` = no hub, screens poll REST |
 | `LIVE_MIN_INTERVAL_MS` | `200` | Shortest interval between two live messages of one room |
+| `DB_MAX_CONNS` | `20` | Most database connections of the server (API, collectors, queue writers) |
+| `RABBITMQ_ENABLED` | `false` | Store telemetry through RabbitMQ (ADR 0024); `false` = direct writes, no broker needed |
+| `RABBITMQ_URL` | `amqp://guest:guest@localhost:5672/` | Broker address and login (password never logged) |
+| `RABBITMQ_CONSUMERS` | `4` | Writers that save queued readings. Fixed in `config.Load`: exchange `telemetry`, quorum queue `telemetry.values`, dead letters `telemetry.values.dead`, prefetch 1000, batches of 5000 rows / 200 ms, publish buffer 20000, reconnect wait up to 60 s |
 
 ### Tables
 
@@ -496,8 +555,8 @@ Errors are always written, whatever the switch.
 |---|---|---|
 | `machines`, `controllers` | Read | Which machines to connect, and how (step 8) |
 | `cnc_variables`, `cnc_variable_addresses`, `machine_variables` | Read | Which values to read and where (step 10) |
-| `machine_variable_values` | Written every reading | Latest numeric value per machine and variable (step 15) |
-| `machine_telementry` | Written on change | Time series of changed numeric values (TimescaleDB, compressed after 1 day, kept 365 days) |
+| `machine_variable_values` | Written every reading (unchanged values every 30 s); through the telemetry queue when on | Latest numeric value per machine and variable, `updated_at` = read time (step 15) |
+| `machine_telementry` | Written on change; through the telemetry queue when on | Time series of changed numeric values (TimescaleDB, compressed after 1 day, kept 365 days); unique per machine, variable and time (migration 039) |
 | `machine_mode_log` | Written on mode change | One row per mode period; `ended_at` NULL = current period |
 | `machine_live_status` | Written on change / every 10 s | One row per machine: connected, last seen, counters, last error |
 | `machine_events` | Written on events | Connect, disconnect, alarms, errors, collector start / stop |
@@ -529,6 +588,8 @@ are counted in `machine_live_status.dropped_count` instead.
 | Dead connection check | `collectReadings` | every 1 s, limit `CNC_STALE_SEC` |
 | Live status save | `collectReadings` | on change, at least every 10 s |
 | One database write | `worker.go` (`writeTimeout`) | 5 s |
+| Broker connect (publisher, writers) | `internal/queue` | 1 s doubling to 60 s |
+| Failed batch write (queue) | `telemetryWriter.flush` | same batch again after 1 s doubling to 60 s, ±20 % |
 
 ### Troubleshooting
 
@@ -544,10 +605,10 @@ are counted in `machine_live_status.dropped_count` instead.
 | Fewer rows than the machine changes | Compare `callbacksPerSecond` and `storedValuesPerSecond` in the `cnc: reading rate` log: only changed values of configured variables are stored, and `skipped` shows readings the worker could not keep up with (step 16) |
 | Whole server stops suddenly | A crash inside the DLL ends the process; check `logs/app.log` |
 
-### Known issue
-In `worker.processReading`, if loading the cached values (`GetLiveValues`) fails, the cache stays
-`nil`; a following successful `upsertLiveValues` then writes into a `nil` map and panics, which ends
-that worker. The fix is to start with an empty map when the load fails.
+### Fixed issue
+In `worker.processReading`, if loading the cached values (`GetLiveValues`) failed, the cache stayed
+`nil` and the next successful upsert wrote into a `nil` map and panicked. `acceptLiveValues` now
+starts an empty map then (ADR 0024).
 
 ### Related documents
 - `docs/cnc-communication.md` — the DLL API (`CNCConnect`, callbacks, snapshot layout)
@@ -580,8 +641,9 @@ run (main.go)
   → collectReadings (worker.go)
   → Latest (worker.go)
   → processReading (worker.go)
-  → upsertLiveValues (worker.go)
-  → insertTelemetry (worker.go)
+  → storeReading (worker.go)
+    → TelemetryQueue.Enqueue (telemetry_queue.go), RABBITMQ_ENABLED; later telemetryWriter.flush → InsertTelemetry + UpsertLiveValues
+    → else upsertLiveValues + insertTelemetry (worker.go)
 ```
 
 **Key functions in the data collection loop (per machine):**
@@ -592,8 +654,7 @@ runConnectionLoop (worker.go)
     → connection.Signal() (waits for DLL data)
     → Latest (worker.go)
     → processReading (worker.go)
-      → upsertLiveValues (worker.go)
-      → insertTelemetry (worker.go)
+      → storeReading (worker.go) → Enqueue, or upsertLiveValues + insertTelemetry
       → recordAlarmChanges (worker.go)
       → recordModeChange (worker.go)
 ```

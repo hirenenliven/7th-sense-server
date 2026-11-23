@@ -1,5 +1,7 @@
 # RabbitMQ telemetry queue: step-by-step implementation guide
 
+> **Implemented 2026-11-20** as [ADR 0024](adr/0024-rabbitmq-telemetry-queue.md) (0023 was taken meanwhile; wherever this guide says 0023, read 0024). Differences from this plan are listed there: a database error keeps the batch and retries instead of requeueing, unchanged live values are refreshed every 30 s, migration 039 drops 038's index, and only `RABBITMQ_ENABLED`, `RABBITMQ_URL` and `RABBITMQ_CONSUMERS` are settings (the other `RABBITMQ_*` variables and `CNC_LOG_QUEUE` named below are fixed in code). Steps 9 (diagnostics card) and 5 (later) are not done.
+
 > Hand this file to Claude in `7th-sense-server/`. Follow the steps in order; each step ends with a check. Before starting, follow `.claude/CLAUDE.md` (Graphify first step, layered architecture, coding standards, Documentation Rules). This guide says **what** to build and **where**; the code itself follows the existing patterns of the named files.
 
 ## 1. Why, and what today looks like

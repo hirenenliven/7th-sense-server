@@ -12,21 +12,21 @@ import (
 )
 
 // MachineService holds the business rules for machines. Every machine belongs to a
-// customer (user_id); its brand, controller, model and line must exist, the controller
-// must be of the machine's brand, the model of its controller and the line one of the
-// customer's lines.
+// customer (user_id); its brand, controller and model must exist, the controller must
+// be of the machine's brand and the model of its controller. Its location (optional levels)
+// is one chain of the customer's organization, and the machine is saved at the lowest level
+// named (migration 040).
 type MachineService struct {
 	machineRepository *repository.MachineRepository
 	userRepository    *repository.UserRepository
 	modelService      *MachineModelService
 	brandService      *BrandService
 	controllerService *ControllerService
-	userLineService   *UserLineService
 	accuracyService   *MachineAccuracyService
 }
 
 // NewMachineService creates a MachineService that stores machines with machineRepository
-// and checks their customer, model, brand, controller, line and accuracy with the other
+// and checks their customer, model, brand, controller and accuracy with the other
 // arguments.
 func NewMachineService(
 	machineRepository *repository.MachineRepository,
@@ -34,7 +34,6 @@ func NewMachineService(
 	modelService *MachineModelService,
 	brandService *BrandService,
 	controllerService *ControllerService,
-	userLineService *UserLineService,
 	accuracyService *MachineAccuracyService,
 ) *MachineService {
 	return &MachineService{
@@ -43,7 +42,6 @@ func NewMachineService(
 		modelService:      modelService,
 		brandService:      brandService,
 		controllerService: controllerService,
-		userLineService:   userLineService,
 		accuracyService:   accuracyService,
 	}
 }
@@ -55,7 +53,42 @@ func (machineService *MachineService) GetAll(ctx context.Context, actor model.Au
 	if err != nil {
 		return nil, err
 	}
-	return machineService.machineRepository.FindAll(ctx, scope)
+	machines, err := machineService.machineRepository.FindAll(ctx, scope)
+	if err != nil {
+		return nil, err
+	}
+	for index := range machines {
+		machines[index].CustomerFilters = model.SortOrganizationLevels(machines[index].CustomerFilters)
+	}
+	return machines, nil
+}
+
+// GetLocationFilters returns the organization levels a customer's machines are placed at (its
+// filters, in hierarchy order): the Add / Edit Machine form shows exactly these. The superadmin
+// names the customer (customerID, required); everyone else gets their own company's, and naming
+// another customer is Forbidden.
+func (machineService *MachineService) GetLocationFilters(ctx context.Context, actor model.AuthUser, customerID *int64) ([]string, error) {
+	company := actor.Company()
+	if actor.Role == model.RoleSuperAdmin {
+		company = customerID
+	} else if customerID != nil && (company == nil || *customerID != *company) {
+		return nil, response.Forbidden
+	}
+	if company == nil {
+		return nil, response.NewError(http.StatusBadRequest, "Please select customer")
+	}
+	isCustomer, err := machineService.userRepository.IsCustomer(ctx, *company)
+	if err != nil {
+		return nil, err
+	}
+	if !isCustomer {
+		return nil, response.NewError(http.StatusBadRequest, "Please select valid customer")
+	}
+	filters, err := machineService.machineRepository.FindCustomerFilters(ctx, *company)
+	if err != nil {
+		return nil, err
+	}
+	return model.SortOrganizationLevels(filters), nil
 }
 
 // GetByID returns the machine when actor may access it (see machineScope), else
@@ -71,6 +104,7 @@ func (machineService *MachineService) GetByID(ctx context.Context, actor model.A
 // find returns machine id when it is in scope.
 func (machineService *MachineService) find(ctx context.Context, scope model.MachineScope, id int64) (model.Machine, error) {
 	machine, err := machineService.machineRepository.FindByID(ctx, scope, id)
+	machine.CustomerFilters = model.SortOrganizationLevels(machine.CustomerFilters)
 	return machine, toMachineResponseError(err)
 }
 
@@ -137,7 +171,7 @@ func (machineService *MachineService) Create(ctx context.Context, actor model.Au
 	machine.Password = machineRequest.Password
 	machine.Status = dto.MachineStatusActive
 
-	id, err := machineService.machineRepository.Create(ctx, machine)
+	id, err := machineService.machineRepository.Create(ctx, machine, machineRequest.Location.Deepest())
 	if err != nil {
 		return model.Machine{}, toMachineResponseError(err)
 	}
@@ -164,7 +198,7 @@ func (machineService *MachineService) Update(ctx context.Context, actor model.Au
 	machine.Password = machineRequest.Password
 	machine.Status = machineRequest.Status
 
-	if err := machineService.machineRepository.Update(ctx, machine); err != nil {
+	if err := machineService.machineRepository.Update(ctx, machine, machineRequest.Location.Deepest()); err != nil {
 		return model.Machine{}, toMachineResponseError(err)
 	}
 	return machineService.find(ctx, model.MachineScope{}, id)
@@ -175,7 +209,7 @@ func (machineService *MachineService) Delete(ctx context.Context, id int64) erro
 }
 
 // checkReferences returns a "Please select valid …" error unless the customer, brand,
-// controller, model, line and accuracy of fields exist and fit together.
+// controller, model, location and accuracy of fields exist and fit together.
 func (machineService *MachineService) checkReferences(ctx context.Context, fields dto.MachineFields) error {
 	isCustomer, err := machineService.userRepository.IsCustomer(ctx, fields.UserID)
 	if err != nil {
@@ -205,16 +239,32 @@ func (machineService *MachineService) checkReferences(ctx context.Context, field
 		return response.NewError(http.StatusBadRequest, "Please select a model of the selected controller")
 	}
 
-	if fields.LineID != nil {
-		if _, err := machineService.userLineService.GetByID(ctx, fields.UserID, *fields.LineID); err != nil {
-			return asInvalidSelection(err, "Line not found", "Please select valid line")
-		}
+	if err := machineService.checkLocation(ctx, fields.UserID, fields.Location); err != nil {
+		return err
 	}
 
 	if fields.AccuracyID != nil {
 		if err := machineService.accuracyService.checkExists(ctx, *fields.AccuracyID, response.SelectValidMachineAccuracy); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// checkLocation returns "Please select valid location" unless the levels location names are one
+// chain of the customer's organization. Every level is optional (none = no location), and levels
+// the customer no longer uses may be named too: a machine keeps the place it was saved at when the
+// customer's filters change.
+func (machineService *MachineService) checkLocation(ctx context.Context, customerID int64, location model.OrganizationPath) error {
+	if location.IsEmpty() {
+		return nil
+	}
+	inOrganization, err := machineService.machineRepository.IsPathInOrganization(ctx, customerID, location)
+	if err != nil {
+		return err
+	}
+	if !inOrganization {
+		return response.NewError(http.StatusBadRequest, "Please select valid location")
 	}
 	return nil
 }
@@ -240,7 +290,6 @@ func machineFromFields(fields dto.MachineFields) model.Machine {
 		ControllerID:          &fields.ControllerID,
 		ControllerVersion:     fields.ControllerVersion,
 		AccuracyID:            fields.AccuracyID,
-		LineID:                fields.LineID,
 		IsInsured:             fields.IsInsured,
 		MaintenanceRequired:   fields.MaintenanceRequired,
 		InstallationDate:      fields.InstallationDate,

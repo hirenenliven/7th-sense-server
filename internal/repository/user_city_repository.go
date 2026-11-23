@@ -164,3 +164,8 @@ func mapUserCityError(operation string, err error) error {
 	}
 	return fmt.Errorf("%s: %w", operation, err)
 }
+
+// HasMachines reports whether machines that are not deleted are saved at the city id.
+func (userCityRepository *UserCityRepository) HasMachines(ctx context.Context, id int64) (bool, error) {
+	return levelHasMachines(ctx, userCityRepository.database, "user_city_id", id)
+}

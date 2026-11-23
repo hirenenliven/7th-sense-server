@@ -33,6 +33,7 @@ type PlcCollector struct {
 	config      config.CNCConfig
 	service     *service.MachineTelemetryService
 	hub         *live.Hub          // nil = live data off
+	queue       *TelemetryQueue    // takes the changes' rows to RabbitMQ; nil = direct writes
 	board       *opcua.StatusBoard // what each worker is doing, for the diagnostics
 	certificate cert.Paths
 
@@ -42,12 +43,12 @@ type PlcCollector struct {
 	running   sync.WaitGroup // every worker goroutine
 }
 
-// NewPlcCollector creates a PlcCollector. certificate is presented to controllers whose machine
-// uses Basic256Sha256.
+// NewPlcCollector creates a PlcCollector. Its workers store their values through telemetryQueue
+// (nil = direct writes); certificate is presented to controllers whose machine uses Basic256Sha256.
 func NewPlcCollector(cncConfig config.CNCConfig, telemetryService *service.MachineTelemetryService, hub *live.Hub,
-	board *opcua.StatusBoard, certificate cert.Paths) *PlcCollector {
-	return &PlcCollector{config: cncConfig, service: telemetryService, hub: hub, board: board, certificate: certificate,
-		workers: map[int64]*plcWorker{}}
+	telemetryQueue *TelemetryQueue, board *opcua.StatusBoard, certificate cert.Paths) *PlcCollector {
+	return &PlcCollector{config: cncConfig, service: telemetryService, hub: hub, queue: telemetryQueue, board: board,
+		certificate: certificate, workers: map[int64]*plcWorker{}}
 }
 
 // RunCollection reads the machines until ctx is cancelled, then closes every connection.

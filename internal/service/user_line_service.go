@@ -76,7 +76,7 @@ func (userLineService *UserLineService) Delete(ctx context.Context, userID, id i
 		return err
 	}
 	if hasMachines {
-		return response.NewError(http.StatusBadRequest, "This line has machines. Move or delete them first")
+		return levelHasMachinesError("line")
 	}
 	inFilter, err := userLineService.userLineRepository.IsInMachineFilter(ctx, id)
 	if err != nil {

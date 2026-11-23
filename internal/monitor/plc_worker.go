@@ -33,7 +33,7 @@ var errPlcReload = errors.New("plc variables reloaded")
 // plcWorker reads one machine's PLC variables over OPC UA: connect, subscribe to every PLC node
 // id, then for each published change hand it to the live hub first and store it like the CNC
 // worker stores snapshot values (machine_variable_values every value, machine_telementry only a
-// changed number; text is published, not stored). Nodes the controller has no room to monitor
+// changed number; text is published, not stored), through the telemetry queue when it is on. Nodes the controller has no room to monitor
 // (BadTooManyMonitoredItems) are read every PLC_POLL_INTERVAL_MS instead and handled like
 // changes. It reconnects with backoff when the controller cannot be reached, the connection is
 // lost, or the health read fails.
@@ -401,7 +401,7 @@ func (plcWorker *plcWorker) handleChanges(ctx context.Context, batch []opcua.Cha
 	}
 
 	plcWorker.collector.hub.PublishValues(plcWorker.machine.ID, now, published)
-	plcWorker.store(ctx, liveRows, telemetryRows)
+	plcWorker.store(ctx, now, liveRows, telemetryRows)
 	plcWorker.setStatus(ctx, func(status *opcua.MachineStatus) {
 		status.LastChangeAt = &now
 		status.ChangeCount += int64(len(batch))
@@ -425,10 +425,18 @@ func previousText(stored map[int]float64, variableID int) string {
 	return "none"
 }
 
-// store upserts liveRows and inserts telemetryRows; the stored numbers move on only when the
-// writes succeed, so a failed insert is retried with the next change.
-func (plcWorker *plcWorker) store(ctx context.Context, liveRows []model.LiveValue, telemetryRows []model.TelemetryValue) {
+// store hands liveRows and telemetryRows, read at readAt, to the telemetry queue
+// (RABBITMQ_ENABLED), or upserts and inserts them directly when the queue is off or cannot take
+// them; the stored numbers move on only when the rows are queued or written, so a failed insert
+// is retried with the next change.
+func (plcWorker *plcWorker) store(ctx context.Context, readAt time.Time, liveRows []model.LiveValue, telemetryRows []model.TelemetryValue) {
 	if len(liveRows) == 0 {
+		return
+	}
+	telemetryQueue := plcWorker.collector.queue
+	if telemetryQueue != nil &&
+		telemetryQueue.Enqueue(model.NewTelemetryReading(plcWorker.machine.ID, readAt, model.TelemetrySourcePLC, liveRows, telemetryRows)) {
+		plcWorker.moveStoredOn(liveRows)
 		return
 	}
 	writeCtx, cancel := context.WithTimeout(ctx, writeTimeout)
@@ -443,6 +451,11 @@ func (plcWorker *plcWorker) store(ctx context.Context, liveRows []model.LiveValu
 			return
 		}
 	}
+	plcWorker.moveStoredOn(liveRows)
+}
+
+// moveStoredOn takes the numbers of liveRows as the stored ones (change detection).
+func (plcWorker *plcWorker) moveStoredOn(liveRows []model.LiveValue) {
 	for _, row := range liveRows {
 		plcWorker.stored[row.VariableID] = *row.Value
 	}

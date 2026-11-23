@@ -27,5 +27,7 @@ Server (backend) decisions, one file each (Michael Nygard template). Never edit 
 | 0021 | [Read PLC variables over OPC UA with gopcua, in-process beside the CNC collector](0021-opcua-plc-reader-gopcua.md) | Proposed | 2026-11-19 |
 | 0022 | [Test PLC node IDs in a short OPC UA session of their own](0022-plc-node-test-own-session.md) | Proposed | 2026-11-19 |
 | 0023 | [PLC reader: short session timeout, and read the nodes the controller has no room to monitor](0023-plc-session-timeout-and-read-when-no-room.md) | Proposed | 2026-11-20 |
+| 0024 | [Telemetry rows through a RabbitMQ queue, written in batches](0024-rabbitmq-telemetry-queue.md) | Proposed | 2026-11-20 |
+| 0025 | [A machine is saved at one level of its customer's organization; the path above is read, not stored](0025-machine-location-from-customer-filters.md) | Proposed | 2026-11-23 |
 
 New ADR: copy the newest file, take the next number, status "Proposed" until agreed, then "Accepted"; add a row here.

@@ -24,7 +24,15 @@ func Connect(ctx context.Context, dbConfig config.DBConfig) (*pgxpool.Pool, erro
 		RawQuery: "sslmode=" + url.QueryEscape(dbConfig.SSLMode),
 	}
 
-	pool, err := pgxpool.New(ctx, connectionURL.String())
+	poolConfig, err := pgxpool.ParseConfig(connectionURL.String())
+	if err != nil {
+		return nil, fmt.Errorf("db: parse pool config: %w", err)
+	}
+	// pgx's default (max(4, CPUs)) makes a thousand machine workers queue for a handful of
+	// connections; DB_MAX_CONNS sizes the pool for the collectors and the API together.
+	poolConfig.MaxConns = int32(dbConfig.MaxConns)
+
+	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
 	if err != nil {
 		return nil, fmt.Errorf("db: create pool: %w", err)
 	}

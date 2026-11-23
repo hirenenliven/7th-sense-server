@@ -40,6 +40,7 @@ func (userCountryService *UserCountryService) Create(ctx context.Context, userID
 
 // Delete soft-deletes the country. A country that still has states is kept:
 // its states must be deleted first.
+// Machines saved at it, or a user's machine filter that names it, keep it too.
 func (userCountryService *UserCountryService) Delete(ctx context.Context, userID, id int64) error {
 	hasStates, err := userCountryService.userCountryRepository.HasStates(ctx, userID, id)
 	if err != nil {
@@ -54,6 +55,13 @@ func (userCountryService *UserCountryService) Delete(ctx context.Context, userID
 	}
 	if inFilter {
 		return levelInMachineFilterError("country")
+	}
+	hasMachines, err := userCountryService.userCountryRepository.HasMachines(ctx, id)
+	if err != nil {
+		return err
+	}
+	if hasMachines {
+		return levelHasMachinesError("country")
 	}
 	return toUserCountryResponseError(userCountryService.userCountryRepository.Delete(ctx, userID, id))
 }

@@ -12,6 +12,7 @@ cmd/server/main.go              entry point: loads config, wires layers, starts 
 internal/
 ├── config/config.go            env config (PORT, DB_*)                   ~ dotenv
 ├── db/postgres.go              PostgreSQL connection pool (pgx)          ~ db connection
+├── queue/                      RabbitMQ telemetry queue: publish, consume, reconnect (ADR 0024; no SQL)
 ├── routes/                     route registration                        ~ routes.js
 │   ├── routes.go               main router + global middleware + /health
 │   ├── user_routes.go
@@ -77,6 +78,26 @@ go tool air                    # hot reload (Air is a go.mod tool)
 go run ./cmd/server            # port 8080
 PORT=3000 go run ./cmd/server  # custom port
 ```
+
+### RabbitMQ telemetry queue (optional)
+
+By default (`RABBITMQ_ENABLED=false`) the collectors write telemetry straight to PostgreSQL and no
+broker is needed. To send `machine_telementry` / `machine_variable_values` rows through RabbitMQ
+and write them in batches (ADR 0024, `docs/adr/0024-rabbitmq-telemetry-queue.md`):
+
+1. Run a broker with the management plugin (3.13+ or 4.x):
+   - Windows: the RabbitMQ installer (needs Erlang); it runs as the `RabbitMQ` service, enable the
+     UI once with `rabbitmq-plugins enable rabbitmq_management`.
+   - Docker: `docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:management`.
+2. Set `RABBITMQ_ENABLED=true` (and `RABBITMQ_URL` if not `amqp://guest:guest@localhost:5672/`) in
+   `.env`, run migration `039_add_machine_telementry_unique_reading.sql`, restart the server.
+3. Watch the queue `telemetry.values` at http://localhost:15672 (guest / guest) and the
+   `queue: statistics` line in `logs/app.log` once a minute.
+
+Only three settings: `RABBITMQ_ENABLED`, `RABBITMQ_URL` and `RABBITMQ_CONSUMERS` (writers,
+default 4); the queue names, batch size and buffers are fixed in `internal/config` (ADR 0024). A broker that is down never stops the server: readings are
+written directly until it is back. Broker tests run with
+`RABBITMQ_TEST_URL=amqp://guest:guest@localhost:5672/ go test ./internal/queue ./tests -run 'Publish|Telemetry'`.
 
 ## API
 

@@ -34,17 +34,18 @@ const (
 // dayStartLayouts are the accepted formats of CustomerDetails.DayStartFrom.
 var dayStartLayouts = []string{"15:04", "15:04:05"}
 
-// Filters a customer can choose on the customer form (CustomerDetails.Filters).
+// Filters a customer can choose on the customer form (CustomerDetails.Filters): the
+// organization levels its machines are placed at and its screens filter by.
 const (
-	FilterCountry    = "country"
-	FilterState      = "state"
-	FilterBranch     = "branch"
-	FilterCity       = "city"
-	FilterLocation   = "location"
-	FilterShop       = "shop"
-	FilterLine       = "line"
-	FilterCell       = "cell"
-	FilterSupervisor = "supervisor"
+	FilterCountry    = model.OrganizationLevelCountry
+	FilterState      = model.OrganizationLevelState
+	FilterBranch     = model.OrganizationLevelBranch
+	FilterCity       = model.OrganizationLevelCity
+	FilterLocation   = model.OrganizationLevelLocation
+	FilterShop       = model.OrganizationLevelShop
+	FilterLine       = model.OrganizationLevelLine
+	FilterCell       = model.OrganizationLevelCell
+	FilterSupervisor = model.OrganizationLevelSupervisor
 )
 
 // customerFilters is the set of accepted filter names.

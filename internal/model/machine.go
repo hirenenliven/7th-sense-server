@@ -3,8 +3,13 @@ package model
 import "time"
 
 // Machine is a row of the machines table, plus the display names of its customer,
-// model, brand, controller and line read with LEFT JOINs. Those names are
-// never written back.
+// model, brand, controller and organization levels read with LEFT JOINs. Those names
+// are never written back.
+//
+// The organization fields (UserCountryID … UserSupervisorID, LineID) are the machine's
+// whole path (machine_organization_paths, migration 040): the level it is saved at and
+// every level above it; levels below are nil. CustomerFilters are the levels its
+// customer uses (user_profiles.filters), in hierarchy order.
 //
 // Password is what the data collector logs in to the machine with. It is never sent
 // to clients (json:"-"); HasPassword tells the edit form one is saved.
@@ -58,4 +63,23 @@ type Machine struct {
 	BrandName      string `db:"brand_name" json:"brandName"`
 	ControllerName string `db:"controller_name" json:"controllerName"`
 	LineName       string `db:"line_name" json:"lineName"`
+
+	// Organization path (read-only; LineID and LineName above are its line)
+	UserCountryID      *int64   `db:"user_country_id" json:"userCountryId"`
+	UserCountryName    string   `db:"user_country_name" json:"userCountryName"`
+	UserStateID        *int64   `db:"user_state_id" json:"userStateId"`
+	UserStateName      string   `db:"user_state_name" json:"userStateName"`
+	UserCityID         *int64   `db:"user_city_id" json:"userCityId"`
+	UserCityName       string   `db:"user_city_name" json:"userCityName"`
+	BranchID           *int64   `db:"branch_id" json:"branchId"`
+	BranchName         string   `db:"branch_name" json:"branchName"`
+	UserLocationID     *int64   `db:"user_location_id" json:"userLocationId"`
+	UserLocationName   string   `db:"user_location_name" json:"userLocationName"`
+	UserShopID         *int64   `db:"user_shop_id" json:"userShopId"`
+	UserShopName       string   `db:"user_shop_name" json:"userShopName"`
+	UserCellID         *int64   `db:"user_cell_id" json:"userCellId"`
+	UserCellName       string   `db:"user_cell_name" json:"userCellName"`
+	UserSupervisorID   *int64   `db:"user_supervisor_id" json:"userSupervisorId"`
+	UserSupervisorName string   `db:"user_supervisor_name" json:"userSupervisorName"`
+	CustomerFilters    []string `db:"customer_filters" json:"customerFilters"`
 }

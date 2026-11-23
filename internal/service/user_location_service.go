@@ -63,6 +63,7 @@ func (userLocationService *UserLocationService) Update(ctx context.Context, user
 
 // Delete soft-deletes the location. A location that still has shops is kept:
 // its shops must be deleted first.
+// Machines saved at it, or a user's machine filter that names it, keep it too.
 func (userLocationService *UserLocationService) Delete(ctx context.Context, userID, id int64) error {
 	hasShops, err := userLocationService.userLocationRepository.HasShops(ctx, userID, id)
 	if err != nil {
@@ -77,6 +78,13 @@ func (userLocationService *UserLocationService) Delete(ctx context.Context, user
 	}
 	if inFilter {
 		return levelInMachineFilterError("location")
+	}
+	hasMachines, err := userLocationService.userLocationRepository.HasMachines(ctx, id)
+	if err != nil {
+		return err
+	}
+	if hasMachines {
+		return levelHasMachinesError("location")
 	}
 	return toUserLocationResponseError(userLocationService.userLocationRepository.Delete(ctx, userID, id))
 }
