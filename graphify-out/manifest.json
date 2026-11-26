@@ -6,9 +6,9 @@
     "semantic_hash": "8c58146bf0c47700bfef5615ac617dd5"
   },
   "cmd/server/main.go": {
-    "mtime": 1795412972.6668108,
-    "seen": 1795414058.4413066,
-    "ast_hash": "6ddcd63378e0472856064fe634d9ee1a",
+    "mtime": 1795518473.4221666,
+    "seen": 1795518685.5142157,
+    "ast_hash": "33a6b66a8ec55ebe97d5cbdee81a87f6",
     "semantic_hash": ""
   },
   "go.mod": {
@@ -18,9 +18,9 @@
     "semantic_hash": ""
   },
   "internal/config/config.go": {
-    "mtime": 1795170964.8989122,
-    "seen": 1795171357.3339088,
-    "ast_hash": "3006c6370470153ff6d0490e38382574",
+    "mtime": 1795430717.716932,
+    "seen": 1795435148.5395339,
+    "ast_hash": "830c5ba189e815162b1d5f0949021202",
     "semantic_hash": ""
   },
   "internal/db/postgres.go": {
@@ -1218,15 +1218,15 @@
     "semantic_hash": "83e782660b9df6e3978298333b4f35a6"
   },
   ".claude/CLAUDE.md": {
-    "mtime": 1795429904.5293396,
-    "seen": 1795429919.5747359,
-    "ast_hash": "815e783616a03176022821ea022733d9",
+    "mtime": 1795518641.794073,
+    "seen": 1795518685.5148482,
+    "ast_hash": "6725af8d327c61b0ce37b32109db69a9",
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1795171271.405924,
-    "seen": 1795171357.334738,
-    "ast_hash": "4cf22e73bd0c985ea1486c0c875dfd5c",
+    "mtime": 1795431054.9039848,
+    "seen": 1795435148.5402212,
+    "ast_hash": "54ac8e7b4b8e83a21836c78f0da686a0",
     "semantic_hash": ""
   },
   "docs/CncCommunication.dll \u2014 API & Integration Guide (Go Client).pdf": {
@@ -1344,9 +1344,9 @@
     "semantic_hash": "5a07163516266b1458d32a2299ffca17"
   },
   "internal/collector/supervisor.go": {
-    "mtime": 1795171049.611746,
-    "seen": 1795171357.333905,
-    "ast_hash": "af8e7e2783effab23d8b4acad120cd49",
+    "mtime": 1795518619.8661342,
+    "seen": 1795518685.51424,
+    "ast_hash": "f765b39e26450da0eafcf18fa723e246",
     "semantic_hash": ""
   },
   "internal/monitor/collector.go": {
@@ -1380,21 +1380,21 @@
     "semantic_hash": ""
   },
   "internal/repository/machine_telemetry_repository.go": {
-    "mtime": 1795164994.0385547,
-    "seen": 1795166163.3011706,
-    "ast_hash": "70214a99a7481826832685e3a2766481",
+    "mtime": 1795516834.593264,
+    "seen": 1795518685.51458,
+    "ast_hash": "628c81116528cfeeaf0efca8fe860a97",
     "semantic_hash": ""
   },
   "internal/service/machine_telemetry_service.go": {
-    "mtime": 1795165018.8315554,
-    "seen": 1795166163.3013766,
-    "ast_hash": "9a1c3e4967df7b9546e4ede4fb1b6d5d",
+    "mtime": 1795516843.2482488,
+    "seen": 1795518685.5147417,
+    "ast_hash": "1f8d1549d4bfc38865a139f574327e1e",
     "semantic_hash": ""
   },
   "docs/cnc-data-collection-flow.md": {
-    "mtime": 1795171281.4611926,
-    "seen": 1795171357.3348012,
-    "ast_hash": "b8ac98d80db169ab5b572c4fb138b0cb",
+    "mtime": 1795431054.8425565,
+    "seen": 1795435148.5402775,
+    "ast_hash": "df93adfdf452cc6a70e172b9ea5024c4",
     "semantic_hash": ""
   },
   "internal/cnc/fields_test.go": {
@@ -1638,9 +1638,9 @@
     "semantic_hash": ""
   },
   "docs/adr/README.md": {
-    "mtime": 1795413881.955542,
-    "seen": 1795414058.4419851,
-    "ast_hash": "995f6af8a8b606ae835d62e5308aa62f",
+    "mtime": 1795518641.7956078,
+    "seen": 1795518685.5148993,
+    "ast_hash": "d41a536b1e7dde70c1658171c4d7102f",
     "semantic_hash": ""
   },
   "docs/api/openapi.yaml": {
@@ -2274,14 +2274,14 @@
     "semantic_hash": ""
   },
   "internal/monitor/telemetry_queue.go": {
-    "mtime": 1795173097.3048685,
-    "seen": 1795414058.4416118,
-    "ast_hash": "d97751972ee91a5470c0f01674e2c2ac",
+    "mtime": 1795516849.925949,
+    "seen": 1795518685.5145175,
+    "ast_hash": "a3cda628278baa6d805b7e0a3266822b",
     "semantic_hash": ""
   },
   "internal/monitor/telemetry_writer.go": {
-    "mtime": 1795171049.615806,
-    "seen": 1795171357.334287,
+    "mtime": 1795516849.9853566,
+    "seen": 1795518685.514519,
     "ast_hash": "0c8c59551fee4cc1800f5ac0e9e4197f",
     "semantic_hash": ""
   },
@@ -2304,9 +2304,9 @@
     "semantic_hash": ""
   },
   "internal/queue/publisher.go": {
-    "mtime": 1795171049.6207845,
-    "seen": 1795171357.3343077,
-    "ast_hash": "fcc7867bb939dccc3ae12c242a6ac333",
+    "mtime": 1795518472.5656233,
+    "seen": 1795518685.5145364,
+    "ast_hash": "e99bd7847e8a1728929347ec1e7c75c5",
     "semantic_hash": ""
   },
   "internal/queue/queue_test.go": {
@@ -2316,15 +2316,15 @@
     "semantic_hash": ""
   },
   "tests/telemetry_queue_test.go": {
-    "mtime": 1795171049.62179,
-    "seen": 1795171357.3347127,
-    "ast_hash": "3e7b35d73069ba1c2280f6f688f89680",
+    "mtime": 1795517543.1321127,
+    "seen": 1795518685.5148325,
+    "ast_hash": "7f1a666302ffbcf80b6daf47792b9d15",
     "semantic_hash": ""
   },
   "docs/adr/0024-rabbitmq-telemetry-queue.md": {
-    "mtime": 1795429904.5260935,
-    "seen": 1795429919.5747843,
-    "ast_hash": "96196e21bc64f6baff16231767841007",
+    "mtime": 1795431054.809003,
+    "seen": 1795435148.540268,
+    "ast_hash": "3dc15fd081c6f82e0866377ef9d13737",
     "semantic_hash": ""
   },
   "internal/model/organization_path.go": {
@@ -2349,6 +2349,18 @@
     "mtime": 1795429252.1987293,
     "seen": 1795429919.5747163,
     "ast_hash": "8f0cf0e058c2b2f5f1872091f7a62072",
+    "semantic_hash": ""
+  },
+  "docs/adr/0026-telemetry-postgres-write-tuning.md": {
+    "mtime": 1795517582.84295,
+    "seen": 1795518685.5148957,
+    "ast_hash": "3e81e7cb4c9962ddd134c563e5283e75",
+    "semantic_hash": ""
+  },
+  "docs/adr/0027-telemetry-overload-and-capacity.md": {
+    "mtime": 1795518664.3137746,
+    "seen": 1795518685.5148973,
+    "ast_hash": "b6001ee95b2bff5c8a056849441ffa6d",
     "semantic_hash": ""
   }
 }

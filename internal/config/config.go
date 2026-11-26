@@ -165,9 +165,9 @@ const (
 
 // RabbitMQConfig holds the settings of the telemetry queue (ADR 0024): the collectors publish
 // their high-volume rows (machine_telementry, machine_variable_values) to RabbitMQ and writers
-// store them in batches. Off, the collectors write directly, as before. Only Enabled, URL and
-// Consumers come from the environment (a restart applies them); the rest are fixed in Load,
-// sized by the load test in ADR 0024, and tests set their own.
+// store them in batches. Off, the collectors write directly, as before. Everything but Exchange
+// and RoutingKey comes from the environment (RABBITMQ_*, a restart applies them; defaults sized by
+// the load tests in ADR 0024 / 0027, ADR 0028); tests set their own.
 type RabbitMQConfig struct {
 	// Enabled publishes telemetry to RabbitMQ (RABBITMQ_ENABLED, default false = direct writes).
 	Enabled bool
@@ -181,23 +181,32 @@ type RabbitMQConfig struct {
 	Exchange string
 	// RoutingKey binds Queue to Exchange.
 	RoutingKey string
-	// Queue is the durable queue the writers consume; its dead letters go to
-	// "<Exchange>.dlx" → "<Queue>.dead".
+	// Queue is the durable queue the writers consume (RABBITMQ_QUEUE, default telemetry.values);
+	// its dead letters go to "<Exchange>.dlx" → "<Queue>.dead".
 	Queue string
-	// QueueType is QueueTypeQuorum or QueueTypeClassic.
+	// QueueType is QueueTypeQuorum or QueueTypeClassic (RABBITMQ_QUEUE_TYPE, default quorum). The
+	// broker refuses to declare an existing queue with another type: delete it first or rename it.
 	QueueType string
-	// Prefetch is how many unacknowledged messages the broker hands each writer; keep it above
-	// BatchRows / values per reading.
+	// Prefetch is how many unacknowledged messages the broker hands each writer
+	// (RABBITMQ_PREFETCH, default 1000); keep it above BatchRows / values per reading.
 	Prefetch int
-	// BatchRows: a batch is written once it holds this many rows ...
+	// BatchRows: a batch is written once it holds this many rows (RABBITMQ_BATCH_ROWS, default
+	// 10000) ...
 	BatchRows int
-	// BatchInterval: ... or this long after its first message.
+	// BatchInterval: ... or this long after its first message (RABBITMQ_BATCH_MS, default 1000).
 	BatchInterval time.Duration
+	// LiveEveryN: machine_variable_values is upserted once every N batches (RABBITMQ_LIVE_EVERY_N,
+	// default 1 = every batch). The newest value of each machine-variable is kept across the
+	// skipped batches, so the live table ends up the same, only refreshed less often; the
+	// machine_telementry COPY still runs every batch.
+	LiveEveryN int
 	// PublishBuffer is how many messages wait in memory for the publisher; when it is full a
-	// reading is written directly.
+	// reading is written directly (RABBITMQ_PUBLISH_BUFFER, default 60000: a minute of 1,000
+	// readings/s, ~30 MB of gzipped messages, so a disk stall of the broker is ridden out; ADR 0030).
 	PublishBuffer int
 	// ReconnectMax is the longest wait between two connects to the broker, and between two
-	// tries of a failed batch; the wait starts at 1 s and doubles.
+	// tries of a failed batch; the wait starts at 1 s and doubles (RABBITMQ_RECONNECT_MAX_SEC,
+	// default 60).
 	ReconnectMax time.Duration
 }
 
@@ -223,16 +232,17 @@ func Load() Config {
 			Enabled:   getEnvBool("RABBITMQ_ENABLED", false),
 			URL:       getEnv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"),
 			Consumers: getEnvInt("RABBITMQ_CONSUMERS", 4),
-			// Fixed (ADR 0024).
+			// Exchange and routing key are fixed (ADR 0024); the rest is tunable (ADR 0028).
 			Exchange:      "telemetry",
 			RoutingKey:    "values",
-			Queue:         "telemetry.values",
-			QueueType:     QueueTypeQuorum,
-			Prefetch:      1000,
-			BatchRows:     5000,
-			BatchInterval: 200 * time.Millisecond,
-			PublishBuffer: 20000,
-			ReconnectMax:  60 * time.Second,
+			Queue:         getEnv("RABBITMQ_QUEUE", "telemetry.values"),
+			QueueType:     getEnvQueueType("RABBITMQ_QUEUE_TYPE"),
+			Prefetch:      getEnvInt("RABBITMQ_PREFETCH", 1000),
+			BatchRows:     getEnvInt("RABBITMQ_BATCH_ROWS", 10000),
+			BatchInterval: time.Duration(getEnvInt("RABBITMQ_BATCH_MS", 1000)) * time.Millisecond,
+			LiveEveryN:    getEnvInt("RABBITMQ_LIVE_EVERY_N", 1),
+			PublishBuffer: getEnvInt("RABBITMQ_PUBLISH_BUFFER", 60000),
+			ReconnectMax:  time.Duration(getEnvInt("RABBITMQ_RECONNECT_MAX_SEC", 60)) * time.Second,
 		},
 		CookieSecure: getEnv("COOKIE_SECURE", "false") == "true",
 		APIDocs:      getEnvBool("API_DOCS", false),
@@ -293,6 +303,17 @@ func getEnvSessionMode(key string) string {
 	if value != SessionModeSingle && value != SessionModeMultiple {
 		slog.Warn("invalid session mode, using multiple", "variable", key, "value", value)
 		return SessionModeMultiple
+	}
+	return value
+}
+
+// getEnvQueueType reads QueueTypeQuorum or QueueTypeClassic (any case); a missing value is quorum,
+// an invalid one is logged and quorum.
+func getEnvQueueType(key string) string {
+	value := strings.ToLower(strings.TrimSpace(getEnv(key, QueueTypeQuorum)))
+	if value != QueueTypeQuorum && value != QueueTypeClassic {
+		slog.Warn("invalid queue type, using quorum", "variable", key, "value", value)
+		return QueueTypeQuorum
 	}
 	return value
 }

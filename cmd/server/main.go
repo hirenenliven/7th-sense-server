@@ -203,7 +203,7 @@ func run() error {
 	// collectors manages CNC data collection from machines: loads the 32-bit CNC DLL, runs the collector
 	// in a background goroutine, handles restarts on failure, and gracefully stops on shutdown.
 	// Needed because collection runs inside this API server process (no separate service).
-	collectors := collector.NewSupervisor(appConfig.CNC, appConfig.RabbitMQ, dbPool, cycleService, liveHub)
+	collectors := collector.NewSupervisor(appConfig.CNC, appConfig.RabbitMQ, appConfig.DB, dbPool, cycleService, liveHub)
 
 	// With RABBITMQ_ENABLED the collectors hand their high-volume rows to RabbitMQ and a writer
 	// stores them in batches (ADR 0024); started first, so both collectors get the queue.

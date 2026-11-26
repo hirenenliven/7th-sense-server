@@ -16,8 +16,10 @@ import (
 
 const (
 	// publishGroupSize is how many messages are published before their confirms are awaited
-	// together: one round trip per group instead of one per message.
-	publishGroupSize = 500
+	// together: one round trip per group instead of one per message. Sized so a slow confirm
+	// (the broker's fsync on a busy disk) does not cap the rate: 500 per round trip filled the
+	// publish buffer at 5,000 readings/s (ADR 0027). A group only takes what is buffered.
+	publishGroupSize = 5000
 	// confirmTimeout: a group the broker has not confirmed by then is published again.
 	confirmTimeout = 30 * time.Second
 )

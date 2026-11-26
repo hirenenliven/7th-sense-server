@@ -88,11 +88,45 @@ func testDelivery(t *testing.T, tag uint64, machineID int64, variableID int, val
 	reading := model.NewTelemetryReading(machineID, readAt, model.TelemetrySourceCNC,
 		[]model.LiveValue{{MachineID: machineID, VariableID: variableID, Value: &value}},
 		[]model.TelemetryValue{{MachineID: machineID, VariableID: variableID, Value: &value}})
-	body, err := json.Marshal(reading)
+	body, err := EncodeReading(reading)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return queue.Delivery{Body: body, Tag: tag}
+}
+
+// TestDecodeReadingFormats: a message is gzip-compressed JSON (ADR 0030), and plain JSON queued
+// before that still decodes the same.
+func TestDecodeReadingFormats(t *testing.T) {
+	value := 12.5
+	readAt := time.Date(2026, 11, 26, 10, 0, 0, 0, time.UTC)
+	reading := model.NewTelemetryReading(7, readAt, model.TelemetrySourceCNC,
+		[]model.LiveValue{{MachineID: 7, VariableID: 10, Value: &value}},
+		[]model.TelemetryValue{{MachineID: 7, VariableID: 10, Value: &value}})
+	compressed, err := EncodeReading(reading)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plain, err := json.Marshal(reading)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !isGzip(compressed) || isGzip(plain) {
+		t.Fatalf("gzip detection wrong: compressed %v, plain %v", isGzip(compressed), isGzip(plain))
+	}
+	for name, body := range map[string][]byte{"gzip": compressed, "plain": plain} {
+		decoded, err := decodeReading(body)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		rows := decoded.TelemetryValues()
+		if decoded.MachineID != 7 || !decoded.ReadAt.Equal(readAt) || len(rows) != 1 || *rows[0].Value != value {
+			t.Fatalf("%s: decoded %+v", name, decoded)
+		}
+	}
+	if _, err := decodeReading([]byte{0x1f, 0x8b, 0, 1}); err == nil {
+		t.Fatal("a broken gzip body decoded without an error")
+	}
 }
 
 // runWriter runs the writer on deliveries until stop is called; it returns stop.

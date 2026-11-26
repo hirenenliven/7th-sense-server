@@ -19,6 +19,7 @@ import (
 	"7th-sense-server/internal/cert"
 	"7th-sense-server/internal/cnc"
 	"7th-sense-server/internal/config"
+	"7th-sense-server/internal/db"
 	"7th-sense-server/internal/live"
 	"7th-sense-server/internal/monitor"
 	"7th-sense-server/internal/opcua"
@@ -38,7 +39,9 @@ const (
 type Supervisor struct {
 	config         config.CNCConfig
 	rabbitConfig   config.RabbitMQConfig
+	dbConfig       config.DBConfig
 	dbPool         *pgxpool.Pool
+	writerPool     *pgxpool.Pool // the telemetry queue writers' own connections; nil = none opened
 	cycleService   *service.MachineCycleService
 	hub            *live.Hub
 	telemetryQueue *monitor.TelemetryQueue // nil = direct writes (RABBITMQ_ENABLED=false)
@@ -48,13 +51,14 @@ type Supervisor struct {
 }
 
 // NewSupervisor creates a Supervisor for cncConfig that stores through dbPool, and through the
-// telemetry queue of rabbitConfig when it is enabled; the collectors write machine cycles through
-// cycleService and publish their readings to hub (nil = live data off).
-func NewSupervisor(cncConfig config.CNCConfig, rabbitConfig config.RabbitMQConfig, dbPool *pgxpool.Pool,
-	cycleService *service.MachineCycleService, hub *live.Hub) *Supervisor {
+// telemetry queue of rabbitConfig when it is enabled (its writers get a pool of their own on
+// dbConfig); the collectors write machine cycles through cycleService and publish their readings
+// to hub (nil = live data off).
+func NewSupervisor(cncConfig config.CNCConfig, rabbitConfig config.RabbitMQConfig, dbConfig config.DBConfig,
+	dbPool *pgxpool.Pool, cycleService *service.MachineCycleService, hub *live.Hub) *Supervisor {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Supervisor{config: cncConfig, rabbitConfig: rabbitConfig, dbPool: dbPool, cycleService: cycleService, hub: hub,
-		ctx: ctx, cancel: cancel}
+	return &Supervisor{config: cncConfig, rabbitConfig: rabbitConfig, dbConfig: dbConfig, dbPool: dbPool,
+		cycleService: cycleService, hub: hub, ctx: ctx, cancel: cancel}
 }
 
 // StartTelemetryQueue starts the telemetry queue (ADR 0024) when RABBITMQ_ENABLED: the publisher
@@ -66,10 +70,26 @@ func (supervisor *Supervisor) StartTelemetryQueue() {
 		slog.Info("telemetry queue off (RABBITMQ_ENABLED=false): collectors write directly")
 		return
 	}
-	telemetryService := service.NewMachineTelemetryService(supervisor.dbPool,
-		repository.NewMachineTelemetryRepository(supervisor.dbPool))
+	writerPool := supervisor.openWriterPool()
+	telemetryService := service.NewMachineTelemetryService(writerPool, repository.NewMachineTelemetryRepository(writerPool))
 	supervisor.telemetryQueue = monitor.NewTelemetryQueue(supervisor.rabbitConfig, supervisor.config, telemetryService)
 	supervisor.telemetryQueue.Start()
+}
+
+// openWriterPool opens RABBITMQ_CONSUMERS connections for the queue writers alone (ADR 0027): on
+// the shared pool, the direct writes of every worker under overload took the connections and the
+// writers slowed down exactly when the queue grew. When it cannot be opened the writers share
+// the main pool, as before.
+func (supervisor *Supervisor) openWriterPool() *pgxpool.Pool {
+	writerConfig := supervisor.dbConfig
+	writerConfig.MaxConns = supervisor.rabbitConfig.Consumers
+	writerPool, err := db.Connect(supervisor.ctx, writerConfig)
+	if err != nil {
+		slog.Error("telemetry queue writers share the main database pool: own pool not opened", "error", err)
+		return supervisor.dbPool
+	}
+	supervisor.writerPool = writerPool
+	return writerPool
 }
 
 // StartCNCDataCollection loads the CNC DLL and starts the collector in a background goroutine,
@@ -145,10 +165,14 @@ func (supervisor *Supervisor) Stop() {
 	}
 }
 
-// stopTelemetryQueue stops the telemetry queue once the collectors have stopped publishing.
+// stopTelemetryQueue stops the telemetry queue once the collectors have stopped publishing, then
+// closes the writers' pool.
 func (supervisor *Supervisor) stopTelemetryQueue() {
 	if supervisor.telemetryQueue != nil {
 		supervisor.telemetryQueue.Stop()
+	}
+	if supervisor.writerPool != nil {
+		supervisor.writerPool.Close()
 	}
 }
 

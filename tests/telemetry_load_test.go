@@ -2,7 +2,6 @@ package tests
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"math"
@@ -19,13 +18,22 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 
 	"7th-sense-server/internal/config"
+	"7th-sense-server/internal/db"
 	"7th-sense-server/internal/model"
 	"7th-sense-server/internal/monitor"
 	"7th-sense-server/internal/queue"
+	"7th-sense-server/internal/repository"
+	"7th-sense-server/internal/service"
 )
 
 // The load test's machines: ids no real machine has, one block of 100,000 per run.
 const telemetryLoadBaseMachine int64 = 2_100_100_000
+
+// telemetryLoadTimeShift: the load test's readings are dated 50 years ahead, so on a hypertable
+// they land in chunks of their own that are dropped after the run. Deleting millions of rows in
+// place instead leaves dead rows and dirty pages: the next run then writes into reused space and
+// pays for the vacuum and checkpoint writes, which production (no deletes) never does.
+const telemetryLoadTimeShift = 50 * 365 * 24 * time.Hour
 
 // TestTelemetryLoad measures how much telemetry the RabbitMQ queue (ADR 0024) carries and
 // stores, the way the product does it: CNC-style readings go through TelemetryQueue.Enqueue →
@@ -43,6 +51,11 @@ const telemetryLoadBaseMachine int64 = 2_100_100_000
 // TELEMETRY_LOAD_RATE (readings per machine per second, default 1; 5 = every variable sends 5
 // values a second, 1000 machines -> 200,000 values/s).
 //
+// TELEMETRY_LOAD_VALUES (e.g. 5000) runs the target phase instead (the default phases become
+// "target"): exactly that many telemetry values a second, every value changing (machines =
+// values / (40 × rate), rounded up), then a plain conclusion: kept up or not, values/s stored,
+// lost rows, queue and data age. load-test.ps1 runs it: .\load-test.ps1 -Values 5000
+//
 //	TELEMETRY_LOAD=1 go test ./tests -run TestTelemetryLoad -v -timeout 60m
 func TestTelemetryLoad(t *testing.T) {
 	if os.Getenv("TELEMETRY_LOAD") == "" {
@@ -56,9 +69,14 @@ func TestTelemetryLoad(t *testing.T) {
 	machines := envInt("TELEMETRY_LOAD_MACHINES", 1000)
 	seconds := envInt("TELEMETRY_LOAD_SECONDS", 60)
 	changeRatio := envRatio("TELEMETRY_LOAD_CHANGE", 0.25)
+	targetChange := envRatio("TELEMETRY_LOAD_TARGET_CHANGE", 1)
 	rate := envInt("TELEMETRY_LOAD_RATE", 1)
+	targetValues := envInt("TELEMETRY_LOAD_VALUES", 0)
+	if targetValues > 0 && os.Getenv("TELEMETRY_LOAD_PHASES") == "" {
+		phases = []string{"target"}
+	}
 	product := config.Load()
-	t.Logf("settings: %d writers, %s queue, batch %d rows / %s, prefetch %d, publish buffer %d, DB pool %d, %d CPUs",
+	t.Logf("settings: %d writers (own DB pool), %s queue, batch %d rows / %s, prefetch %d, publish buffer %d, DB pool %d, %d CPUs",
 		product.RabbitMQ.Consumers, product.RabbitMQ.QueueType, product.RabbitMQ.BatchRows, product.RabbitMQ.BatchInterval,
 		product.RabbitMQ.Prefetch, product.RabbitMQ.PublishBuffer, product.DB.MaxConns, runtime.NumCPU())
 
@@ -76,6 +94,16 @@ func TestTelemetryLoad(t *testing.T) {
 		case "broker":
 			t.Run("broker bandwidth", func(t *testing.T) {
 				measureBrokerBandwidth(t, brokerURL, product.RabbitMQ, envInt("TELEMETRY_LOAD_BROKER_SECONDS", 15))
+			})
+		case "target":
+			t.Run("target", func(t *testing.T) {
+				if targetValues <= 0 {
+					t.Skip("TELEMETRY_LOAD_VALUES not set: no target to send")
+				}
+				perMachine := telemetryLoadVariableCount * rate
+				result := runPlan(loadPlan{name: "target", machines: (targetValues + perMachine - 1) / perMachine, seconds: seconds,
+					rate: rate, changeRatio: targetChange})
+				t.Log("conclusion\n" + result.conclusion(targetValues))
 			})
 		case "worst":
 			t.Run("worst case", func(t *testing.T) {
@@ -126,15 +154,18 @@ type loadResult struct {
 	ages            []time.Duration
 }
 
-// keptUp: nothing fell back to direct writes and the queue was empty within 5 s of the end.
+// keptUp: nothing fell back to direct writes and every telemetry value was stored within 5 s of
+// the end.
 func (result loadResult) keptUp() bool {
 	return result.fallbacks == 0 && result.drain < 5*time.Second && result.lost() == 0
 }
 
 func (result loadResult) lost() int64 { return result.telemetryRows - result.storedTelemetry }
 
-func (result loadResult) offeredRowsPerSecond() float64 {
-	return float64(result.telemetryRows+result.liveRows) / float64(result.plan.seconds)
+// offeredValuesPerSecond counts telemetry values only: machine_variable_values upserts are not
+// part of the throughput.
+func (result loadResult) offeredValuesPerSecond() float64 {
+	return float64(result.telemetryRows) / float64(result.plan.seconds)
 }
 
 // sentValuesPerSecond is how many telemetry values the machines really sent a second (sending
@@ -143,11 +174,13 @@ func (result loadResult) sentValuesPerSecond() float64 {
 	return float64(result.telemetryRows) / result.generate.Seconds()
 }
 
-func (result loadResult) storedRowsPerSecond() float64 {
-	return float64(result.telemetryRows+result.liveRows) / (result.generate + result.drain).Seconds()
+// storedValuesPerSecond is the telemetry values stored a second, from the first sent to the last
+// stored.
+func (result loadResult) storedValuesPerSecond() float64 {
+	return float64(result.storedTelemetry) / (result.generate + result.drain).Seconds()
 }
 
-// agePercentile is the age of the newest data every machine has in the database, sampled
+// agePercentile is the age of the newest telemetry value every machine has in the database, sampled
 // once a second while sending: p50 / p95 / max.
 func (result loadResult) agePercentile(percentile float64) time.Duration {
 	if len(result.ages) == 0 {
@@ -159,24 +192,60 @@ func (result loadResult) agePercentile(percentile float64) time.Duration {
 }
 
 func (result loadResult) String() string {
-	return fmt.Sprintf("%s: %d machines × 40 variables × %d/s × %d s | %d readings (%.0f msg/s, %.1f KB avg, %.2f MB/s) | rows offered %d telemetry + %d live = %.0f rows/s | sent %.0f values/s, %d readings to RabbitMQ | stored %d telemetry (lost %d), %d live rows | send %s, drain %s, stored %.0f rows/s | peak queue %d msgs | data age p50 %s p95 %s max %s | fallback %d | kept up %v",
+	return fmt.Sprintf("%s: %d machines × 40 variables × %d/s × %d s | %d readings (%.0f msg/s, %.1f KB avg, %.2f MB/s) | offered %d telemetry values (%.0f/s) + %d live rows (not counted) | sent %.0f values/s, %d readings to RabbitMQ | stored %d telemetry (lost %d), %d live rows | send %s, drain %s, stored %.0f values/s | peak queue %d msgs | data age p50 %s p95 %s max %s | fallback %d | kept up %v",
 		result.plan.name, result.plan.machines, result.plan.rate, result.plan.seconds, result.readings, float64(result.readings)/float64(result.plan.seconds),
 		float64(result.bodyBytes)/float64(max(result.readings, 1))/1024, float64(result.bodyBytes)/float64(result.plan.seconds)/1e6,
-		result.telemetryRows, result.liveRows, result.offeredRowsPerSecond(), result.sentValuesPerSecond(), result.queued, result.storedTelemetry, result.lost(), result.storedLive,
-		result.generate.Round(time.Millisecond), result.drain.Round(time.Millisecond), result.storedRowsPerSecond(), result.peakDepth,
+		result.telemetryRows, result.offeredValuesPerSecond(), result.liveRows, result.sentValuesPerSecond(), result.queued, result.storedTelemetry, result.lost(), result.storedLive,
+		result.generate.Round(time.Millisecond), result.drain.Round(time.Millisecond), result.storedValuesPerSecond(), result.peakDepth,
 		result.agePercentile(0.5).Round(time.Millisecond), result.agePercentile(0.95).Round(time.Millisecond),
 		result.agePercentile(1).Round(time.Millisecond), result.fallbacks, result.keptUp())
+}
+
+// conclusion explains a target run in plain words: what was asked, sent and stored, and whether
+// the database kept up. When it fell behind, the stored rate is about what this PC can store.
+func (result loadResult) conclusion(targetValues int) string {
+	plan := result.plan
+	planned := plan.machines * telemetryLoadVariableCount * plan.rate
+	storedValues := result.storedValuesPerSecond()
+	var text strings.Builder
+	changeText := "every value changing"
+	if plan.changeRatio < 1 {
+		changeText = fmt.Sprintf("%.0f%% of values changing", plan.changeRatio*100)
+	}
+	fmt.Fprintf(&text, "  Asked        %d values/s for %d s (sent as %d machines × %d variables × %d reading/s = %d values/s, %s)\n",
+		targetValues, plan.seconds, plan.machines, telemetryLoadVariableCount, plan.rate, planned, changeText)
+	fmt.Fprintf(&text, "  Sent         %.0f values/s; sending took %s (planned %d s)\n",
+		result.sentValuesPerSecond(), result.generate.Round(100*time.Millisecond), plan.seconds)
+	fmt.Fprintf(&text, "  Path         %d readings through RabbitMQ, %d written directly because the queue buffer was full\n",
+		result.queued, result.fallbacks)
+	fmt.Fprintf(&text, "  Stored       %d of %d values (lost %d), %.0f values/s from first sent to last stored (machine_telementry; machine_variable_values not counted)\n",
+		result.storedTelemetry, result.telemetryRows, result.lost(), storedValues)
+	fmt.Fprintf(&text, "  Queue        peak %d readings waiting; empty %s after sending stopped\n",
+		result.peakDepth, result.drain.Round(100*time.Millisecond))
+	fmt.Fprintf(&text, "  Data age     newest stored telemetry value was p50 %s / p95 %s / max %s old while sending\n",
+		result.agePercentile(0.5).Round(100*time.Millisecond), result.agePercentile(0.95).Round(100*time.Millisecond),
+		result.agePercentile(1).Round(100*time.Millisecond))
+	switch {
+	case result.lost() != 0:
+		fmt.Fprintf(&text, "  RESULT       FAILED: %d values were not stored", result.lost())
+	case result.keptUp():
+		fmt.Fprintf(&text, "  RESULT       KEPT UP at %.0f values/s: stored as fast as sent. Raise -Values to find the limit.", result.sentValuesPerSecond())
+	default:
+		fmt.Fprintf(&text, "  RESULT       FELL BEHIND at %.0f values/s: this PC stores about %.0f values/s. Nothing lost, but the queue grows while the load lasts.",
+			result.sentValuesPerSecond(), storedValues)
+	}
+	return text.String()
 }
 
 // loadSummary is a markdown table of the runs.
 func loadSummary(results []loadResult) string {
 	var text strings.Builder
-	text.WriteString("| Run | Machines | Readings/s each | Msg/s | MB/s | Rows/s offered | Rows/s stored | Peak queue | Data age p50 / p95 / max | Drain | Fallback | Lost | Kept up |\n")
+	text.WriteString("| Run | Machines | Readings/s each | Msg/s | MB/s | Values/s offered | Values/s stored | Peak queue | Data age p50 / p95 / max | Drain | Fallback | Lost | Kept up |\n")
 	text.WriteString("|---|---|---|---|---|---|---|---|---|---|---|---|---|\n")
 	for _, result := range results {
 		fmt.Fprintf(&text, "| %s | %d | %d | %.0f | %.2f | %.0f | %.0f | %d | %s / %s / %s | %s | %d | %d | %v |\n",
 			result.plan.name, result.plan.machines, result.plan.rate, float64(result.readings)/float64(result.plan.seconds),
-			float64(result.bodyBytes)/float64(result.plan.seconds)/1e6, result.offeredRowsPerSecond(), result.storedRowsPerSecond(),
+			float64(result.bodyBytes)/float64(result.plan.seconds)/1e6, result.offeredValuesPerSecond(), result.storedValuesPerSecond(),
 			result.peakDepth, result.agePercentile(0.5).Round(100*time.Millisecond), result.agePercentile(0.95).Round(100*time.Millisecond),
 			result.agePercentile(1).Round(100*time.Millisecond), result.drain.Round(100*time.Millisecond), result.fallbacks, result.lost(), result.keptUp())
 	}
@@ -198,18 +267,29 @@ func runTelemetryLoad(t *testing.T, brokerURL string, product config.Config, run
 	result := loadResult{plan: plan}
 	first := telemetryLoadBaseMachine + int64(run)*100_000
 	last := first + int64(plan.machines) - 1
-	deleteTelemetryRows(t, first, last)
-	defer deleteTelemetryRows(t, first, last)
+	removeLoadRows(t, first, last)
+	defer removeLoadRows(t, first, last)
 
 	settings := loadQueueSettings(brokerURL, product.RabbitMQ)
 	defer deleteQueueTopology(t, settings)
+	// The writers get connections of their own, as the server gives them (ADR 0027); the direct
+	// writes of refused readings use the shared pool.
+	writerConfig := product.DB
+	writerConfig.MaxConns = product.RabbitMQ.Consumers
+	writerPool, err := db.Connect(context.Background(), writerConfig)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer writerPool.Close()
 	telemetryService := newTelemetryService()
-	telemetryQueue := monitor.NewTelemetryQueue(settings, product.CNC, telemetryService)
+	telemetryQueue := monitor.NewTelemetryQueue(settings, product.CNC,
+		service.NewMachineTelemetryService(writerPool, repository.NewMachineTelemetryRepository(writerPool)))
 	telemetryQueue.Start()
 	defer telemetryQueue.Stop()
 	waitForLoadQueue(t, settings)
 
 	// Watch the database and the queue once a second while sending.
+	started := time.Now()
 	samplingCtx, stopSampling := context.WithCancel(context.Background())
 	var samplingDone sync.WaitGroup
 	var sampleMu sync.Mutex
@@ -224,9 +304,9 @@ func runTelemetryLoad(t *testing.T, brokerURL string, product config.Config, run
 				return
 			case <-ticker.C:
 			}
-			if machinesWithData, oldest, err := loadWatermark(first, last); err == nil && machinesWithData == plan.machines {
+			if machinesWithData, oldest, err := loadWatermark(first, last, started.Add(telemetryLoadTimeShift)); err == nil && machinesWithData == plan.machines {
 				sampleMu.Lock()
-				result.ages = append(result.ages, time.Since(oldest))
+				result.ages = append(result.ages, time.Since(oldest.Add(-telemetryLoadTimeShift)))
 				sampleMu.Unlock()
 			}
 			if waiting, _, err := queue.QueueDepth(settings); err == nil {
@@ -245,7 +325,6 @@ func runTelemetryLoad(t *testing.T, brokerURL string, product config.Config, run
 	var readings, queued, fallbacks, telemetryRows, liveRows, bodyBytes atomic.Int64
 	period := time.Second / time.Duration(plan.rate)
 	steps := plan.seconds * plan.rate
-	started := time.Now()
 	var machinesDone sync.WaitGroup
 	for machine := range plan.machines {
 		machinesDone.Add(1)
@@ -256,10 +335,10 @@ func runTelemetryLoad(t *testing.T, brokerURL string, product config.Config, run
 			for step := range steps {
 				at := started.Add(offset + time.Duration(step)*period)
 				time.Sleep(time.Until(at))
-				readAt := at.UTC().Truncate(time.Microsecond)
+				readAt := at.UTC().Truncate(time.Microsecond).Add(telemetryLoadTimeShift)
 				live, telemetry := loadReading(machineID, machine, readAt, step, plan.rate, plan.changeRatio)
 				reading := model.NewTelemetryReading(machineID, readAt, model.TelemetrySourceCNC, live, telemetry)
-				if body, err := json.Marshal(reading); err == nil {
+				if body, err := monitor.EncodeReading(reading); err == nil {
 					bodyBytes.Add(int64(len(body)))
 				}
 				readings.Add(1)
@@ -285,18 +364,18 @@ func runTelemetryLoad(t *testing.T, brokerURL string, product config.Config, run
 	result.generate = time.Since(started)
 	sentAt := time.Now()
 
-	// Done when every machine's last reading is stored (its slot-0 time or later) and the
-	// telemetry row count matches. The wait allows for the database writing 20,000 rows/s.
-	lastStep := started.Add(time.Duration(steps-1) * period).UTC().Truncate(time.Microsecond)
+	// Done when every machine's last reading is in machine_telementry (its slot-0 time or later)
+	// and the telemetry row count matches: the throughput counts telemetry values only. The wait
+	// allows for the database writing 10,000 values/s.
+	lastStep := started.Add(time.Duration(steps-1) * period).UTC().Truncate(time.Microsecond).Add(telemetryLoadTimeShift)
 	result.telemetryRows, result.liveRows = telemetryRows.Load(), liveRows.Load()
-	deadline := time.Now().Add(5*time.Minute + time.Duration((result.telemetryRows+result.liveRows)/20_000)*time.Second)
+	deadline := time.Now().Add(5*time.Minute + time.Duration(result.telemetryRows/10_000)*time.Second)
 	for time.Now().Before(deadline) {
-		var done int
-		if err := testDBPool.QueryRow(context.Background(), `SELECT count(*) FROM machine_variable_values
-			WHERE machine_id BETWEEN $1 AND $2 AND variable_id = 1 AND updated_at >= $3`, first, last, lastStep).Scan(&done); err != nil {
+		machinesWithData, oldest, err := loadWatermark(first, last, started.Add(telemetryLoadTimeShift))
+		if err != nil {
 			t.Fatal(err)
 		}
-		if done == plan.machines {
+		if machinesWithData == plan.machines && !oldest.Before(lastStep) {
 			if err := testDBPool.QueryRow(context.Background(), `SELECT count(*) FROM machine_telementry WHERE machine_id BETWEEN $1 AND $2`,
 				first, last).Scan(&result.storedTelemetry); err != nil {
 				t.Fatal(err)
@@ -310,6 +389,9 @@ func runTelemetryLoad(t *testing.T, brokerURL string, product config.Config, run
 	result.drain = time.Since(sentAt)
 	stopSampling()
 	samplingDone.Wait()
+	// machine_variable_values is checked for correctness only, after the timing: with
+	// RABBITMQ_LIVE_EVERY_N > 1 the writers upsert it every few batches.
+	waitForLiveValues(t, first, last, lastStep, plan.machines)
 	if err := testDBPool.QueryRow(context.Background(), `SELECT count(*) FROM machine_variable_values WHERE machine_id BETWEEN $1 AND $2`,
 		first, last).Scan(&result.storedLive); err != nil {
 		t.Fatal(err)
@@ -336,7 +418,9 @@ func loadReading(machineID int64, machine int, readAt time.Time, step, rate int,
 	telemetry := make([]model.TelemetryValue, 0, telemetryLoadVariableCount)
 	for variable := 1; variable <= telemetryLoadVariableCount; variable++ {
 		changed := variable == 1 || step == 0 || changeRatio >= 1 || loadChance(machine, step, variable) < changeRatio
-		value := float64(step*1000 + variable)
+		// Up to 100,000 with 3 decimals, like axis positions and loads: queue messages are gzipped
+		// (ADR 0030), and counting numbers would compress far better than real readings.
+		value := math.Round(loadChance(machine, step, variable+telemetryLoadVariableCount)*100_000_000) / 1000
 		if changed || refresh {
 			live = append(live, model.LiveValue{MachineID: machineID, VariableID: variable, Value: &value, UpdatedAt: readAt})
 		}
@@ -356,17 +440,62 @@ func loadChance(machine, step, variable int) float64 {
 	return float64(x>>11) / float64(1<<53)
 }
 
-// loadWatermark gives how many machines have data and the read time of the oldest "newest
-// reading" among them: every machine has data in the database at least that fresh.
-func loadWatermark(first, last int64) (int, time.Time, error) {
+// loadWatermark gives how many machines have telemetry since the run started and the read time
+// of the oldest "newest reading" among them: every machine has telemetry in the database at least
+// that fresh. Variable 1 changes on every reading; one index lookup per machine, in the run's
+// chunk only.
+func loadWatermark(first, last int64, since time.Time) (int, time.Time, error) {
 	var machines int
 	var oldest *time.Time
-	err := testDBPool.QueryRow(context.Background(), `SELECT count(*), min(updated_at) FROM machine_variable_values
-		WHERE machine_id BETWEEN $1 AND $2 AND variable_id = 1`, first, last).Scan(&machines, &oldest)
+	err := testDBPool.QueryRow(context.Background(), `SELECT count(latest.recorded_at), min(latest.recorded_at)
+		FROM generate_series($1::bigint, $2::bigint) AS machine(id)
+		CROSS JOIN LATERAL (SELECT recorded_at FROM machine_telementry
+			WHERE machine_id = machine.id AND variable_id = 1 AND recorded_at >= $3
+			ORDER BY recorded_at DESC LIMIT 1) AS latest`, first, last, since).Scan(&machines, &oldest)
 	if err != nil || oldest == nil {
 		return machines, time.Time{}, err
 	}
 	return machines, *oldest, nil
+}
+
+// removeLoadRows removes the load test's rows of machines first to last: its own chunks (dated
+// telemetryLoadTimeShift ahead) are dropped, which writes nothing; without TimescaleDB the rows
+// are deleted.
+func removeLoadRows(t *testing.T, first, last int64) {
+	t.Helper()
+	hypertable, err := newTelemetryService().IsHypertable(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hypertable {
+		deleteTelemetryRows(t, first, last)
+		return
+	}
+	// Only chunks wholly after this are dropped: no real reading is dated decades ahead.
+	if _, err := testDBPool.Exec(context.Background(), `SELECT drop_chunks('machine_telementry', newer_than => $1::timestamptz)`,
+		time.Now().Add(telemetryLoadTimeShift-48*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := testDBPool.Exec(context.Background(), `DELETE FROM machine_variable_values WHERE machine_id BETWEEN $1 AND $2`, first, last); err != nil {
+		t.Errorf("clean up machine_variable_values: %v", err)
+	}
+}
+
+// waitForLiveValues waits until every machine's last reading is in machine_variable_values.
+func waitForLiveValues(t *testing.T, first, last int64, lastStep time.Time, machines int) {
+	t.Helper()
+	deadline := time.Now().Add(time.Minute)
+	for time.Now().Before(deadline) {
+		var done int
+		if err := testDBPool.QueryRow(context.Background(), `SELECT count(*) FROM machine_variable_values
+			WHERE machine_id BETWEEN $1 AND $2 AND variable_id = 1 AND updated_at >= $3`, first, last, lastStep).Scan(&done); err != nil {
+			t.Fatal(err)
+		}
+		if done == machines {
+			return
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
 }
 
 // waitForLoadQueue waits until the publisher declared the queue and the writers can consume.
@@ -438,7 +567,7 @@ func measureBrokerBandwidth(t *testing.T, brokerURL string, product config.Rabbi
 	}()
 
 	live, telemetry := loadReading(telemetryLoadBaseMachine, 0, time.Now().UTC(), 0, 1, 1)
-	body, err := json.Marshal(model.NewTelemetryReading(telemetryLoadBaseMachine, time.Now().UTC(), model.TelemetrySourceCNC, live, telemetry))
+	body, err := monitor.EncodeReading(model.NewTelemetryReading(telemetryLoadBaseMachine, time.Now().UTC(), model.TelemetrySourceCNC, live, telemetry))
 	if err != nil {
 		t.Fatal(err)
 	}

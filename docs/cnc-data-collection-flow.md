@@ -384,7 +384,7 @@ sequenceDiagram
     P->>R: publish (persistent), wait for confirms, resend what is not confirmed
     R->>T: deliver (prefetch 1000)
     Note over T: batch until 5000 rows or 200 ms
-    T->>DB: one InsertTelemetry (ON CONFLICT DO NOTHING) + one UpsertLiveValues (newest wins)
+    T->>DB: one CopyTelemetry (COPY; redelivered batch → InsertTelemetry ON CONFLICT DO NOTHING, ADR 0029) + one UpsertLiveValues (newest wins)
     T->>R: ack every message of the batch
     alt database down
         T->>T: keep the batch, retry after 1 s doubling up to 60 s
@@ -547,7 +547,12 @@ Errors are always written, whatever the switch.
 | `DB_MAX_CONNS` | `20` | Most database connections of the server (API, collectors, queue writers) |
 | `RABBITMQ_ENABLED` | `false` | Store telemetry through RabbitMQ (ADR 0024); `false` = direct writes, no broker needed |
 | `RABBITMQ_URL` | `amqp://guest:guest@localhost:5672/` | Broker address and login (password never logged) |
-| `RABBITMQ_CONSUMERS` | `4` | Writers that save queued readings. Fixed in `config.Load`: exchange `telemetry`, quorum queue `telemetry.values`, dead letters `telemetry.values.dead`, prefetch 1000, batches of 5000 rows / 200 ms, publish buffer 20000, reconnect wait up to 60 s |
+| `RABBITMQ_CONSUMERS` | `4` | Writers that save queued readings. Fixed in `config.Load`: exchange `telemetry`, routing key `values` |
+| `RABBITMQ_QUEUE` / `RABBITMQ_QUEUE_TYPE` | `telemetry.values` / `quorum` | Queue the writers consume (dead letters `<queue>.dead`); `classic` also allowed (ADR 0028) |
+| `RABBITMQ_PREFETCH` | `1000` | Unacknowledged messages per writer |
+| `RABBITMQ_BATCH_ROWS` / `RABBITMQ_BATCH_MS` | `10000` / `1000` | A batch is written at this many rows or this long after its first message |
+| `RABBITMQ_PUBLISH_BUFFER` | `20000` | Messages waiting in memory; full = direct write |
+| `RABBITMQ_RECONNECT_MAX_SEC` | `60` | Longest wait between broker reconnects and batch retries |
 
 ### Tables
 
@@ -642,7 +647,7 @@ run (main.go)
   → Latest (worker.go)
   → processReading (worker.go)
   → storeReading (worker.go)
-    → TelemetryQueue.Enqueue (telemetry_queue.go), RABBITMQ_ENABLED; later telemetryWriter.flush → InsertTelemetry + UpsertLiveValues
+    → TelemetryQueue.Enqueue (telemetry_queue.go), RABBITMQ_ENABLED; later telemetryWriter.flush → CopyTelemetry + UpsertLiveValues
     → else upsertLiveValues + insertTelemetry (worker.go)
 ```
 

@@ -2,7 +2,6 @@ package monitor
 
 import (
 	"context"
-	"encoding/json"
 	"log/slog"
 	"strconv"
 	"sync"
@@ -123,7 +122,7 @@ func (telemetryQueue *TelemetryQueue) Enqueue(reading model.TelemetryReading) bo
 	if telemetryQueue == nil {
 		return false
 	}
-	body, err := json.Marshal(reading)
+	body, err := EncodeReading(reading)
 	if err != nil {
 		telemetryQueue.logFallback("queue: reading cannot be encoded, writing it directly", reading, err)
 		return false
@@ -170,12 +169,9 @@ func (telemetryQueue *TelemetryQueue) storeUnsent(unsent [][]byte) {
 	telemetryQueue.log(slog.LevelInfo, "queue: unsent readings written directly at stop", "messages", len(unsent), "rows", batch.rows)
 }
 
-// writeRows stores the rows of a batch: time series first, then the live values.
+// writeRows stores the rows of a batch in one transaction: time series first, then the live values.
 func (telemetryQueue *TelemetryQueue) writeRows(ctx context.Context, telemetry []model.TelemetryValue, live []model.LiveValue) error {
-	if err := telemetryQueue.service.InsertTelemetry(ctx, telemetry); err != nil {
-		return err
-	}
-	return telemetryQueue.service.UpsertLiveValues(ctx, live)
+	return telemetryQueue.service.WriteTelemetryBatch(ctx, telemetry, live)
 }
 
 // logStatsEveryMinute logs the statistics once a minute until ctx ends.
@@ -227,7 +223,7 @@ func (telemetryQueue *TelemetryQueue) SettingsLogAttributes() []any {
 		"routingKey", settings.RoutingKey, "queue", settings.Queue, "queueType", settings.QueueType,
 		"consumers", settings.Consumers,
 		"prefetch", settings.Prefetch, "batchRows", settings.BatchRows, "batchMs", settings.BatchInterval.Milliseconds(),
-		"publishBuffer", settings.PublishBuffer}
+		"liveEveryN", settings.LiveEveryN, "publishBuffer", settings.PublishBuffer}
 }
 
 // log writes a queue line (logType queue); it is the queue package's Logger.

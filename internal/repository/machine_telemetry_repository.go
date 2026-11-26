@@ -250,6 +250,15 @@ func (telemetryRepository *MachineTelemetryRepository) GetLiveValues(ctx context
 	return result, nil
 }
 
+// UseAsynchronousCommit makes the current transaction's COMMIT return without waiting for the WAL
+// to reach the disk (SET LOCAL: only this transaction). Call it inside a transaction.
+func (telemetryRepository *MachineTelemetryRepository) UseAsynchronousCommit(ctx context.Context) error {
+	if err := execute(ctx, telemetryRepository.database, `SET LOCAL synchronous_commit = off`); err != nil {
+		return fmt.Errorf("use asynchronous commit: %w", err)
+	}
+	return nil
+}
+
 // InsertTelemetry adds rows to machine_telementry in one statement. A row already stored (same
 // machine, variable and time: a batch the telemetry queue delivered again) is skipped by the
 // unique index of migration 039.
@@ -275,6 +284,49 @@ func (telemetryRepository *MachineTelemetryRepository) InsertTelemetry(ctx conte
 		return fmt.Errorf("insert telemetry: %w", mapTelemetryError(err))
 	}
 	return nil
+}
+
+// telemetryCopyColumns are the machine_telementry columns CopyTelemetry fills, in row order.
+var telemetryCopyColumns = []string{"machine_id", "variable_id", "value", "recorded_at"}
+
+// uniqueViolation is PostgreSQL's unique_violation error code.
+const uniqueViolation = "23505"
+
+// CopyTelemetry adds a telemetry queue batch to machine_telementry with COPY (binary, no SQL to
+// parse or plan: faster than InsertTelemetry for thousands of rows). COPY cannot skip rows already
+// stored, so it runs in a savepoint: a batch delivered again (unique violation) is rolled back to
+// it and written with InsertTelemetry, which skips them. The repository must be on a transaction.
+func (telemetryRepository *MachineTelemetryRepository) CopyTelemetry(ctx context.Context, values []model.TelemetryValue) error {
+	if len(values) == 0 {
+		return nil
+	}
+	tx, ok := telemetryRepository.database.(pgx.Tx)
+	if !ok {
+		return errors.New("copy telemetry: needs a transaction")
+	}
+	savepoint, err := tx.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("copy telemetry: %w", err)
+	}
+	_, err = savepoint.CopyFrom(ctx, pgx.Identifier{"machine_telementry"}, telemetryCopyColumns,
+		pgx.CopyFromSlice(len(values), func(i int) ([]any, error) {
+			value := values[i]
+			return []any{value.MachineID, int32(value.VariableID), value.Value, value.RecordedAt}, nil
+		}))
+	if err == nil {
+		if err := savepoint.Commit(ctx); err != nil {
+			return fmt.Errorf("copy telemetry: %w", err)
+		}
+		return nil
+	}
+	if rollbackErr := savepoint.Rollback(ctx); rollbackErr != nil {
+		return fmt.Errorf("copy telemetry: %w", rollbackErr)
+	}
+	var pgError *pgconn.PgError
+	if errors.As(err, &pgError) && pgError.Code == uniqueViolation {
+		return telemetryRepository.InsertTelemetry(ctx, values)
+	}
+	return fmt.Errorf("copy telemetry: %w", mapTelemetryError(err))
 }
 
 // UpsertLiveStatuses saves one machine_live_status row per machine.

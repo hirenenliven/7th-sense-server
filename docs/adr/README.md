@@ -29,5 +29,10 @@ Server (backend) decisions, one file each (Michael Nygard template). Never edit 
 | 0023 | [PLC reader: short session timeout, and read the nodes the controller has no room to monitor](0023-plc-session-timeout-and-read-when-no-room.md) | Proposed | 2026-11-20 |
 | 0024 | [Telemetry rows through a RabbitMQ queue, written in batches](0024-rabbitmq-telemetry-queue.md) | Proposed | 2026-11-20 |
 | 0025 | [A machine is saved at one level of its customer's organization; the path above is read, not stored](0025-machine-location-from-customer-filters.md) | Proposed | 2026-11-23 |
+| 0026 | [Telemetry writes: one asynchronous commit per batch, one index less, PostgreSQL settings](0026-telemetry-postgres-write-tuning.md) | Proposed | 2026-11-24 |
+| 0027 | [Telemetry queue under overload: larger confirm groups, the writers' own database pool; the 2 lakh values/s ceiling](0027-telemetry-overload-and-capacity.md) | Proposed | 2026-11-24 |
+| 0028 | [Telemetry queue tuning settings come from the environment](0028-telemetry-queue-settings-from-env.md) | Proposed | 2026-11-25 |
+| 0029 | [Telemetry queue batches are stored with COPY](0029-telemetry-batch-copy.md) | Proposed | 2026-11-25 |
+| 0030 | [Telemetry queue messages are gzip-compressed](0030-gzip-telemetry-queue-messages.md) | Proposed | 2026-11-26 |
 
 New ADR: copy the newest file, take the next number, status "Proposed" until agreed, then "Accepted"; add a row here.

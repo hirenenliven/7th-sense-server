@@ -109,6 +109,25 @@ func (telemetryService *MachineTelemetryService) InsertTelemetry(ctx context.Con
 	return toMachineTelemetryResponseError(telemetryService.telemetryRepository.InsertTelemetry(ctx, values))
 }
 
+// WriteTelemetryBatch stores a telemetry queue batch: the machine_telementry rows (COPY, ADR 0029)
+// and the machine_variable_values upsert in one transaction committed asynchronously (ADR 0026). A value
+// PostgreSQL refuses answers response.InvalidTelemetry.
+func (telemetryService *MachineTelemetryService) WriteTelemetryBatch(ctx context.Context, telemetry []model.TelemetryValue, live []model.LiveValue) error {
+	err := db.WithTransaction(ctx, telemetryService.dbPool, func(tx pgx.Tx) error {
+		telemetryRepository := repository.NewMachineTelemetryRepository(tx)
+		// One commit instead of two, and it does not wait for the disk: a PostgreSQL or OS crash
+		// may lose the last fraction of a second of batches already acknowledged to RabbitMQ.
+		if err := telemetryRepository.UseAsynchronousCommit(ctx); err != nil {
+			return err
+		}
+		if err := telemetryRepository.CopyTelemetry(ctx, telemetry); err != nil {
+			return err
+		}
+		return telemetryRepository.UpsertLiveValues(ctx, live)
+	})
+	return toMachineTelemetryResponseError(err)
+}
+
 // ChangeMode ends the machine's open mode period and opens one in change.ModeID, in one
 // transaction (machine_mode_log and machines.mode_id stay in step).
 func (telemetryService *MachineTelemetryService) ChangeMode(ctx context.Context, change model.ModeChange) error {

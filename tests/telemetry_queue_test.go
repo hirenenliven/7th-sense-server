@@ -84,6 +84,29 @@ func TestTelemetryWritesAreRepeatable(t *testing.T) {
 		}
 	})
 
+	t.Run("queue batch written twice is stored once with its live value", func(t *testing.T) {
+		batchAt := newer.Add(time.Minute)
+		rows := []model.TelemetryValue{{MachineID: telemetryTestMachineID, VariableID: 3, Value: &newValue, RecordedAt: batchAt}}
+		live := []model.LiveValue{{MachineID: telemetryTestMachineID, VariableID: 3, Value: &newValue, UpdatedAt: batchAt}}
+		for range 2 {
+			if err := telemetryService.WriteTelemetryBatch(ctx, rows, live); err != nil {
+				t.Fatalf("write telemetry batch: %v", err)
+			}
+		}
+		var count int
+		if err := testDBPool.QueryRow(ctx, `SELECT count(*) FROM machine_telementry WHERE machine_id = $1 AND variable_id = 3`,
+			telemetryTestMachineID).Scan(&count); err != nil {
+			t.Fatal(err)
+		}
+		values, err := telemetryService.GetLiveValues(ctx, telemetryTestMachineID, []int{3})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if count != 1 || values[3].Value == nil || !values[3].UpdatedAt.Equal(batchAt) {
+			t.Fatalf("stored %d rows and live %+v, want 1 row and the value read at %s", count, values[3], batchAt)
+		}
+	})
+
 	t.Run("older live value never replaces a newer one", func(t *testing.T) {
 		// One batch holding both readings, then the older one again on its own.
 		err := telemetryService.UpsertLiveValues(ctx, []model.LiveValue{
